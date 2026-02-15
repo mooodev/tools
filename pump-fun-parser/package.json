@@ -1,0 +1,17 @@
+{
+  "name": "pump-fun-parser",
+  "version": "1.0.0",
+  "description": "Parse tokens and trading data from pump.fun, storing results as local JSON files",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "fetch-historical": "node src/index.js historical",
+    "fetch-live": "node src/index.js live",
+    "status": "node src/status.js"
+  },
+  "keywords": ["pump.fun", "solana", "token", "parser"],
+  "license": "MIT",
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}
