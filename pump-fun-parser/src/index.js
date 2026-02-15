@@ -1,7 +1,7 @@
 const config = require("./config");
 const storage = require("./storage");
 const { paginateCoins, fetchCurrentlyLive, fetchLatestCoins } = require("./token-fetcher");
-const { fetchAllTrades, fetchMetadataAndTrades } = require("./trade-fetcher");
+const { fetchAllTrades, fetchCandlesticks, fetchMetadataAndTrades } = require("./trade-fetcher");
 const { startLiveCollector } = require("./live-collector");
 const { sleep } = require("./api-client");
 
@@ -16,7 +16,14 @@ async function main() {
 
   console.log(`Data directory: ${config.DATA_DIR}`);
   console.log(`Existing tokens on disk: ${storage.getTokenCount()}`);
-  console.log(`JWT auth: ${config.JWT_TOKEN ? "configured" : "not set (some endpoints may require it)"}`);
+  if (config.JWT_TOKEN) {
+    console.log("JWT auth: configured");
+  } else {
+    console.log("JWT auth: NOT SET");
+    console.log("  -> Trades endpoint requires JWT. Set PUMPFUN_JWT env var for full trade data.");
+    console.log("  -> Without JWT: token metadata + candlestick data will still be collected.");
+    console.log("  -> Tip: open pump.fun in browser, DevTools > Network, copy Authorization header.");
+  }
   console.log(`Mode: ${MODE}\n`);
 
   if (MODE === "live") {
@@ -150,21 +157,39 @@ async function processToken(coin) {
 
   console.log(`\n  Processing: ${name} (${mint.slice(0, 12)}...)`);
 
-  // Fetch all trades for this token
+  // Fetch all trades for this token (requires JWT)
   let trades = [];
+  let tradesFailed = false;
   try {
     trades = await fetchAllTrades(mint);
-    console.log(`    Trades fetched: ${trades.length}`);
+    if (trades.length > 0) {
+      console.log(`    Trades fetched: ${trades.length}`);
+    } else {
+      tradesFailed = true;
+    }
   } catch (err) {
-    console.error(`    Error fetching trades: ${err.message}`);
+    tradesFailed = true;
   }
 
-  // Also try the advanced metadata+trades endpoint
-  let advancedData = null;
+  if (tradesFailed && !config.JWT_TOKEN) {
+    console.log(`    Trades: skipped (no JWT). Fetching candlestick data instead...`);
+  }
+
+  // Fetch candlestick (OHLCV) data — works as a fallback for price/volume history
+  let candlesticks = [];
   try {
+    candlesticks = await fetchCandlesticks(mint);
+    if (candlesticks.length > 0) {
+      console.log(`    Candlesticks fetched: ${candlesticks.length}`);
+    }
+  } catch {
+    // Not critical
+  }
+
+  // Advanced metadata+trades endpoint (only try if JWT is set, otherwise always 404s)
+  let advancedData = null;
+  if (config.JWT_TOKEN) {
     advancedData = await fetchMetadataAndTrades(mint);
-  } catch (err) {
-    // Not critical, skip
   }
 
   // Build comprehensive token record
@@ -212,9 +237,13 @@ async function processToken(coin) {
     // Last trade timestamp
     last_trade_timestamp: coin.last_trade_timestamp || null,
 
-    // All trading data
+    // All trading data (individual trades — requires JWT)
     trades_count: trades.length,
     trades: trades.map(normalizeTrade),
+
+    // Candlestick / OHLCV data (price + volume history — no auth needed)
+    candlesticks_count: candlesticks.length,
+    candlesticks,
 
     // Advanced API data (if available)
     advanced_metadata: advancedData || null,

@@ -30,8 +30,10 @@ Each token JSON file includes:
 | `market_cap` / `usd_market_cap` | Market capitalization |
 | `graduated` | `true` if the bonding curve completed and token migrated to DEX |
 | `raydium_pool` | Raydium pool address (if graduated) |
-| `trades` | Array of ALL buy/sell trades with amounts, timestamps, signatures |
+| `trades` | Array of ALL buy/sell trades with amounts, timestamps, signatures (requires JWT) |
 | `trades_count` | Total number of trades |
+| `candlesticks` | OHLCV price/volume history (works without JWT) |
+| `candlesticks_count` | Number of candlestick bars |
 | `raw_coin_data` | Complete raw API response for the token |
 
 ## Setup
@@ -79,21 +81,33 @@ See a summary of all collected data:
 npm run status
 ```
 
-## Authentication (Optional)
+## Authentication
 
-Some pump.fun API endpoints may require or return more data with JWT authentication. To use it:
+The pump.fun **trades endpoint** (`/trades/all/{mint}`) requires JWT authentication. Without it, the parser still collects token metadata, graduation status, and candlestick (OHLCV) price/volume data — but individual trade records will be empty.
+
+### How to get your JWT token
 
 1. Go to [pump.fun](https://pump.fun) in your browser
-2. Open DevTools > Network tab
-3. Find any API request and copy the `Authorization: Bearer <token>` header value
-4. Set it as an environment variable:
+2. Open DevTools (F12) > **Network** tab
+3. Click on any token page and look for requests to `frontend-api-v3.pump.fun`
+4. Find the `Authorization: Bearer eyJ...` header value and copy the token part
+5. Set it as an environment variable:
 
 ```bash
-export PUMPFUN_JWT="your-jwt-token-here"
+export PUMPFUN_JWT="eyJhbGciOiJIUzI1NiIs..."
 node src/index.js historical
 ```
 
-Without JWT, the parser will still work but some endpoints may return limited data or 401 errors (it handles these gracefully and continues).
+### What you get with vs. without JWT
+
+| Data | Without JWT | With JWT |
+|---|---|---|
+| Token metadata (name, symbol, creator, etc.) | Yes | Yes |
+| Graduation status | Yes | Yes |
+| Bonding curve data | Yes | Yes |
+| Candlestick / OHLCV data | Yes | Yes |
+| Individual trades (buy/sell records) | **No** | Yes |
+| Advanced metadata | No | Yes |
 
 ## Output
 
