@@ -3,6 +3,7 @@ const { fetchJSON } = require("./api-client");
 
 /**
  * Fetch a page of trades for a token.
+ * Requires JWT auth — will return [] without it.
  *
  * @param {string} mint - Token mint address
  * @param {number} offset - Pagination offset
@@ -13,6 +14,7 @@ async function fetchTradesPage(mint, offset = 0, limit = config.TRADES_PER_PAGE)
   const params = new URLSearchParams({
     limit: String(limit),
     offset: String(offset),
+    minimumSize: "0",
   });
 
   const url = `${config.FRONTEND_API}/trades/all/${mint}?${params}`;
@@ -24,7 +26,11 @@ async function fetchTradesPage(mint, offset = 0, limit = config.TRADES_PER_PAGE)
     if (data && Array.isArray(data.data)) return data.data;
     return [];
   } catch (err) {
-    console.error(`  [trades] Error for ${mint}: ${err.message}`);
+    // Don't spam logs for expected auth failures
+    if (/HTTP (401|403|404)/.test(err.message)) {
+      return [];
+    }
+    console.error(`  [trades] Error for ${mint.slice(0, 12)}: ${err.message}`);
     return [];
   }
 }
@@ -57,7 +63,30 @@ async function fetchAllTrades(mint) {
 }
 
 /**
+ * Fetch candlestick (OHLCV) data for a token.
+ * This endpoint may work without JWT and provides price/volume history.
+ *
+ * @param {string} mint - Token mint address
+ * @returns {Promise<Array>} Candlestick data
+ */
+async function fetchCandlesticks(mint) {
+  const url = `${config.FRONTEND_API}/candlesticks/${mint}?offset=0&limit=1000&timeframe=1`;
+
+  try {
+    const data = await fetchJSON(url);
+    if (Array.isArray(data)) return data;
+    return [];
+  } catch (err) {
+    if (!/HTTP (401|403|404)/.test(err.message)) {
+      console.error(`  [candles] Error for ${mint.slice(0, 12)}: ${err.message}`);
+    }
+    return [];
+  }
+}
+
+/**
  * Fetch combined metadata and trades from the advanced API.
+ * Often requires auth — silently returns null on failure.
  *
  * @param {string} mint - Token mint address
  * @returns {Promise<object|null>}
@@ -67,8 +96,7 @@ async function fetchMetadataAndTrades(mint) {
 
   try {
     return await fetchJSON(url);
-  } catch (err) {
-    console.error(`  [meta+trades] Error for ${mint}: ${err.message}`);
+  } catch {
     return null;
   }
 }
@@ -76,5 +104,6 @@ async function fetchMetadataAndTrades(mint) {
 module.exports = {
   fetchTradesPage,
   fetchAllTrades,
+  fetchCandlesticks,
   fetchMetadataAndTrades,
 };

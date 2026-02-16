@@ -22,6 +22,7 @@ function sleep(ms) {
 
 /**
  * Make an HTTP GET request with retries and rate limiting.
+ * Does NOT retry on 401, 403, or 404 (auth / not-found errors).
  * @param {string} url - Full URL to fetch
  * @returns {Promise<object>} Parsed JSON response
  */
@@ -33,6 +34,9 @@ async function fetchJSON(url) {
       const data = await doGet(url);
       return JSON.parse(data);
     } catch (err) {
+      // Never retry client errors — they won't succeed on retry
+      if (/HTTP (401|403|404)/.test(err.message)) throw err;
+
       const isLast = attempt === config.RETRY_ATTEMPTS;
       if (isLast) throw err;
 
