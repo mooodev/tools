@@ -1,7 +1,7 @@
 const WebSocket = require("ws");
 const config = require("./config");
 const storage = require("./storage");
-const { fetchAllTrades } = require("./trade-fetcher");
+const { fetchAllTrades, fetchCandlesticks } = require("./trade-fetcher");
 const { sleep } = require("./api-client");
 
 /**
@@ -107,30 +107,49 @@ function handleNewToken(msg, pendingTokens, tokenTrades, ws, subscribeTrades, tr
 
   tokenTrades.set(mint, []);
 
-  // Subscribe to this token's trades for real-time collection
-  if (subscribeTrades) {
-    ws.send(
-      JSON.stringify({
-        method: "subscribeTokenTrade",
-        keys: [mint],
-      })
-    );
-  }
-
-  // Schedule trade fetch via REST API after delay
-  setTimeout(async () => {
-    try {
-      console.log(`  [fetch-trades] Fetching historical trades for ${mint.slice(0, 8)}...`);
-      const restTrades = await fetchAllTrades(mint);
-      const existing = tokenTrades.get(mint) || [];
-      // Merge: REST trades first, then any WS trades not already present
-      const restSigs = new Set(restTrades.map((t) => t.signature));
-      const uniqueWsTrades = existing.filter((t) => !restSigs.has(t.signature));
-      tokenTrades.set(mint, [...restTrades, ...uniqueWsTrades]);
-    } catch (err) {
-      console.error(`  [fetch-trades] Error for ${mint.slice(0, 8)}: ${err.message}`);
+  if (config.JWT_TOKEN) {
+    // JWT available — subscribe to live trades and fetch historical trades via REST
+    if (subscribeTrades) {
+      ws.send(
+        JSON.stringify({
+          method: "subscribeTokenTrade",
+          keys: [mint],
+        })
+      );
     }
-  }, tradeDelaySec * 1000);
+
+    // Schedule trade fetch via REST API after delay
+    setTimeout(async () => {
+      try {
+        console.log(`  [fetch-trades] Fetching historical trades for ${mint.slice(0, 8)}...`);
+        const restTrades = await fetchAllTrades(mint);
+        const existing = tokenTrades.get(mint) || [];
+        // Merge: REST trades first, then any WS trades not already present
+        const restSigs = new Set(restTrades.map((t) => t.signature));
+        const uniqueWsTrades = existing.filter((t) => !restSigs.has(t.signature));
+        tokenTrades.set(mint, [...restTrades, ...uniqueWsTrades]);
+      } catch (err) {
+        console.error(`  [fetch-trades] Error for ${mint.slice(0, 8)}: ${err.message}`);
+      }
+    }, tradeDelaySec * 1000);
+  } else {
+    // No JWT — skip trade fetching, fetch candlestick data instead
+    setTimeout(async () => {
+      try {
+        console.log(`  [candles] Fetching candlestick data for ${mint.slice(0, 8)}... (no JWT)`);
+        const candles = await fetchCandlesticks(mint);
+        // Store candlesticks on the pending token data
+        const tokenData = pendingTokens.get(mint);
+        if (tokenData) {
+          tokenData.candlesticks = candles;
+          tokenData.candlesticks_count = candles.length;
+          console.log(`  [candles] Got ${candles.length} candlesticks for ${mint.slice(0, 8)}`);
+        }
+      } catch (err) {
+        console.error(`  [candles] Error for ${mint.slice(0, 8)}: ${err.message}`);
+      }
+    }, tradeDelaySec * 1000);
+  }
 }
 
 function handleTrade(msg, tokenTrades) {
@@ -184,6 +203,8 @@ async function saveAccumulatedTokens(pendingTokens, tokenTrades) {
       graduation_event: null,
       trades_count: trades.length,
       trades,
+      candlesticks_count: (tokenData.candlesticks || []).length,
+      candlesticks: tokenData.candlesticks || [],
       last_updated: new Date().toISOString(),
       data_source: "pumpportal_live",
     };

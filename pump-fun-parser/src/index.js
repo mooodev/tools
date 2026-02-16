@@ -157,39 +157,41 @@ async function processToken(coin) {
 
   console.log(`\n  Processing: ${name} (${mint.slice(0, 12)}...)`);
 
-  // Fetch all trades for this token (requires JWT)
   let trades = [];
-  let tradesFailed = false;
-  try {
-    trades = await fetchAllTrades(mint);
-    if (trades.length > 0) {
-      console.log(`    Trades fetched: ${trades.length}`);
-    } else {
-      tradesFailed = true;
-    }
-  } catch (err) {
-    tradesFailed = true;
-  }
-
-  if (tradesFailed && !config.JWT_TOKEN) {
-    console.log(`    Trades: skipped (no JWT). Fetching candlestick data instead...`);
-  }
-
-  // Fetch candlestick (OHLCV) data — works as a fallback for price/volume history
   let candlesticks = [];
-  try {
-    candlesticks = await fetchCandlesticks(mint);
-    if (candlesticks.length > 0) {
-      console.log(`    Candlesticks fetched: ${candlesticks.length}`);
-    }
-  } catch {
-    // Not critical
-  }
-
-  // Advanced metadata+trades endpoint (only try if JWT is set, otherwise always 404s)
   let advancedData = null;
+
   if (config.JWT_TOKEN) {
+    // JWT provided — fetch individual trades + advanced metadata
+    try {
+      trades = await fetchAllTrades(mint);
+      console.log(`    Trades fetched: ${trades.length}`);
+    } catch (err) {
+      console.error(`    Error fetching trades: ${err.message}`);
+    }
+
     advancedData = await fetchMetadataAndTrades(mint);
+
+    // Also grab candlesticks for OHLCV data
+    try {
+      candlesticks = await fetchCandlesticks(mint);
+      if (candlesticks.length > 0) {
+        console.log(`    Candlesticks fetched: ${candlesticks.length}`);
+      }
+    } catch {
+      // Not critical
+    }
+  } else {
+    // No JWT — only fetch candlestick data (trades endpoint will 404)
+    console.log(`    Trades: skipped (no JWT). Collecting candlestick data...`);
+    try {
+      candlesticks = await fetchCandlesticks(mint);
+      if (candlesticks.length > 0) {
+        console.log(`    Candlesticks fetched: ${candlesticks.length}`);
+      }
+    } catch {
+      // Not critical
+    }
   }
 
   // Build comprehensive token record
