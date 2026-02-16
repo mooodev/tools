@@ -63,25 +63,67 @@ async function fetchAllTrades(mint) {
 }
 
 /**
- * Fetch candlestick (OHLCV) data for a token.
- * This endpoint may work without JWT and provides price/volume history.
+ * Fetch a single page of candlestick (OHLCV) data for a token.
+ * Requires JWT authentication on the v3 API.
  *
  * @param {string} mint - Token mint address
+ * @param {number} offset - Pagination offset
+ * @param {number} limit - Candlesticks per page
  * @returns {Promise<Array>} Candlestick data
  */
-async function fetchCandlesticks(mint) {
-  const url = `${config.FRONTEND_API}/candlesticks/${mint}?offset=0&limit=1000&timeframe=1`;
+async function fetchCandlesticksPage(mint, offset = 0, limit = config.CANDLES_PER_PAGE) {
+  const params = new URLSearchParams({
+    offset: String(offset),
+    limit: String(limit),
+    timeframe: "1",
+  });
+
+  const url = `${config.FRONTEND_API}/candlesticks/${mint}?${params}`;
 
   try {
     const data = await fetchJSON(url);
     if (Array.isArray(data)) return data;
     return [];
   } catch (err) {
-    if (!/HTTP (401|403|404)/.test(err.message)) {
+    if (/HTTP (401|403)/.test(err.message)) {
+      if (!config.JWT_TOKEN) {
+        console.warn(`  [candles] Auth required for candlesticks — set PUMPFUN_JWT env var`);
+      } else {
+        console.warn(`  [candles] Auth failed for ${mint.slice(0, 12)} — JWT may be expired`);
+      }
+    } else if (!/HTTP 404/.test(err.message)) {
       console.error(`  [candles] Error for ${mint.slice(0, 12)}: ${err.message}`);
     }
     return [];
   }
+}
+
+/**
+ * Fetch ALL candlestick (OHLCV) data for a token by paginating through all pages.
+ * Requires JWT authentication.
+ *
+ * @param {string} mint - Token mint address
+ * @returns {Promise<Array>} All candlestick data
+ */
+async function fetchAllCandlesticks(mint) {
+  const allCandles = [];
+  let offset = 0;
+  let page = 0;
+
+  while (page < config.MAX_CANDLE_PAGES) {
+    const candles = await fetchCandlesticksPage(mint, offset);
+
+    if (!candles || candles.length === 0) break;
+
+    allCandles.push(...candles);
+    offset += candles.length;
+    page++;
+
+    // If we got fewer than the limit, we've reached the end
+    if (candles.length < config.CANDLES_PER_PAGE) break;
+  }
+
+  return allCandles;
 }
 
 /**
@@ -104,6 +146,7 @@ async function fetchMetadataAndTrades(mint) {
 module.exports = {
   fetchTradesPage,
   fetchAllTrades,
-  fetchCandlesticks,
+  fetchCandlesticksPage,
+  fetchAllCandlesticks,
   fetchMetadataAndTrades,
 };

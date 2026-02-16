@@ -1,7 +1,7 @@
 const WebSocket = require("ws");
 const config = require("./config");
 const storage = require("./storage");
-const { fetchAllTrades, fetchCandlesticks } = require("./trade-fetcher");
+const { fetchAllTrades, fetchAllCandlesticks } = require("./trade-fetcher");
 const { sleep } = require("./api-client");
 
 /**
@@ -108,7 +108,7 @@ function handleNewToken(msg, pendingTokens, tokenTrades, ws, subscribeTrades, tr
   tokenTrades.set(mint, []);
 
   if (config.JWT_TOKEN) {
-    // JWT available — subscribe to live trades and fetch historical trades via REST
+    // JWT available — subscribe to live trades and fetch historical trades + candlesticks via REST
     if (subscribeTrades) {
       ws.send(
         JSON.stringify({
@@ -118,7 +118,7 @@ function handleNewToken(msg, pendingTokens, tokenTrades, ws, subscribeTrades, tr
       );
     }
 
-    // Schedule trade fetch via REST API after delay
+    // Schedule trade + candlestick fetch via REST API after delay
     setTimeout(async () => {
       try {
         console.log(`  [fetch-trades] Fetching historical trades for ${mint.slice(0, 8)}...`);
@@ -131,14 +131,11 @@ function handleNewToken(msg, pendingTokens, tokenTrades, ws, subscribeTrades, tr
       } catch (err) {
         console.error(`  [fetch-trades] Error for ${mint.slice(0, 8)}: ${err.message}`);
       }
-    }, tradeDelaySec * 1000);
-  } else {
-    // No JWT — skip trade fetching, fetch candlestick data instead
-    setTimeout(async () => {
+
+      // Also fetch candlestick data (requires JWT)
       try {
-        console.log(`  [candles] Fetching candlestick data for ${mint.slice(0, 8)}... (no JWT)`);
-        const candles = await fetchCandlesticks(mint);
-        // Store candlesticks on the pending token data
+        console.log(`  [candles] Fetching candlestick data for ${mint.slice(0, 8)}...`);
+        const candles = await fetchAllCandlesticks(mint);
         const tokenData = pendingTokens.get(mint);
         if (tokenData) {
           tokenData.candlesticks = candles;
@@ -149,6 +146,9 @@ function handleNewToken(msg, pendingTokens, tokenTrades, ws, subscribeTrades, tr
         console.error(`  [candles] Error for ${mint.slice(0, 8)}: ${err.message}`);
       }
     }, tradeDelaySec * 1000);
+  } else {
+    // No JWT — both trades and candlestick endpoints require authentication
+    console.log(`  [${mint.slice(0, 8)}] Skipping trades and candlesticks (no JWT configured)`);
   }
 }
 
