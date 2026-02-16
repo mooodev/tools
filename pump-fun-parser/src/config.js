@@ -17,6 +17,8 @@ module.exports = {
   COINS_PER_PAGE: 50,
   TRADES_PER_PAGE: 200,
   MAX_TRADE_PAGES: 50, // max pages of trades to fetch per token (50 * 200 = 10,000 trades)
+  CANDLES_PER_PAGE: 1000,
+  MAX_CANDLE_PAGES: 50, // max pages of candlesticks per token (50 * 1000 = 50,000 candles)
 
   // Storage
   DATA_DIR: path.join(__dirname, "..", "data"),

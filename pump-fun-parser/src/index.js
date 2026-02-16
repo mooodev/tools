@@ -1,7 +1,7 @@
 const config = require("./config");
 const storage = require("./storage");
 const { paginateCoins, fetchCurrentlyLive, fetchLatestCoins } = require("./token-fetcher");
-const { fetchAllTrades, fetchCandlesticks, fetchMetadataAndTrades } = require("./trade-fetcher");
+const { fetchAllTrades, fetchAllCandlesticks, fetchMetadataAndTrades } = require("./trade-fetcher");
 const { startLiveCollector } = require("./live-collector");
 const { sleep } = require("./api-client");
 
@@ -20,8 +20,9 @@ async function main() {
     console.log("JWT auth: configured");
   } else {
     console.log("JWT auth: NOT SET");
-    console.log("  -> Trades endpoint requires JWT. Set PUMPFUN_JWT env var for full trade data.");
-    console.log("  -> Without JWT: token metadata + candlestick data will still be collected.");
+    console.log("  -> Both trades and candlestick endpoints require JWT authentication.");
+    console.log("  -> Without JWT: only token metadata will be collected (no trades, no candlesticks).");
+    console.log("  -> Set PUMPFUN_JWT env var for full data (trades + candlesticks).");
     console.log("  -> Tip: open pump.fun in browser, DevTools > Network, copy Authorization header.");
   }
   console.log(`Mode: ${MODE}\n`);
@@ -162,7 +163,7 @@ async function processToken(coin) {
   let advancedData = null;
 
   if (config.JWT_TOKEN) {
-    // JWT provided — fetch individual trades + advanced metadata
+    // JWT provided — fetch individual trades + advanced metadata + candlesticks
     try {
       trades = await fetchAllTrades(mint);
       console.log(`    Trades fetched: ${trades.length}`);
@@ -172,26 +173,16 @@ async function processToken(coin) {
 
     advancedData = await fetchMetadataAndTrades(mint);
 
-    // Also grab candlesticks for OHLCV data
+    // Fetch candlestick (OHLCV) data — requires JWT auth
     try {
-      candlesticks = await fetchCandlesticks(mint);
-      if (candlesticks.length > 0) {
-        console.log(`    Candlesticks fetched: ${candlesticks.length}`);
-      }
-    } catch {
-      // Not critical
+      candlesticks = await fetchAllCandlesticks(mint);
+      console.log(`    Candlesticks fetched: ${candlesticks.length}`);
+    } catch (err) {
+      console.error(`    Error fetching candlesticks: ${err.message}`);
     }
   } else {
-    // No JWT — only fetch candlestick data (trades endpoint will 404)
-    console.log(`    Trades: skipped (no JWT). Collecting candlestick data...`);
-    try {
-      candlesticks = await fetchCandlesticks(mint);
-      if (candlesticks.length > 0) {
-        console.log(`    Candlesticks fetched: ${candlesticks.length}`);
-      }
-    } catch {
-      // Not critical
-    }
+    // No JWT — trades and candlesticks both require auth
+    console.log(`    Skipping trades and candlesticks (no JWT configured).`);
   }
 
   // Build comprehensive token record
@@ -243,7 +234,7 @@ async function processToken(coin) {
     trades_count: trades.length,
     trades: trades.map(normalizeTrade),
 
-    // Candlestick / OHLCV data (price + volume history — no auth needed)
+    // Candlestick / OHLCV data (price + volume history — requires JWT auth)
     candlesticks_count: candlesticks.length,
     candlesticks,
 
