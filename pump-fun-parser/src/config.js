@@ -1,31 +1,31 @@
 const path = require("path");
 
 module.exports = {
-  // pump.fun frontend API
+  // pump.fun frontend API (for fetching graduated token listings)
   FRONTEND_API: "https://frontend-api-v3.pump.fun",
-  ADVANCED_API: "https://advanced-api-v2.pump.fun",
 
-  // PumpPortal WebSocket (free, no auth)
-  PUMPPORTAL_WS: "wss://pumpportal.fun/api/data",
+  // GeckoTerminal API (free, no key needed — for candlestick/OHLCV data)
+  GECKO_API: "https://api.geckoterminal.com/api/v2",
+  GECKO_NETWORK: "solana",
+  GECKO_LIMIT: 1000, // max candles per request
+  GECKO_RATE_LIMIT_MS: 1200, // ~50 req/min on free tier
 
-  // Rate limiting
-  REQUEST_DELAY_MS: 3000, // delay between API calls to avoid rate limits
+  // pump.fun rate limiting
+  REQUEST_DELAY_MS: 3000,
   RETRY_ATTEMPTS: 4,
   RETRY_BASE_DELAY_MS: 2000,
 
   // Pagination
   COINS_PER_PAGE: 50,
-  TRADES_PER_PAGE: 200,
-  MAX_TRADE_PAGES: 50, // max pages of trades to fetch per token (50 * 200 = 10,000 trades)
-  CANDLES_PER_PAGE: 1000,
-  MAX_CANDLE_PAGES: 50, // max pages of candlesticks per token (50 * 1000 = 50,000 candles)
+
+  // Candle fetching defaults
+  DEFAULT_TIMEFRAME: "hour",
+  DEFAULT_AGGREGATE: "1",
+  DEFAULT_CURRENCY: "usd",
 
   // Storage
   DATA_DIR: path.join(__dirname, "..", "data"),
   TOKENS_DIR: path.join(__dirname, "..", "data", "tokens"),
+  CANDLES_DIR: path.join(__dirname, "..", "data", "candles"),
   STATE_FILE: path.join(__dirname, "..", "data", "state.json"),
-
-  // Optional JWT token for pump.fun API (set via env var)
-  // Obtain by inspecting pump.fun network requests in browser devtools
-  JWT_TOKEN: process.env.PUMPFUN_JWT || "",
 };

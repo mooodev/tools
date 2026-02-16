@@ -1,17 +1,11 @@
 {
   "name": "pump-fun-parser",
-  "version": "1.0.0",
-  "description": "Parse tokens and trading data from pump.fun, storing results as local JSON files",
+  "version": "2.0.0",
+  "description": "Parse graduated tokens from pump.fun and fetch OHLCV candlestick data via GeckoTerminal, storing results as local JSON files",
   "main": "src/index.js",
   "scripts": {
-    "start": "node src/index.js",
-    "fetch-historical": "node src/index.js historical",
-    "fetch-live": "node src/index.js live",
-    "status": "node src/status.js"
+    "start": "node src/index.js"
   },
-  "keywords": ["pump.fun", "solana", "token", "parser"],
-  "license": "MIT",
-  "dependencies": {
-    "ws": "^8.18.0"
-  }
+  "keywords": ["pump.fun", "solana", "token", "parser", "candlestick", "ohlcv"],
+  "license": "MIT"
 }
