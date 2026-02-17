@@ -1,0 +1,19 @@
+{
+  "name": "ml-token-predictor",
+  "version": "1.0.0",
+  "description": "Machine learning token growth predictor using TensorFlow.js with GPU support. Uses technical analysis indicators and Simons-style quantitative features.",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "train": "node src/index.js train",
+    "predict": "node src/index.js predict",
+    "evaluate": "node src/index.js evaluate",
+    "backtest": "node src/index.js backtest"
+  },
+  "keywords": ["machine-learning", "tensorflow", "crypto", "token", "prediction", "technical-analysis"],
+  "license": "MIT",
+  "dependencies": {
+    "@tensorflow/tfjs-node-gpu": "^4.22.0",
+    "@tensorflow/tfjs-node": "^4.22.0"
+  }
+}
