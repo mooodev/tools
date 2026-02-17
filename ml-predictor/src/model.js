@@ -65,15 +65,21 @@ function buildModel(timesteps, nFeatures) {
 
   const attentionDim = 64;
 
+  // Scale Q and K initializers by 1/d_k^(1/4) each so their dot product
+  // is effectively scaled by 1/sqrt(d_k), preventing softmax saturation
+  const attentionScale = Math.pow(attentionDim, -0.25);
+
   const queryLayer = tf.layers.dense({
     units: attentionDim,
     useBias: false,
+    kernelInitializer: tf.initializers.varianceScaling({ scale: attentionScale }),
     name: "attention_query",
   }).apply(drop1);
 
   const keyLayer = tf.layers.dense({
     units: attentionDim,
     useBias: false,
+    kernelInitializer: tf.initializers.varianceScaling({ scale: attentionScale }),
     name: "attention_key",
   }).apply(drop1);
 
@@ -86,7 +92,6 @@ function buildModel(timesteps, nFeatures) {
   // Attention scores: softmax(Q·K^T / sqrt(d_k))
   const scores = tf.layers.dot({ axes: [2, 2], name: "attention_dot" }).apply([queryLayer, keyLayer]);
 
-  // Scale by sqrt(d_k)
   const scaledScores = tf.layers.activation({ activation: "softmax", name: "attention_softmax" }).apply(scores);
 
   // Weighted values

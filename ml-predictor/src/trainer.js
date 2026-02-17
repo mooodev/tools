@@ -61,9 +61,17 @@ async function trainEpoch(model, dataset, classWeights, batchSize) {
 
     const result = await model.trainOnBatch(xTensor, yTensor, sampleWeights);
 
-    // result is [loss, acc] or just loss depending on model config
-    const loss = Array.isArray(result) ? (await result[0].data())[0] : (await result.data())[0];
-    const acc = Array.isArray(result) && result.length > 1 ? (await result[1].data())[0] : 0;
+    // TF.js 4.x returns number|number[] from trainOnBatch (not Scalar tensors)
+    let loss, acc;
+    if (Array.isArray(result)) {
+      loss = typeof result[0] === "number" ? result[0] : (await result[0].data())[0];
+      acc = result.length > 1
+        ? (typeof result[1] === "number" ? result[1] : (await result[1].data())[0])
+        : 0;
+    } else {
+      loss = typeof result === "number" ? result : (await result.data())[0];
+      acc = 0;
+    }
 
     totalLoss += loss;
     totalAcc += acc;
@@ -74,8 +82,10 @@ async function trainEpoch(model, dataset, classWeights, batchSize) {
     yTensor.dispose();
     sampleWeights.dispose();
     if (Array.isArray(result)) {
-      for (const r of result) r.dispose();
-    } else {
+      for (const r of result) {
+        if (typeof r !== "number" && r && r.dispose) r.dispose();
+      }
+    } else if (typeof result !== "number" && result && result.dispose) {
       result.dispose();
     }
   }
