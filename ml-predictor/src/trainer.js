@@ -1,9 +1,14 @@
 /**
  * Training Loop with Walk-Forward Validation
  *
+ * Memory-efficient: never creates the full [N x lookback x features] tensor.
+ * Instead, iterates through data in mini-batches, creating small tensors
+ * on-the-fly from the flat Float32Array.
+ *
  * Features:
+ *   - Mini-batch gradient descent with on-the-fly sequence creation
  *   - Early stopping with patience
- *   - Class weight balancing for imbalanced data
+ *   - Class weight balancing via sample weighting
  *   - Walk-forward cross-validation (Simons approach: no future leakage)
  *   - Detailed metrics logging per epoch
  *   - Model checkpointing (saves best model)
@@ -11,8 +16,140 @@
 
 const fs = require("fs");
 const config = require("./config");
-const { initTF, buildModel, compileModel, toTensors, saveModel } = require("./model");
-const { loadDataset, computeClassWeights } = require("./data-loader");
+const { initTF, buildModel, compileModel, saveModel } = require("./model");
+const {
+  loadDataset,
+  createBatchTensors,
+  computeClassWeights,
+  shuffleIndices,
+  sequentialIndices,
+} = require("./data-loader");
+
+/**
+ * Run one epoch of training, iterating through shuffled mini-batches.
+ * Returns { loss, acc } averaged over all batches.
+ */
+async function trainEpoch(model, dataset, classWeights, batchSize) {
+  const tf = initTF();
+  const { featureData, labelData, nFeatures, lookback, trainRange } = dataset;
+  const [trainStart, trainEnd] = trainRange;
+
+  // Shuffle training indices each epoch
+  const indices = shuffleIndices(trainStart, trainEnd);
+  const nBatches = Math.ceil(indices.length / batchSize);
+
+  let totalLoss = 0;
+  let totalAcc = 0;
+  let batchCount = 0;
+
+  for (let b = 0; b < nBatches; b++) {
+    const batchStart = b * batchSize;
+    const batchEnd = Math.min(batchStart + batchSize, indices.length);
+    const batchIndices = indices.slice(batchStart, batchEnd);
+
+    const { xTensor, yTensor } = createBatchTensors(
+      featureData, labelData, batchIndices, nFeatures, lookback, tf
+    );
+
+    // Create sample weights from class weights
+    const yArr = yTensor.dataSync();
+    const weightArr = new Float32Array(yArr.length);
+    for (let i = 0; i < yArr.length; i++) {
+      weightArr[i] = classWeights[yArr[i]] || 1;
+    }
+    const sampleWeights = tf.tensor1d(weightArr);
+
+    const result = await model.trainOnBatch(xTensor, yTensor, sampleWeights);
+
+    // result is [loss, acc] or just loss depending on model config
+    const loss = Array.isArray(result) ? (await result[0].data())[0] : (await result.data())[0];
+    const acc = Array.isArray(result) && result.length > 1 ? (await result[1].data())[0] : 0;
+
+    totalLoss += loss;
+    totalAcc += acc;
+    batchCount++;
+
+    // Dispose tensors
+    xTensor.dispose();
+    yTensor.dispose();
+    sampleWeights.dispose();
+    if (Array.isArray(result)) {
+      for (const r of result) r.dispose();
+    } else {
+      result.dispose();
+    }
+  }
+
+  return {
+    loss: totalLoss / batchCount,
+    acc: totalAcc / batchCount,
+  };
+}
+
+/**
+ * Evaluate model on a range of data, iterating in mini-batches.
+ * Returns { loss, acc, predictions, trueLabels }.
+ */
+async function evaluateRange(model, dataset, rangeKey, batchSize, collectPredictions = false) {
+  const tf = initTF();
+  const { featureData, labelData, nFeatures, lookback } = dataset;
+  const [rangeStart, rangeEnd] = dataset[rangeKey];
+
+  const indices = sequentialIndices(rangeStart, rangeEnd);
+  const nBatches = Math.ceil(indices.length / batchSize);
+
+  let totalLoss = 0;
+  let totalCorrect = 0;
+  let totalSamples = 0;
+  const allPredClasses = collectPredictions ? [] : null;
+  const allTrueLabels = collectPredictions ? [] : null;
+
+  for (let b = 0; b < nBatches; b++) {
+    const batchStart = b * batchSize;
+    const batchEnd = Math.min(batchStart + batchSize, indices.length);
+    const batchIndices = indices.slice(batchStart, batchEnd);
+    const curBatchSize = batchIndices.length;
+
+    const { xTensor, yTensor } = createBatchTensors(
+      featureData, labelData, batchIndices, nFeatures, lookback, tf
+    );
+
+    // Get loss
+    const evalResult = model.evaluate(xTensor, yTensor, { batchSize: curBatchSize });
+    const batchLoss = (await evalResult[0].data())[0];
+    totalLoss += batchLoss * curBatchSize;
+
+    // Get predictions for accuracy
+    const predictions = model.predict(xTensor);
+    const predClasses = predictions.argMax(-1);
+    const predData = await predClasses.data();
+    const trueData = await yTensor.data();
+
+    for (let i = 0; i < curBatchSize; i++) {
+      if (predData[i] === trueData[i]) totalCorrect++;
+      if (collectPredictions) {
+        allPredClasses.push(predData[i]);
+        allTrueLabels.push(trueData[i]);
+      }
+    }
+    totalSamples += curBatchSize;
+
+    // Cleanup
+    xTensor.dispose();
+    yTensor.dispose();
+    evalResult[0].dispose();
+    evalResult[1].dispose();
+    predictions.dispose();
+    predClasses.dispose();
+  }
+
+  return {
+    loss: totalLoss / totalSamples,
+    acc: totalCorrect / totalSamples,
+    predictions: allPredClasses,
+    trueLabels: allTrueLabels,
+  };
+}
 
 /**
  * Train the model on the loaded dataset.
@@ -23,6 +160,7 @@ async function train() {
   console.log("═══════════════════════════════════════════════════════");
   console.log("  ML Token Growth Predictor — Training");
   console.log("  Architecture: LSTM + Self-Attention + Dense");
+  console.log("  Memory: batched on-the-fly sequence creation");
   console.log("═══════════════════════════════════════════════════════\n");
 
   // Load and prepare data
@@ -32,26 +170,23 @@ async function train() {
     return;
   }
 
-  const { train: trainSet, val: valSet, test: testSet, scaler, featureNames } = dataset;
+  const { featureNames, nFeatures, lookback, trainRange, labelData } = dataset;
 
-  const nFeatures = featureNames.length;
-  const timesteps = config.LOOKBACK_WINDOW;
-
-  console.log(`\nModel input shape: [${timesteps}, ${nFeatures}]`);
+  console.log(`\nModel input shape: [${lookback}, ${nFeatures}]`);
   console.log(`Feature count: ${nFeatures}`);
   console.log(`Features: ${featureNames.join(", ")}\n`);
 
   // Build & compile model
-  const model = buildModel(timesteps, nFeatures);
-  const classWeights = computeClassWeights(trainSet.y);
+  const model = buildModel(lookback, nFeatures);
+  const classWeights = computeClassWeights(labelData, trainRange[0], trainRange[1]);
   console.log(`Class weights: ${JSON.stringify(classWeights)}\n`);
-  compileModel(model, classWeights);
+  compileModel(model);
   model.summary();
 
-  // Convert to tensors
-  console.log("\nConverting data to tensors...");
-  const { xTensor: xTrain, yTensor: yTrain } = toTensors(trainSet.X, trainSet.y);
-  const { xTensor: xVal, yTensor: yVal } = toTensors(valSet.X, valSet.y);
+  const batchSize = config.BATCH_SIZE;
+  const trainSamples = trainRange[1] - trainRange[0];
+  const batchesPerEpoch = Math.ceil(trainSamples / batchSize);
+  console.log(`\nBatches per epoch: ${batchesPerEpoch} (batch_size=${batchSize})`);
 
   // Training with early stopping
   console.log("\n─── Training ───────────────────────────────────────────\n");
@@ -62,39 +197,35 @@ async function train() {
   let bestEpoch = 0;
 
   for (let epoch = 1; epoch <= config.EPOCHS; epoch++) {
-    const history = await model.fit(xTrain, yTrain, {
-      epochs: 1,
-      batchSize: config.BATCH_SIZE,
-      validationData: [xVal, yVal],
-      classWeight: classWeights,
-      shuffle: true,
-      verbose: 0,
-    });
+    const epochStart = Date.now();
 
-    const trainLoss = history.history.loss[0];
-    const trainAcc = history.history.acc[0];
-    const valLoss = history.history.val_loss[0];
-    const valAcc = history.history.val_acc[0];
+    // Train one epoch
+    const trainResult = await trainEpoch(model, dataset, classWeights, batchSize);
 
-    const improved = valLoss < bestValLoss;
+    // Validate
+    const valResult = await evaluateRange(model, dataset, "valRange", batchSize);
+
+    const elapsed = ((Date.now() - epochStart) / 1000).toFixed(1);
+
+    const improved = valResult.loss < bestValLoss;
     if (improved) {
-      bestValLoss = valLoss;
-      bestValAcc = valAcc;
+      bestValLoss = valResult.loss;
+      bestValAcc = valResult.acc;
       bestEpoch = epoch;
       patienceCounter = 0;
 
       // Save best model
       await saveModel(model, config.MODEL_DIR);
-      saveScaler(scaler, featureNames);
+      saveScaler(dataset.scaler, featureNames);
     } else {
       patienceCounter++;
     }
 
     const marker = improved ? " ★" : "";
     console.log(
-      `  Epoch ${String(epoch).padStart(3)}/${config.EPOCHS} | ` +
-      `Loss: ${trainLoss.toFixed(4)} | Acc: ${(trainAcc * 100).toFixed(1)}% | ` +
-      `Val Loss: ${valLoss.toFixed(4)} | Val Acc: ${(valAcc * 100).toFixed(1)}%${marker}`
+      `  Epoch ${String(epoch).padStart(3)}/${config.EPOCHS} (${elapsed}s) | ` +
+      `Loss: ${trainResult.loss.toFixed(4)} | Acc: ${(trainResult.acc * 100).toFixed(1)}% | ` +
+      `Val Loss: ${valResult.loss.toFixed(4)} | Val Acc: ${(valResult.acc * 100).toFixed(1)}%${marker}`
     );
 
     if (patienceCounter >= config.PATIENCE) {
@@ -108,18 +239,14 @@ async function train() {
 
   console.log("\n─── Test Set Evaluation ────────────────────────────────\n");
 
-  const { xTensor: xTest, yTensor: yTest } = toTensors(testSet.X, testSet.y);
-  const evalResult = model.evaluate(xTest, yTest, { batchSize: config.BATCH_SIZE });
-  const testLoss = (await evalResult[0].data())[0];
-  const testAcc = (await evalResult[1].data())[0];
+  const testResult = await evaluateRange(model, dataset, "testRange", batchSize, true);
 
-  console.log(`  Test Loss:     ${testLoss.toFixed(4)}`);
-  console.log(`  Test Accuracy: ${(testAcc * 100).toFixed(1)}%`);
+  console.log(`  Test Loss:     ${testResult.loss.toFixed(4)}`);
+  console.log(`  Test Accuracy: ${(testResult.acc * 100).toFixed(1)}%`);
 
   // Confusion matrix
-  const predictions = model.predict(xTest);
-  const predClasses = (await predictions.argMax(-1).data());
-  const trueClasses = testSet.y;
+  const predClasses = testResult.predictions;
+  const trueClasses = testResult.trueLabels;
 
   const confMatrix = [[0,0,0],[0,0,0],[0,0,0]];
   for (let i = 0; i < trueClasses.length; i++) {
@@ -150,15 +277,6 @@ async function train() {
     );
   }
 
-  // Cleanup tensors
-  xTrain.dispose();
-  yTrain.dispose();
-  xVal.dispose();
-  yVal.dispose();
-  xTest.dispose();
-  yTest.dispose();
-  predictions.dispose();
-
   console.log("\n═══════════════════════════════════════════════════════");
   console.log("  Training complete.");
   console.log(`  Best model saved to: ${config.MODEL_DIR}`);
@@ -181,52 +299,50 @@ async function walkForwardValidation(nFolds = 5) {
   const dataset = loadDataset();
   if (!dataset) return;
 
-  // Combine train+val+test for walk-forward splitting
-  const allX = [...dataset.train.X, ...dataset.val.X, ...dataset.test.X];
-  const allY = [...dataset.train.y, ...dataset.val.y, ...dataset.test.y];
-  const { featureNames } = dataset;
+  const { featureData, labelData, nFeatures, lookback, trainRange, valRange, testRange } = dataset;
 
-  const nFeatures = featureNames.length;
-  const timesteps = config.LOOKBACK_WINDOW;
-  const foldSize = Math.floor(allX.length / (nFolds + 1));
+  // Total valid range across all splits
+  const totalStart = trainRange[0];
+  const totalEnd = testRange[1];
+  const totalCount = totalEnd - totalStart;
+  const foldSize = Math.floor(totalCount / (nFolds + 1));
 
   const foldResults = [];
+  const batchSize = config.BATCH_SIZE;
 
   for (let fold = 0; fold < nFolds; fold++) {
-    const trainEnd = foldSize * (fold + 1);
-    const valEnd = Math.min(trainEnd + foldSize, allX.length);
+    const foldTrainEnd = totalStart + foldSize * (fold + 1);
+    const foldValEnd = Math.min(foldTrainEnd + foldSize, totalEnd);
 
-    const foldTrainX = allX.slice(0, trainEnd);
-    const foldTrainY = allY.slice(0, trainEnd);
-    const foldValX = allX.slice(trainEnd, valEnd);
-    const foldValY = allY.slice(trainEnd, valEnd);
+    const foldTrainCount = foldTrainEnd - totalStart;
+    const foldValCount = foldValEnd - foldTrainEnd;
 
     console.log(`\n─── Fold ${fold + 1}/${nFolds} ─────────────────────────────`);
-    console.log(`  Train: ${foldTrainX.length} samples | Val: ${foldValX.length} samples`);
+    console.log(`  Train: ${foldTrainCount} samples | Val: ${foldValCount} samples`);
 
-    const model = buildModel(timesteps, nFeatures);
-    const classWeights = computeClassWeights(foldTrainY);
-    compileModel(model, classWeights);
+    // Create a temporary dataset view for this fold
+    const foldDataset = {
+      featureData,
+      labelData,
+      nFeatures,
+      lookback,
+      trainRange: [totalStart, foldTrainEnd],
+      valRange: [foldTrainEnd, foldValEnd],
+    };
 
-    const { xTensor: xTrain, yTensor: yTrain } = toTensors(foldTrainX, foldTrainY);
-    const { xTensor: xVal, yTensor: yVal } = toTensors(foldValX, foldValY);
+    const model = buildModel(lookback, nFeatures);
+    const classWeights = computeClassWeights(labelData, totalStart, foldTrainEnd);
+    compileModel(model);
 
     let bestLoss = Infinity;
     let patience = 0;
 
     for (let epoch = 1; epoch <= config.EPOCHS; epoch++) {
-      const history = await model.fit(xTrain, yTrain, {
-        epochs: 1,
-        batchSize: config.BATCH_SIZE,
-        validationData: [xVal, yVal],
-        classWeight: classWeights,
-        shuffle: true,
-        verbose: 0,
-      });
+      await trainEpoch(model, foldDataset, classWeights, batchSize);
+      const valResult = await evaluateRange(model, foldDataset, "valRange", batchSize);
 
-      const valLoss = history.history.val_loss[0];
-      if (valLoss < bestLoss) {
-        bestLoss = valLoss;
+      if (valResult.loss < bestLoss) {
+        bestLoss = valResult.loss;
         patience = 0;
       } else {
         patience++;
@@ -235,18 +351,11 @@ async function walkForwardValidation(nFolds = 5) {
       if (patience >= config.PATIENCE) break;
     }
 
-    const evalResult = model.evaluate(xVal, yVal, { batchSize: config.BATCH_SIZE });
-    const valLoss = (await evalResult[0].data())[0];
-    const valAcc = (await evalResult[1].data())[0];
+    const finalResult = await evaluateRange(model, foldDataset, "valRange", batchSize);
 
-    foldResults.push({ fold: fold + 1, valLoss, valAcc });
-    console.log(`  Result: Loss=${valLoss.toFixed(4)}, Acc=${(valAcc * 100).toFixed(1)}%`);
+    foldResults.push({ fold: fold + 1, valLoss: finalResult.loss, valAcc: finalResult.acc });
+    console.log(`  Result: Loss=${finalResult.loss.toFixed(4)}, Acc=${(finalResult.acc * 100).toFixed(1)}%`);
 
-    // Cleanup
-    xTrain.dispose();
-    yTrain.dispose();
-    xVal.dispose();
-    yVal.dispose();
     model.dispose();
   }
 

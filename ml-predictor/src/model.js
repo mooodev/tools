@@ -128,7 +128,7 @@ function buildModel(timesteps, nFeatures) {
 /**
  * Compile the model with optimizer and loss.
  */
-function compileModel(model, classWeights) {
+function compileModel(model) {
   const tf = initTF();
 
   model.compile({
@@ -138,18 +138,6 @@ function compileModel(model, classWeights) {
   });
 
   return model;
-}
-
-/**
- * Convert JS arrays to TF tensors.
- */
-function toTensors(X, y) {
-  const tf = initTF();
-
-  const xTensor = tf.tensor3d(X);
-  const yTensor = tf.tensor1d(y, "int32");
-
-  return { xTensor, yTensor };
 }
 
 /**
@@ -183,7 +171,6 @@ module.exports = {
   initTF,
   buildModel,
   compileModel,
-  toTensors,
   saveModel,
   loadModel,
 };
