@@ -124,6 +124,7 @@ async function buildModel(timesteps, nFeatures) {
   const lstm1 = tf.layers.lstm({
     units: config.LSTM_UNITS_1,
     returnSequences: true,
+    recurrentInitializer: "glorotNormal",
     kernelRegularizer: tf.regularizers.l2({ l2: 1e-4 }),
     name: "lstm_1",
   }).apply(input);
@@ -172,6 +173,7 @@ async function buildModel(timesteps, nFeatures) {
   const lstm2 = tf.layers.lstm({
     units: config.LSTM_UNITS_2,
     returnSequences: false,
+    recurrentInitializer: "glorotNormal",
     kernelRegularizer: tf.regularizers.l2({ l2: 1e-4 }),
     name: "lstm_2",
   }).apply(attended);
