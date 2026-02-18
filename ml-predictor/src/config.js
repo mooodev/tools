@@ -56,4 +56,7 @@ module.exports = {
   ROC_PERIODS: [1, 3, 6, 12, 24],
   OBV_ENABLED: true,
   VWAP_ENABLED: true,
+
+  // Web interface
+  WEB_PORT: 3000,
 };
