@@ -228,7 +228,7 @@ function loadDataset() {
 function createBatchTensors(featureData, labelData, indices, nFeatures, lookback, tf) {
   const batchSize = indices.length;
   const xBuf = new Float32Array(batchSize * lookback * nFeatures);
-  const yBuf = new Int32Array(batchSize);
+  const yBuf = new Float32Array(batchSize);
 
   for (let b = 0; b < batchSize; b++) {
     const sampleIdx = indices[b];
@@ -245,7 +245,7 @@ function createBatchTensors(featureData, labelData, indices, nFeatures, lookback
   }
 
   const xTensor = tf.tensor3d(xBuf, [batchSize, lookback, nFeatures]);
-  const yTensor = tf.tensor1d(yBuf, "int32");
+  const yTensor = tf.tensor1d(yBuf);
 
   return { xTensor, yTensor };
 }
