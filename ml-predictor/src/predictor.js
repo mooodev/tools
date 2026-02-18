@@ -28,7 +28,7 @@ function loadScaler() {
  * @returns {object} Prediction result with probabilities
  */
 async function predictToken(mint) {
-  const tf = initTF();
+  const tf = await initTF();
 
   console.log(`\nLoading model and scaler...`);
   const model = await loadModel(config.MODEL_DIR);
@@ -90,7 +90,7 @@ async function predictToken(mint) {
  * Screen all available tokens and rank by bullish probability.
  */
 async function screenAll() {
-  const tf = initTF();
+  const tf = await initTF();
 
   console.log("═══════════════════════════════════════════════════════");
   console.log("  Token Screener — Ranking by Growth Probability");
@@ -174,7 +174,7 @@ async function screenAll() {
  * Uses a simple strategy: buy when model predicts bullish, sell when bearish.
  */
 async function backtest() {
-  const tf = initTF();
+  const tf = await initTF();
 
   console.log("═══════════════════════════════════════════════════════");
   console.log("  Backtest — Simulated Trading Performance");

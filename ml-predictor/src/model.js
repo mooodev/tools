@@ -2,7 +2,8 @@
  * TensorFlow.js Model Definition
  *
  * Architecture: Stacked LSTM with Self-Attention + Dense classifier
- * Supports GPU acceleration via @tensorflow/tfjs-node-gpu
+ * Supports GPU acceleration via Metal (WebGPU) on Apple Silicon
+ * and CUDA on NVIDIA GPUs.
  *
  * Simons/RenTech inspired:
  *   - Multi-head attention to capture non-local temporal patterns
@@ -16,22 +17,67 @@ const config = require("./config");
 let tf;
 
 /**
- * Initialize TensorFlow.js with GPU if available, fallback to CPU.
+ * Initialize the WebGPU/Metal backend (async).
+ * Requires Node.js 22+ with --experimental-webgpu flag.
  */
-function initTF() {
+async function initWebGPU() {
+  tf = require("@tensorflow/tfjs");
+
+  // Node.js exposes WebGPU as globalThis.gpu, but tfjs-backend-webgpu
+  // looks for navigator.gpu — bridge the two.
+  if (typeof navigator === "undefined" && typeof globalThis.gpu !== "undefined") {
+    globalThis.navigator = { gpu: globalThis.gpu };
+  }
+
+  require("@tensorflow/tfjs-backend-webgpu");
+  await tf.setBackend("webgpu");
+  await tf.ready();
+}
+
+/**
+ * Initialize TensorFlow.js using the backend specified by config.DEVICE.
+ *
+ * "metal" — WebGPU backend (Apple Silicon M1/M2/M3 via Metal).
+ *           Requires: node --experimental-webgpu
+ * "gpu"   — @tensorflow/tfjs-node-gpu (NVIDIA CUDA).
+ * "cpu"   — @tensorflow/tfjs-node.
+ * "auto"  — try metal → CUDA → CPU → pure JS.
+ */
+async function initTF() {
   if (tf) return tf;
 
-  try {
+  const device = config.DEVICE || "metal";
+
+  if (device === "metal") {
+    await initWebGPU();
+    console.log("TensorFlow.js initialized with Metal GPU (WebGPU backend).");
+  } else if (device === "gpu") {
     tf = require("@tensorflow/tfjs-node-gpu");
-    console.log("TensorFlow.js initialized with GPU support.");
-  } catch {
+    console.log("TensorFlow.js initialized with CUDA GPU support.");
+  } else if (device === "cpu") {
+    tf = require("@tensorflow/tfjs-node");
+    console.log("TensorFlow.js initialized (CPU mode).");
+  } else if (device === "auto") {
     try {
-      tf = require("@tensorflow/tfjs-node");
-      console.log("TensorFlow.js initialized (CPU mode).");
+      await initWebGPU();
+      console.log("TensorFlow.js initialized with Metal GPU (WebGPU backend).");
     } catch {
-      tf = require("@tensorflow/tfjs");
-      console.log("TensorFlow.js initialized (pure JS fallback — slow).");
+      tf = null;
+      try {
+        tf = require("@tensorflow/tfjs-node-gpu");
+        console.log("TensorFlow.js initialized with CUDA GPU support.");
+      } catch {
+        try {
+          tf = require("@tensorflow/tfjs-node");
+          console.log("TensorFlow.js initialized (CPU mode).");
+        } catch {
+          tf = require("@tensorflow/tfjs");
+          console.log("TensorFlow.js initialized (pure JS fallback — slow).");
+        }
+      }
     }
+  } else {
+    throw new Error(`Invalid DEVICE config "${device}". Use "metal", "gpu", "cpu", or "auto".`);
   }
 
   return tf;
@@ -44,8 +90,8 @@ function initTF() {
  * @param {number} nFeatures - Number of features per timestep
  * @returns {tf.LayersModel}
  */
-function buildModel(timesteps, nFeatures) {
-  const tf = initTF();
+async function buildModel(timesteps, nFeatures) {
+  const tf = await initTF();
 
   const input = tf.input({ shape: [timesteps, nFeatures], name: "input" });
 
@@ -133,8 +179,8 @@ function buildModel(timesteps, nFeatures) {
 /**
  * Compile the model with optimizer and loss.
  */
-function compileModel(model) {
-  const tf = initTF();
+async function compileModel(model) {
+  const tf = await initTF();
 
   model.compile({
     optimizer: tf.train.adam(config.LEARNING_RATE),
@@ -149,7 +195,7 @@ function compileModel(model) {
  * Save model to disk.
  */
 async function saveModel(model, dir) {
-  const tf = initTF();
+  const tf = await initTF();
   const fs = require("fs");
 
   if (!fs.existsSync(dir)) {
@@ -164,7 +210,7 @@ async function saveModel(model, dir) {
  * Load model from disk.
  */
 async function loadModel(dir) {
-  const tf = initTF();
+  const tf = await initTF();
 
   const model = await tf.loadLayersModel(`file://${dir}/model.json`);
   console.log(`Model loaded from ${dir}`);
