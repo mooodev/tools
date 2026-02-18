@@ -30,7 +30,7 @@ const {
  * Returns { loss, acc } averaged over all batches.
  */
 async function trainEpoch(model, dataset, classWeights, batchSize) {
-  const tf = initTF();
+  const tf = await initTF();
   const { featureData, labelData, nFeatures, lookback, trainRange } = dataset;
   const [trainStart, trainEnd] = trainRange;
 
@@ -101,7 +101,7 @@ async function trainEpoch(model, dataset, classWeights, batchSize) {
  * Returns { loss, acc, predictions, trueLabels }.
  */
 async function evaluateRange(model, dataset, rangeKey, batchSize, collectPredictions = false) {
-  const tf = initTF();
+  const tf = await initTF();
   const { featureData, labelData, nFeatures, lookback } = dataset;
   const [rangeStart, rangeEnd] = dataset[rangeKey];
 
@@ -165,7 +165,7 @@ async function evaluateRange(model, dataset, rangeKey, batchSize, collectPredict
  * Train the model on the loaded dataset.
  */
 async function train() {
-  const tf = initTF();
+  const tf = await initTF();
 
   console.log("═══════════════════════════════════════════════════════");
   console.log("  ML Token Growth Predictor — Training");
@@ -187,10 +187,10 @@ async function train() {
   console.log(`Features: ${featureNames.join(", ")}\n`);
 
   // Build & compile model
-  const model = buildModel(lookback, nFeatures);
+  const model = await buildModel(lookback, nFeatures);
   const classWeights = computeClassWeights(labelData, trainRange[0], trainRange[1]);
   console.log(`Class weights: ${JSON.stringify(classWeights)}\n`);
-  compileModel(model);
+  await compileModel(model);
   model.summary();
 
   const batchSize = config.BATCH_SIZE;
@@ -299,7 +299,7 @@ async function train() {
  * More robust evaluation than a single train/test split.
  */
 async function walkForwardValidation(nFolds = 5) {
-  const tf = initTF();
+  const tf = await initTF();
 
   console.log("═══════════════════════════════════════════════════════");
   console.log("  Walk-Forward Cross-Validation");
@@ -340,9 +340,9 @@ async function walkForwardValidation(nFolds = 5) {
       valRange: [foldTrainEnd, foldValEnd],
     };
 
-    const model = buildModel(lookback, nFeatures);
+    const model = await buildModel(lookback, nFeatures);
     const classWeights = computeClassWeights(labelData, totalStart, foldTrainEnd);
-    compileModel(model);
+    await compileModel(model);
 
     let bestLoss = Infinity;
     let patience = 0;
