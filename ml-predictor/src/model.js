@@ -21,6 +21,18 @@ let tf;
  * Requires Node.js 22+ with --experimental-webgpu flag.
  */
 async function initWebGPU() {
+  // Check that WebGPU is actually available before attempting to use it.
+  // Node.js exposes WebGPU as globalThis.gpu when launched with --experimental-webgpu (Node 22+).
+  const hasWebGPU =
+    typeof globalThis.gpu !== "undefined" ||
+    (typeof navigator !== "undefined" && typeof navigator.gpu !== "undefined");
+
+  if (!hasWebGPU) {
+    throw new Error(
+      "WebGPU is not available. Requires Node.js 22+ with --experimental-webgpu flag."
+    );
+  }
+
   tf = require("@tensorflow/tfjs");
 
   // Node.js exposes WebGPU as globalThis.gpu, but tfjs-backend-webgpu
@@ -49,8 +61,20 @@ async function initTF() {
   const device = config.DEVICE || "metal";
 
   if (device === "metal") {
-    await initWebGPU();
-    console.log("TensorFlow.js initialized with Metal GPU (WebGPU backend).");
+    try {
+      await initWebGPU();
+      console.log("TensorFlow.js initialized with Metal GPU (WebGPU backend).");
+    } catch (err) {
+      console.warn(`Metal/WebGPU init failed: ${err.message}`);
+      console.warn('Falling back to CPU. Set DEVICE to "auto" for full fallback chain.');
+      try {
+        tf = require("@tensorflow/tfjs-node");
+        console.log("TensorFlow.js initialized (CPU mode).");
+      } catch {
+        tf = require("@tensorflow/tfjs");
+        console.log("TensorFlow.js initialized (pure JS fallback — slow).");
+      }
+    }
   } else if (device === "gpu") {
     tf = require("@tensorflow/tfjs-node-gpu");
     console.log("TensorFlow.js initialized with CUDA GPU support.");
