@@ -1,6 +1,9 @@
 const path = require("path");
 
 module.exports = {
+  // Device: "gpu", "cpu", or "auto" (try GPU first, fall back to CPU)
+  DEVICE: "gpu",
+
   // Data paths (reads from pump-fun-parser output)
   CANDLES_DIR: path.join(__dirname, "..", "..", "pump-fun-parser", "data", "candles"),
   TOKENS_DIR: path.join(__dirname, "..", "..", "pump-fun-parser", "data", "tokens"),

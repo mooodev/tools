@@ -16,22 +16,38 @@ const config = require("./config");
 let tf;
 
 /**
- * Initialize TensorFlow.js with GPU if available, fallback to CPU.
+ * Initialize TensorFlow.js using the backend specified by config.DEVICE.
+ *
+ * "gpu"  — require @tensorflow/tfjs-node-gpu; throw if unavailable.
+ * "cpu"  — require @tensorflow/tfjs-node.
+ * "auto" — try GPU first, fall back to CPU, then pure JS.
  */
 function initTF() {
   if (tf) return tf;
 
-  try {
+  const device = config.DEVICE || "gpu";
+
+  if (device === "gpu") {
     tf = require("@tensorflow/tfjs-node-gpu");
     console.log("TensorFlow.js initialized with GPU support.");
-  } catch {
+  } else if (device === "cpu") {
+    tf = require("@tensorflow/tfjs-node");
+    console.log("TensorFlow.js initialized (CPU mode).");
+  } else if (device === "auto") {
     try {
-      tf = require("@tensorflow/tfjs-node");
-      console.log("TensorFlow.js initialized (CPU mode).");
+      tf = require("@tensorflow/tfjs-node-gpu");
+      console.log("TensorFlow.js initialized with GPU support.");
     } catch {
-      tf = require("@tensorflow/tfjs");
-      console.log("TensorFlow.js initialized (pure JS fallback — slow).");
+      try {
+        tf = require("@tensorflow/tfjs-node");
+        console.log("TensorFlow.js initialized (CPU mode).");
+      } catch {
+        tf = require("@tensorflow/tfjs");
+        console.log("TensorFlow.js initialized (pure JS fallback — slow).");
+      }
     }
+  } else {
+    throw new Error(`Invalid DEVICE config "${device}". Use "gpu", "cpu", or "auto".`);
   }
 
   return tf;
