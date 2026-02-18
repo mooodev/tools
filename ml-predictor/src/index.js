@@ -13,6 +13,7 @@
  *   node src/index.js predict <mint>     Predict growth for a specific token
  *   node src/index.js screen             Screen all tokens, rank by signal
  *   node src/index.js backtest           Backtest on held-out data
+ *   node src/index.js web                Start WebGPU training web interface
  *   node src/index.js info               Show dataset info and feature list
  */
 
@@ -81,6 +82,12 @@ async function main() {
     case "backtest": {
       const { backtest } = require("./predictor");
       await backtest();
+      break;
+    }
+
+    case "web": {
+      const { startServer } = require("./server");
+      startServer();
       break;
     }
 
@@ -164,6 +171,7 @@ function showInfo() {
   console.log("  node src/index.js predict <mint>     Predict single token");
   console.log("  node src/index.js screen             Screen all tokens");
   console.log("  node src/index.js backtest           Backtest strategy");
+  console.log("  node src/index.js web                Start WebGPU web interface (M1 GPU)");
   console.log("  node src/index.js info               Show this info");
   console.log("");
 }

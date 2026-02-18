@@ -1,0 +1,1049 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ML Token Predictor — WebGPU Training</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'SF Mono', 'Menlo', 'Monaco', 'Consolas', monospace;
+    background: #0d1117; color: #c9d1d9; min-height: 100vh;
+  }
+  header {
+    background: #161b22; border-bottom: 1px solid #30363d; padding: 16px 24px;
+    display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;
+  }
+  header h1 { font-size: 16px; color: #58a6ff; font-weight: 600; }
+  .gpu-status {
+    display: flex; align-items: center; gap: 8px; font-size: 13px;
+    padding: 6px 12px; border-radius: 6px; background: #1c2128;
+  }
+  .gpu-status .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    display: inline-block;
+  }
+  .dot.ok { background: #3fb950; box-shadow: 0 0 6px #3fb950; }
+  .dot.fail { background: #f85149; box-shadow: 0 0 6px #f85149; }
+  .dot.pending { background: #d29922; }
+  nav {
+    display: flex; gap: 4px; padding: 8px 24px;
+    background: #161b22; border-bottom: 1px solid #30363d;
+  }
+  nav button {
+    background: transparent; color: #8b949e; border: none; padding: 8px 16px;
+    font-family: inherit; font-size: 13px; cursor: pointer; border-radius: 6px;
+    transition: all 0.15s;
+  }
+  nav button:hover { background: #21262d; color: #c9d1d9; }
+  nav button.active { background: #1f6feb; color: #fff; }
+  main { max-width: 960px; margin: 0 auto; padding: 24px; }
+  .tab { display: none; }
+  .tab.active { display: block; }
+  .card {
+    background: #161b22; border: 1px solid #30363d; border-radius: 8px;
+    padding: 20px; margin-bottom: 16px;
+  }
+  .card h2 { font-size: 14px; color: #58a6ff; margin-bottom: 12px; font-weight: 600; }
+  .card h3 { font-size: 13px; color: #8b949e; margin-bottom: 8px; }
+  .btn {
+    background: #238636; color: #fff; border: none; padding: 10px 20px;
+    font-family: inherit; font-size: 13px; cursor: pointer; border-radius: 6px;
+    font-weight: 600; transition: background 0.15s;
+  }
+  .btn:hover { background: #2ea043; }
+  .btn:disabled { background: #21262d; color: #484f58; cursor: not-allowed; }
+  .btn.secondary { background: #30363d; }
+  .btn.secondary:hover { background: #3d444d; }
+  .btn.danger { background: #da3633; }
+  .progress-bar {
+    width: 100%; height: 6px; background: #21262d; border-radius: 3px;
+    overflow: hidden; margin: 8px 0;
+  }
+  .progress-bar .fill {
+    height: 100%; background: #1f6feb; border-radius: 3px;
+    transition: width 0.3s;
+  }
+  .metrics-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px; margin: 12px 0;
+  }
+  .metric {
+    background: #1c2128; padding: 12px; border-radius: 6px; text-align: center;
+  }
+  .metric .label { font-size: 11px; color: #8b949e; text-transform: uppercase; letter-spacing: 0.5px; }
+  .metric .value { font-size: 20px; font-weight: 700; margin-top: 4px; }
+  .metric .value.good { color: #3fb950; }
+  .metric .value.warn { color: #d29922; }
+  .metric .value.info { color: #58a6ff; }
+  #console {
+    background: #010409; border: 1px solid #21262d; border-radius: 6px;
+    padding: 12px; font-size: 12px; line-height: 1.6; max-height: 300px;
+    overflow-y: auto; white-space: pre-wrap; word-break: break-all;
+  }
+  #console .info { color: #8b949e; }
+  #console .success { color: #3fb950; }
+  #console .warn { color: #d29922; }
+  #console .error { color: #f85149; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th { text-align: left; padding: 8px; color: #8b949e; border-bottom: 1px solid #30363d; font-weight: 600; }
+  td { padding: 8px; border-bottom: 1px solid #21262d; }
+  .epoch-log { font-size: 12px; margin: 4px 0; }
+  .epoch-log .star { color: #d29922; }
+  select, input {
+    background: #0d1117; color: #c9d1d9; border: 1px solid #30363d;
+    padding: 8px 12px; border-radius: 6px; font-family: inherit; font-size: 13px;
+    width: 100%;
+  }
+  .prediction-result {
+    text-align: center; padding: 20px;
+  }
+  .prediction-result .signal { font-size: 28px; font-weight: 700; margin: 8px 0; }
+  .prediction-result .signal.bullish { color: #3fb950; }
+  .prediction-result .signal.bearish { color: #f85149; }
+  .prediction-result .signal.neutral { color: #d29922; }
+  .prob-bar-container { margin: 4px 0; display: flex; align-items: center; gap: 8px; }
+  .prob-bar-label { width: 60px; font-size: 12px; color: #8b949e; }
+  .prob-bar { flex: 1; height: 20px; background: #21262d; border-radius: 3px; overflow: hidden; }
+  .prob-bar .fill-bear { background: #f85149; height: 100%; }
+  .prob-bar .fill-neut { background: #d29922; height: 100%; }
+  .prob-bar .fill-bull { background: #3fb950; height: 100%; }
+  .prob-bar-val { width: 50px; text-align: right; font-size: 12px; }
+  .gpu-info-grid { display: grid; grid-template-columns: 140px 1fr; gap: 4px 12px; font-size: 13px; }
+  .gpu-info-grid .lbl { color: #8b949e; }
+  .confusion-matrix { font-size: 12px; }
+  .confusion-matrix td { text-align: center; min-width: 60px; }
+  .confusion-matrix .header { color: #58a6ff; font-weight: 600; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>ML Token Growth Predictor</h1>
+  <div class="gpu-status" id="gpuStatus">
+    <span class="dot pending" id="gpuDot"></span>
+    <span id="gpuText">Checking WebGPU...</span>
+  </div>
+</header>
+
+<nav>
+  <button class="active" onclick="switchTab('train')">Train</button>
+  <button onclick="switchTab('predict')">Predict</button>
+  <button onclick="switchTab('info')">Info</button>
+  <button onclick="switchTab('console')">Console</button>
+</nav>
+
+<main>
+
+  <!-- ═══ Train Tab ══════════════════════════════════════════════ -->
+  <div class="tab active" id="tab-train">
+    <div class="card">
+      <h2>GPU Accelerated Training</h2>
+      <div class="gpu-info-grid" id="gpuInfo">
+        <span class="lbl">Backend:</span><span id="backendName">-</span>
+        <span class="lbl">GPU Adapter:</span><span id="adapterName">-</span>
+        <span class="lbl">Architecture:</span><span>LSTM + Self-Attention + Dense</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Training Controls</h2>
+      <div style="display:flex;gap:8px;margin-bottom:12px;">
+        <button class="btn" id="btnTrain" onclick="startTraining()">Load Data &amp; Train</button>
+        <button class="btn secondary" id="btnStop" onclick="stopTraining()" disabled>Stop</button>
+        <button class="btn secondary" id="btnSave" onclick="saveModelToServer()" disabled>Save Model</button>
+      </div>
+
+      <div id="trainingStatus" style="display:none;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span id="epochLabel">Epoch 0/0</span>
+          <span id="epochPercent">0%</span>
+        </div>
+        <div class="progress-bar"><div class="fill" id="epochProgress" style="width:0%"></div></div>
+
+        <div class="metrics-grid">
+          <div class="metric"><div class="label">Train Loss</div><div class="value info" id="mTrainLoss">-</div></div>
+          <div class="metric"><div class="label">Train Acc</div><div class="value info" id="mTrainAcc">-</div></div>
+          <div class="metric"><div class="label">Val Loss</div><div class="value warn" id="mValLoss">-</div></div>
+          <div class="metric"><div class="label">Val Acc</div><div class="value warn" id="mValAcc">-</div></div>
+          <div class="metric"><div class="label">Best Epoch</div><div class="value good" id="mBestEpoch">-</div></div>
+          <div class="metric"><div class="label">Patience</div><div class="value" id="mPatience">-</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" id="testResultsCard" style="display:none;">
+      <h2>Test Set Evaluation</h2>
+      <div class="metrics-grid" id="testMetrics"></div>
+      <div id="confusionMatrix"></div>
+    </div>
+
+    <div class="card" id="epochLogCard" style="display:none;">
+      <h2>Epoch Log</h2>
+      <div id="epochLog" style="max-height:200px;overflow-y:auto;font-size:12px;"></div>
+    </div>
+  </div>
+
+  <!-- ═══ Predict Tab ════════════════════════════════════════════ -->
+  <div class="tab" id="tab-predict">
+    <div class="card">
+      <h2>Token Prediction</h2>
+      <div style="margin-bottom:12px;">
+        <select id="tokenSelect"><option value="">Loading tokens...</option></select>
+      </div>
+      <button class="btn" id="btnPredict" onclick="runPrediction()">Predict</button>
+    </div>
+
+    <div class="card" id="predictionResult" style="display:none;">
+      <h2>Prediction Result</h2>
+      <div class="prediction-result">
+        <div style="color:#8b949e;font-size:13px;" id="predTokenName"></div>
+        <div class="signal" id="predSignal"></div>
+        <div style="color:#8b949e;font-size:12px;" id="predConfidence"></div>
+      </div>
+      <div style="margin-top:12px;">
+        <div class="prob-bar-container">
+          <span class="prob-bar-label">Bearish</span>
+          <div class="prob-bar"><div class="fill-bear" id="barBear" style="width:0%"></div></div>
+          <span class="prob-bar-val" id="valBear">0%</span>
+        </div>
+        <div class="prob-bar-container">
+          <span class="prob-bar-label">Neutral</span>
+          <div class="prob-bar"><div class="fill-neut" id="barNeut" style="width:0%"></div></div>
+          <span class="prob-bar-val" id="valNeut">0%</span>
+        </div>
+        <div class="prob-bar-container">
+          <span class="prob-bar-label">Bullish</span>
+          <div class="prob-bar"><div class="fill-bull" id="barBull" style="width:0%"></div></div>
+          <span class="prob-bar-val" id="valBull">0%</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ Info Tab ═══════════════════════════════════════════════ -->
+  <div class="tab" id="tab-info">
+    <div class="card">
+      <h2>Configuration</h2>
+      <div class="gpu-info-grid" id="configGrid">Loading...</div>
+    </div>
+    <div class="card">
+      <h2>Dataset</h2>
+      <div id="datasetInfo">Click "Load Data &amp; Train" to load dataset info.</div>
+    </div>
+    <div class="card">
+      <h2>Feature List (Simons-style)</h2>
+      <div style="font-size:12px;line-height:1.8;columns:2;" id="featureList"></div>
+    </div>
+  </div>
+
+  <!-- ═══ Console Tab ════════════════════════════════════════════ -->
+  <div class="tab" id="tab-console">
+    <div class="card">
+      <h2>Console Output</h2>
+      <div id="console"></div>
+    </div>
+  </div>
+
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgpu@4/dist/tf-backend-webgpu.min.js"></script>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+//  State
+// ═══════════════════════════════════════════════════════════════
+
+let cfg = {};
+let model = null;
+let trainedModel = null;
+let stopRequested = false;
+let datasetMeta = null;
+let featureData = null;
+let labelData = null;
+
+// ═══════════════════════════════════════════════════════════════
+//  Console logging
+// ═══════════════════════════════════════════════════════════════
+
+function log(msg, cls = 'info') {
+  const el = document.getElementById('console');
+  const line = document.createElement('div');
+  line.className = cls;
+  line.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+  el.appendChild(line);
+  el.scrollTop = el.scrollHeight;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  Tab switching
+// ═══════════════════════════════════════════════════════════════
+
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  document.querySelector(`nav button[onclick="switchTab('${name}')"]`).classList.add('active');
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  WebGPU detection & TF.js initialization
+// ═══════════════════════════════════════════════════════════════
+
+async function initWebGPU() {
+  const dot = document.getElementById('gpuDot');
+  const text = document.getElementById('gpuText');
+
+  if (!navigator.gpu) {
+    dot.className = 'dot fail';
+    text.textContent = 'WebGPU not available — use Chrome 113+ or Safari 18+';
+    log('WebGPU not available in this browser.', 'error');
+    return false;
+  }
+
+  try {
+    const adapter = await navigator.gpu.requestAdapter();
+    if (!adapter) {
+      dot.className = 'dot fail';
+      text.textContent = 'No GPU adapter found';
+      log('WebGPU: No GPU adapter found.', 'error');
+      return false;
+    }
+
+    const info = adapter.info || {};
+    const adapterDesc = info.description || info.device || info.vendor || 'GPU';
+    const vendor = info.vendor || '';
+
+    log(`WebGPU adapter: ${adapterDesc} (${vendor})`, 'success');
+    document.getElementById('adapterName').textContent = `${adapterDesc} (${vendor})`;
+
+    // Set WebGPU as TF.js backend
+    await tf.setBackend('webgpu');
+    await tf.ready();
+
+    const backend = tf.getBackend();
+    dot.className = 'dot ok';
+    text.textContent = `WebGPU active — ${adapterDesc}`;
+    document.getElementById('backendName').textContent = backend;
+
+    log(`TensorFlow.js backend: ${backend}`, 'success');
+    log(`TF.js version: ${tf.version.tfjs}`, 'info');
+    return true;
+  } catch (err) {
+    dot.className = 'dot fail';
+    text.textContent = `WebGPU init failed: ${err.message}`;
+    log(`WebGPU init error: ${err.message}`, 'error');
+
+    // Fallback to WebGL
+    try {
+      await tf.setBackend('webgl');
+      await tf.ready();
+      dot.className = 'dot ok';
+      dot.style.background = '#d29922';
+      text.textContent = `WebGL fallback active (WebGPU failed)`;
+      document.getElementById('backendName').textContent = 'webgl';
+      log('Fell back to WebGL backend.', 'warn');
+      return true;
+    } catch (e2) {
+      log(`WebGL fallback also failed: ${e2.message}`, 'error');
+      return false;
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  Model architecture (mirrors model.js)
+// ═══════════════════════════════════════════════════════════════
+
+function buildModel(timesteps, nFeatures) {
+  const input = tf.input({ shape: [timesteps, nFeatures], name: 'input' });
+
+  // LSTM 1
+  const lstm1 = tf.layers.lstm({
+    units: cfg.LSTM_UNITS_1 || 128,
+    returnSequences: true,
+    kernelRegularizer: tf.regularizers.l2({ l2: 1e-4 }),
+    name: 'lstm_1',
+  }).apply(input);
+
+  const drop1 = tf.layers.dropout({ rate: cfg.DROPOUT_RATE || 0.3, name: 'dropout_1' }).apply(lstm1);
+
+  // Self-Attention
+  const attentionDim = 64;
+  const attentionScale = Math.pow(attentionDim, -0.25);
+
+  const query = tf.layers.dense({
+    units: attentionDim, useBias: false,
+    kernelInitializer: tf.initializers.varianceScaling({ scale: attentionScale }),
+    name: 'attention_query',
+  }).apply(drop1);
+
+  const key = tf.layers.dense({
+    units: attentionDim, useBias: false,
+    kernelInitializer: tf.initializers.varianceScaling({ scale: attentionScale }),
+    name: 'attention_key',
+  }).apply(drop1);
+
+  const value = tf.layers.dense({
+    units: attentionDim, useBias: false,
+    name: 'attention_value',
+  }).apply(drop1);
+
+  const scores = tf.layers.dot({ axes: [2, 2], name: 'attention_dot' }).apply([query, key]);
+  const scaled = tf.layers.activation({ activation: 'softmax', name: 'attention_softmax' }).apply(scores);
+  const attended = tf.layers.dot({ axes: [2, 1], name: 'attention_output' }).apply([scaled, value]);
+
+  // LSTM 2
+  const lstm2 = tf.layers.lstm({
+    units: cfg.LSTM_UNITS_2 || 64,
+    returnSequences: false,
+    kernelRegularizer: tf.regularizers.l2({ l2: 1e-4 }),
+    name: 'lstm_2',
+  }).apply(attended);
+
+  const drop2 = tf.layers.dropout({ rate: cfg.DROPOUT_RATE || 0.3, name: 'dropout_2' }).apply(lstm2);
+
+  // Dense head
+  const dense1 = tf.layers.dense({
+    units: cfg.DENSE_UNITS || 32,
+    activation: 'relu',
+    kernelRegularizer: tf.regularizers.l2({ l2: 1e-4 }),
+    name: 'dense_1',
+  }).apply(drop2);
+
+  const drop3 = tf.layers.dropout({
+    rate: (cfg.DROPOUT_RATE || 0.3) * 0.5,
+    name: 'dropout_3',
+  }).apply(dense1);
+
+  const output = tf.layers.dense({
+    units: 3, activation: 'softmax', name: 'output',
+  }).apply(drop3);
+
+  return tf.model({ inputs: input, outputs: output, name: 'token_predictor' });
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  Batch tensor creation (mirrors data-loader.js)
+// ═══════════════════════════════════════════════════════════════
+
+function createBatchTensors(featureData, labelData, indices, nFeatures, lookback) {
+  const batchSize = indices.length;
+  const xBuf = new Float32Array(batchSize * lookback * nFeatures);
+  const yBuf = new Float32Array(batchSize);
+
+  for (let b = 0; b < batchSize; b++) {
+    const sampleIdx = indices[b];
+    yBuf[b] = labelData[sampleIdx];
+    for (let t = 0; t < lookback; t++) {
+      const srcRow = sampleIdx - lookback + t;
+      const srcOffset = srcRow * nFeatures;
+      const dstOffset = (b * lookback + t) * nFeatures;
+      xBuf.set(featureData.subarray(srcOffset, srcOffset + nFeatures), dstOffset);
+    }
+  }
+
+  return {
+    xTensor: tf.tensor3d(xBuf, [batchSize, lookback, nFeatures]),
+    yTensor: tf.tensor1d(yBuf),
+  };
+}
+
+function shuffleArray(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+function rangeArray(start, end) {
+  const arr = [];
+  for (let i = start; i < end; i++) arr.push(i);
+  return arr;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  Training
+// ═══════════════════════════════════════════════════════════════
+
+async function loadDataFromServer() {
+  log('Loading configuration...');
+  const cfgRes = await fetch('/api/config');
+  cfg = await cfgRes.json();
+
+  log('Loading dataset metadata...');
+  const metaRes = await fetch('/api/dataset');
+  if (!metaRes.ok) {
+    const err = await metaRes.json();
+    throw new Error(err.error || 'Failed to load dataset');
+  }
+  datasetMeta = await metaRes.json();
+  log(`Dataset: ${datasetMeta.nSamples} samples, ${datasetMeta.nFeatures} features`, 'success');
+  log(`Labels: Bearish=${datasetMeta.labelCounts[0]}, Neutral=${datasetMeta.labelCounts[1]}, Bullish=${datasetMeta.labelCounts[2]}`);
+
+  log('Downloading feature data (binary)...');
+  const featRes = await fetch('/api/dataset/features');
+  const featBuf = await featRes.arrayBuffer();
+  featureData = new Float32Array(featBuf);
+  log(`Features loaded: ${(featBuf.byteLength / 1024 / 1024).toFixed(1)} MB`, 'success');
+
+  log('Downloading label data (binary)...');
+  const labelRes = await fetch('/api/dataset/labels');
+  const labelBuf = await labelRes.arrayBuffer();
+  labelData = new Int32Array(labelBuf);
+  log(`Labels loaded: ${labelData.length} entries`, 'success');
+
+  // Update info tab
+  updateInfoTab();
+}
+
+function computeClassWeights(labelData, start, end) {
+  const counts = [0, 0, 0];
+  for (let i = start; i < end; i++) counts[labelData[i]]++;
+  const total = end - start;
+  const weights = {};
+  for (let i = 0; i < 3; i++) {
+    weights[i] = counts[i] > 0 ? total / (3 * counts[i]) : 1;
+  }
+  return weights;
+}
+
+async function startTraining() {
+  const btnTrain = document.getElementById('btnTrain');
+  const btnStop = document.getElementById('btnStop');
+  const btnSave = document.getElementById('btnSave');
+
+  btnTrain.disabled = true;
+  btnStop.disabled = false;
+  btnSave.disabled = true;
+  stopRequested = false;
+
+  document.getElementById('trainingStatus').style.display = 'block';
+  document.getElementById('epochLogCard').style.display = 'block';
+  document.getElementById('testResultsCard').style.display = 'none';
+
+  try {
+    // Load data if not cached
+    if (!featureData || !labelData) {
+      await loadDataFromServer();
+    }
+
+    const ds = datasetMeta;
+    const lookback = ds.lookback;
+    const nFeatures = ds.nFeatures;
+    const batchSize = cfg.BATCH_SIZE || 64;
+    const epochs = cfg.EPOCHS || 50;
+    const patience = cfg.PATIENCE || 8;
+
+    // Build model
+    log('Building model...');
+    model = buildModel(lookback, nFeatures);
+    model.compile({
+      optimizer: tf.train.adam(cfg.LEARNING_RATE || 0.001),
+      loss: 'sparseCategoricalCrossentropy',
+      metrics: ['accuracy'],
+    });
+
+    const totalParams = model.countParams();
+    log(`Model built: ${totalParams.toLocaleString()} parameters`, 'success');
+    log(`Input shape: [${lookback}, ${nFeatures}]`);
+
+    // Class weights
+    const classWeights = computeClassWeights(labelData, ds.trainRange[0], ds.trainRange[1]);
+    log(`Class weights: ${JSON.stringify(classWeights)}`);
+
+    const trainIndicesBase = rangeArray(ds.trainRange[0], ds.trainRange[1]);
+    const nBatches = Math.ceil(trainIndicesBase.length / batchSize);
+
+    log(`Training: ${trainIndicesBase.length} samples, ${nBatches} batches/epoch`, 'info');
+    log(`Backend: ${tf.getBackend()} (GPU accelerated)`, 'success');
+    log('');
+
+    let bestValLoss = Infinity;
+    let bestValAcc = 0;
+    let bestEpoch = 0;
+    let patienceCounter = 0;
+    let bestWeights = null;
+
+    for (let epoch = 1; epoch <= epochs; epoch++) {
+      if (stopRequested) {
+        log('Training stopped by user.', 'warn');
+        break;
+      }
+
+      const epochStart = performance.now();
+
+      // Train epoch
+      const indices = shuffleArray([...trainIndicesBase]);
+      let totalLoss = 0, totalAcc = 0, batchCount = 0;
+
+      for (let b = 0; b < nBatches; b++) {
+        const bStart = b * batchSize;
+        const bEnd = Math.min(bStart + batchSize, indices.length);
+        const batchIndices = indices.slice(bStart, bEnd);
+
+        const { xTensor, yTensor } = createBatchTensors(featureData, labelData, batchIndices, nFeatures, lookback);
+
+        // Sample weights from class weights
+        const yArr = yTensor.dataSync();
+        const wArr = new Float32Array(yArr.length);
+        for (let i = 0; i < yArr.length; i++) wArr[i] = classWeights[yArr[i]] || 1;
+        const sampleWeights = tf.tensor1d(wArr);
+
+        const result = await model.trainOnBatch(xTensor, yTensor, sampleWeights);
+
+        let loss, acc;
+        if (Array.isArray(result)) {
+          loss = typeof result[0] === 'number' ? result[0] : (await result[0].data())[0];
+          acc = result.length > 1 ? (typeof result[1] === 'number' ? result[1] : (await result[1].data())[0]) : 0;
+        } else {
+          loss = typeof result === 'number' ? result : (await result.data())[0];
+          acc = 0;
+        }
+
+        totalLoss += loss;
+        totalAcc += acc;
+        batchCount++;
+
+        xTensor.dispose();
+        yTensor.dispose();
+        sampleWeights.dispose();
+        if (Array.isArray(result)) {
+          for (const r of result) if (typeof r !== 'number' && r && r.dispose) r.dispose();
+        } else if (typeof result !== 'number' && result && result.dispose) {
+          result.dispose();
+        }
+      }
+
+      const trainLoss = totalLoss / batchCount;
+      const trainAcc = totalAcc / batchCount;
+
+      // Validate
+      const valResult = await evaluateRange(model, ds.valRange, batchSize, lookback, nFeatures);
+      const elapsed = ((performance.now() - epochStart) / 1000).toFixed(1);
+
+      const improved = valResult.loss < bestValLoss;
+      if (improved) {
+        bestValLoss = valResult.loss;
+        bestValAcc = valResult.acc;
+        bestEpoch = epoch;
+        patienceCounter = 0;
+        // Save best weights in memory
+        if (bestWeights) bestWeights.forEach(w => w.dispose());
+        bestWeights = model.getWeights().map(w => w.clone());
+      } else {
+        patienceCounter++;
+      }
+
+      // Update UI
+      const pct = Math.round((epoch / epochs) * 100);
+      document.getElementById('epochProgress').style.width = pct + '%';
+      document.getElementById('epochLabel').textContent = `Epoch ${epoch}/${epochs}`;
+      document.getElementById('epochPercent').textContent = pct + '%';
+      document.getElementById('mTrainLoss').textContent = trainLoss.toFixed(4);
+      document.getElementById('mTrainAcc').textContent = (trainAcc * 100).toFixed(1) + '%';
+      document.getElementById('mValLoss').textContent = valResult.loss.toFixed(4);
+      document.getElementById('mValAcc').textContent = (valResult.acc * 100).toFixed(1) + '%';
+      document.getElementById('mBestEpoch').textContent = bestEpoch;
+      document.getElementById('mPatience').textContent = `${patienceCounter}/${patience}`;
+
+      const marker = improved ? ' *' : '';
+      const logMsg = `Epoch ${String(epoch).padStart(3)}/${epochs} (${elapsed}s) | Loss: ${trainLoss.toFixed(4)} | Acc: ${(trainAcc * 100).toFixed(1)}% | Val Loss: ${valResult.loss.toFixed(4)} | Val Acc: ${(valResult.acc * 100).toFixed(1)}%${marker}`;
+      log(logMsg, improved ? 'success' : 'info');
+
+      const epochLogEl = document.getElementById('epochLog');
+      const logLine = document.createElement('div');
+      logLine.className = 'epoch-log';
+      logLine.innerHTML = logMsg.replace(' *', ' <span class="star">&#9733;</span>');
+      epochLogEl.appendChild(logLine);
+      epochLogEl.scrollTop = epochLogEl.scrollHeight;
+
+      if (patienceCounter >= patience) {
+        log(`Early stopping at epoch ${epoch} (patience=${patience}).`, 'warn');
+        log(`Best epoch: ${bestEpoch} (val_loss=${bestValLoss.toFixed(4)}, val_acc=${(bestValAcc * 100).toFixed(1)}%)`, 'success');
+        break;
+      }
+    }
+
+    // Restore best weights
+    if (bestWeights) {
+      model.setWeights(bestWeights);
+      bestWeights.forEach(w => w.dispose());
+      bestWeights = null;
+      log('Restored best weights.', 'success');
+    }
+
+    trainedModel = model;
+
+    // Test evaluation
+    log('');
+    log('Evaluating on test set...', 'info');
+    const testResult = await evaluateRange(model, ds.testRange, batchSize, lookback, nFeatures, true);
+    showTestResults(testResult);
+
+    btnSave.disabled = false;
+    log('');
+    log('Training complete. Click "Save Model" to persist.', 'success');
+
+  } catch (err) {
+    log(`Training error: ${err.message}`, 'error');
+    console.error(err);
+  }
+
+  btnTrain.disabled = false;
+  btnStop.disabled = true;
+}
+
+function stopTraining() {
+  stopRequested = true;
+  log('Stop requested, finishing current epoch...', 'warn');
+}
+
+async function evaluateRange(model, range, batchSize, lookback, nFeatures, collectPredictions = false) {
+  const [rangeStart, rangeEnd] = range;
+  const indices = rangeArray(rangeStart, rangeEnd);
+  const nBatches = Math.ceil(indices.length / batchSize);
+
+  let totalLoss = 0, totalCorrect = 0, totalSamples = 0;
+  const allPred = collectPredictions ? [] : null;
+  const allTrue = collectPredictions ? [] : null;
+
+  for (let b = 0; b < nBatches; b++) {
+    const bStart = b * batchSize;
+    const bEnd = Math.min(bStart + batchSize, indices.length);
+    const batchIndices = indices.slice(bStart, bEnd);
+    const curBatchSize = batchIndices.length;
+
+    const { xTensor, yTensor } = createBatchTensors(featureData, labelData, batchIndices, nFeatures, lookback);
+
+    const evalResult = model.evaluate(xTensor, yTensor, { batchSize: curBatchSize });
+    const batchLoss = (await evalResult[0].data())[0];
+    totalLoss += batchLoss * curBatchSize;
+
+    const predictions = model.predict(xTensor);
+    const predClasses = predictions.argMax(-1);
+    const predData = await predClasses.data();
+    const trueData = await yTensor.data();
+
+    for (let i = 0; i < curBatchSize; i++) {
+      if (predData[i] === trueData[i]) totalCorrect++;
+      if (collectPredictions) {
+        allPred.push(predData[i]);
+        allTrue.push(trueData[i]);
+      }
+    }
+    totalSamples += curBatchSize;
+
+    xTensor.dispose(); yTensor.dispose();
+    evalResult[0].dispose(); evalResult[1].dispose();
+    predictions.dispose(); predClasses.dispose();
+  }
+
+  return {
+    loss: totalLoss / totalSamples,
+    acc: totalCorrect / totalSamples,
+    predictions: allPred,
+    trueLabels: allTrue,
+  };
+}
+
+function showTestResults(result) {
+  const card = document.getElementById('testResultsCard');
+  card.style.display = 'block';
+
+  document.getElementById('testMetrics').innerHTML = `
+    <div class="metric"><div class="label">Test Loss</div><div class="value info">${result.loss.toFixed(4)}</div></div>
+    <div class="metric"><div class="label">Test Accuracy</div><div class="value good">${(result.acc * 100).toFixed(1)}%</div></div>
+  `;
+
+  log(`Test Loss: ${result.loss.toFixed(4)}`, 'info');
+  log(`Test Accuracy: ${(result.acc * 100).toFixed(1)}%`, 'success');
+
+  if (result.predictions) {
+    const cm = [[0,0,0],[0,0,0],[0,0,0]];
+    for (let i = 0; i < result.trueLabels.length; i++) {
+      cm[result.trueLabels[i]][result.predictions[i]]++;
+    }
+
+    const names = ['Bearish', 'Neutral', 'Bullish'];
+    let html = '<h3 style="margin-top:12px;">Confusion Matrix</h3>';
+    html += '<table class="confusion-matrix"><tr><td></td>';
+    names.forEach(n => html += `<th class="header">${n}</th>`);
+    html += '</tr>';
+    for (let i = 0; i < 3; i++) {
+      html += `<tr><td class="header">${names[i]}</td>`;
+      for (let j = 0; j < 3; j++) {
+        html += `<td>${cm[i][j]}</td>`;
+      }
+      html += '</tr>';
+    }
+    html += '</table>';
+
+    html += '<h3 style="margin-top:12px;">Per-class Metrics</h3><table>';
+    html += '<tr><th>Class</th><th>Precision</th><th>Recall</th><th>F1</th></tr>';
+    for (let i = 0; i < 3; i++) {
+      const tp = cm[i][i];
+      const fp = cm[0][i] + cm[1][i] + cm[2][i] - tp;
+      const fn = cm[i][0] + cm[i][1] + cm[i][2] - tp;
+      const prec = tp + fp > 0 ? tp / (tp + fp) : 0;
+      const rec = tp + fn > 0 ? tp / (tp + fn) : 0;
+      const f1 = prec + rec > 0 ? (2 * prec * rec) / (prec + rec) : 0;
+      html += `<tr><td>${names[i]}</td><td>${(prec*100).toFixed(1)}%</td><td>${(rec*100).toFixed(1)}%</td><td>${(f1*100).toFixed(1)}%</td></tr>`;
+
+      log(`  ${names[i]}: Precision=${(prec*100).toFixed(1)}%, Recall=${(rec*100).toFixed(1)}%, F1=${(f1*100).toFixed(1)}%`);
+    }
+    html += '</table>';
+
+    document.getElementById('confusionMatrix').innerHTML = html;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  Model save/load via server
+// ═══════════════════════════════════════════════════════════════
+
+async function saveModelToServer() {
+  if (!trainedModel) {
+    log('No trained model to save.', 'error');
+    return;
+  }
+
+  try {
+    log('Saving model to server...');
+
+    await trainedModel.save(tf.io.withSaveHandler(async (artifacts) => {
+      // Save topology (model.json)
+      const modelJson = {
+        format: 'layers-model',
+        generatedBy: 'TensorFlow.js WebGPU',
+        convertedBy: null,
+        modelTopology: artifacts.modelTopology,
+        weightsManifest: [{
+          paths: ['weights.bin'],
+          weights: artifacts.weightSpecs,
+        }],
+      };
+
+      await fetch('/api/model/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(modelJson),
+      });
+
+      // Save weights binary
+      await fetch('/api/model/weights', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/octet-stream' },
+        body: new Uint8Array(artifacts.weightData),
+      });
+
+      // Save scaler
+      if (datasetMeta && datasetMeta.scaler) {
+        await fetch('/api/model/scaler', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...datasetMeta.scaler,
+            featureNames: datasetMeta.featureNames,
+          }),
+        });
+      }
+
+      return { modelArtifactsInfo: { dateSaved: new Date(), modelTopologyType: 'JSON' } };
+    }));
+
+    log('Model saved successfully.', 'success');
+  } catch (err) {
+    log(`Save error: ${err.message}`, 'error');
+  }
+}
+
+async function loadModelFromServer() {
+  try {
+    const res = await fetch('/api/model/exists');
+    const { exists } = await res.json();
+    if (!exists) return null;
+
+    log('Loading model from server...');
+    const loaded = await tf.loadLayersModel('/api/model/load/model.json');
+    log('Model loaded successfully.', 'success');
+    return loaded;
+  } catch (err) {
+    log(`Model load error: ${err.message}`, 'error');
+    return null;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  Prediction
+// ═══════════════════════════════════════════════════════════════
+
+async function loadTokenList() {
+  try {
+    const res = await fetch('/api/tokens');
+    const tokens = await res.json();
+    const select = document.getElementById('tokenSelect');
+    select.innerHTML = '<option value="">Select a token...</option>';
+    tokens.forEach(t => {
+      const opt = document.createElement('option');
+      opt.value = t.mint;
+      opt.textContent = `${t.name} (${t.mint.slice(0, 8)}...)`;
+      select.appendChild(opt);
+    });
+  } catch (err) {
+    log(`Failed to load token list: ${err.message}`, 'error');
+  }
+}
+
+async function runPrediction() {
+  const mint = document.getElementById('tokenSelect').value;
+  if (!mint) {
+    log('Select a token first.', 'warn');
+    return;
+  }
+
+  const btnPredict = document.getElementById('btnPredict');
+  btnPredict.disabled = true;
+
+  try {
+    // Load model if not in memory
+    if (!trainedModel) {
+      trainedModel = await loadModelFromServer();
+      if (!trainedModel) {
+        log('No model available. Train a model first.', 'error');
+        btnPredict.disabled = false;
+        return;
+      }
+    }
+
+    log(`Fetching prediction data for ${mint.slice(0, 8)}...`);
+    const res = await fetch(`/api/token/${mint}/predict-data`);
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error);
+    }
+
+    const data = await res.json();
+    const window = data.lastWindow; // [lookback][nFeatures]
+
+    log('Running inference on GPU...');
+    const inputTensor = tf.tensor3d([window]);
+    const prediction = trainedModel.predict(inputTensor);
+    const probs = await prediction.data();
+    inputTensor.dispose();
+    prediction.dispose();
+
+    const classNames = ['Bearish', 'Neutral', 'Bullish'];
+    const maxIdx = probs.indexOf(Math.max(...probs));
+
+    // Show result
+    const resultCard = document.getElementById('predictionResult');
+    resultCard.style.display = 'block';
+
+    document.getElementById('predTokenName').textContent = data.tokenName;
+
+    const signalEl = document.getElementById('predSignal');
+    signalEl.textContent = classNames[maxIdx];
+    signalEl.className = 'signal ' + classNames[maxIdx].toLowerCase();
+
+    document.getElementById('predConfidence').textContent =
+      `Confidence: ${(probs[maxIdx] * 100).toFixed(1)}% | Horizon: ${cfg.PREDICTION_HORIZON || 6}h`;
+
+    document.getElementById('barBear').style.width = (probs[0] * 100) + '%';
+    document.getElementById('barNeut').style.width = (probs[1] * 100) + '%';
+    document.getElementById('barBull').style.width = (probs[2] * 100) + '%';
+    document.getElementById('valBear').textContent = (probs[0] * 100).toFixed(1) + '%';
+    document.getElementById('valNeut').textContent = (probs[1] * 100).toFixed(1) + '%';
+    document.getElementById('valBull').textContent = (probs[2] * 100).toFixed(1) + '%';
+
+    log(`Prediction: ${classNames[maxIdx]} (${(probs[maxIdx] * 100).toFixed(1)}%)`, 'success');
+    log(`  Bearish: ${(probs[0]*100).toFixed(1)}%, Neutral: ${(probs[1]*100).toFixed(1)}%, Bullish: ${(probs[2]*100).toFixed(1)}%`);
+
+  } catch (err) {
+    log(`Prediction error: ${err.message}`, 'error');
+  }
+
+  btnPredict.disabled = false;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  Info tab
+// ═══════════════════════════════════════════════════════════════
+
+function updateInfoTab() {
+  if (!cfg) return;
+
+  const grid = document.getElementById('configGrid');
+  const entries = [
+    ['Lookback Window', `${cfg.LOOKBACK_WINDOW} hours`],
+    ['Prediction Horizon', `${cfg.PREDICTION_HORIZON} hours`],
+    ['Bullish Threshold', `>${(cfg.GROWTH_THRESHOLD_UP * 100).toFixed(0)}%`],
+    ['Bearish Threshold', `<${(cfg.GROWTH_THRESHOLD_DN * 100).toFixed(0)}%`],
+    ['LSTM Layer 1', `${cfg.LSTM_UNITS_1} units`],
+    ['LSTM Layer 2', `${cfg.LSTM_UNITS_2} units`],
+    ['Dense Layer', `${cfg.DENSE_UNITS} units`],
+    ['Dropout', cfg.DROPOUT_RATE],
+    ['Learning Rate', cfg.LEARNING_RATE],
+    ['Batch Size', cfg.BATCH_SIZE],
+    ['Max Epochs', cfg.EPOCHS],
+    ['Early Stopping', `patience=${cfg.PATIENCE}`],
+  ];
+  grid.innerHTML = entries.map(([k, v]) =>
+    `<span class="lbl">${k}:</span><span>${v}</span>`
+  ).join('');
+
+  if (datasetMeta) {
+    const ds = datasetMeta;
+    document.getElementById('datasetInfo').innerHTML = `
+      <div class="gpu-info-grid">
+        <span class="lbl">Tokens processed:</span><span>${ds.tokenStats ? ds.tokenStats.length : '?'}</span>
+        <span class="lbl">Total samples:</span><span>${ds.nSamples.toLocaleString()}</span>
+        <span class="lbl">Features:</span><span>${ds.nFeatures}</span>
+        <span class="lbl">Train samples:</span><span>${(ds.trainRange[1] - ds.trainRange[0]).toLocaleString()}</span>
+        <span class="lbl">Val samples:</span><span>${(ds.valRange[1] - ds.valRange[0]).toLocaleString()}</span>
+        <span class="lbl">Test samples:</span><span>${(ds.testRange[1] - ds.testRange[0]).toLocaleString()}</span>
+        <span class="lbl">Bearish:</span><span>${ds.labelCounts[0]} (${((ds.labelCounts[0]/ds.nSamples)*100).toFixed(1)}%)</span>
+        <span class="lbl">Neutral:</span><span>${ds.labelCounts[1]} (${((ds.labelCounts[1]/ds.nSamples)*100).toFixed(1)}%)</span>
+        <span class="lbl">Bullish:</span><span>${ds.labelCounts[2]} (${((ds.labelCounts[2]/ds.nSamples)*100).toFixed(1)}%)</span>
+      </div>
+    `;
+
+    if (ds.featureNames) {
+      document.getElementById('featureList').innerHTML =
+        ds.featureNames.map(f => `<div>${f}</div>`).join('');
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  Init
+// ═══════════════════════════════════════════════════════════════
+
+async function init() {
+  log('Initializing ML Token Predictor WebGPU interface...');
+
+  const gpuOk = await initWebGPU();
+  if (!gpuOk) {
+    log('GPU initialization failed. Training will not work without WebGPU.', 'error');
+    document.getElementById('btnTrain').disabled = true;
+  }
+
+  // Load config for info tab
+  try {
+    const cfgRes = await fetch('/api/config');
+    cfg = await cfgRes.json();
+    updateInfoTab();
+  } catch {}
+
+  // Load token list for predict tab
+  await loadTokenList();
+
+  log('Ready.', 'success');
+}
+
+init();
+</script>
+</body>
+</html>
