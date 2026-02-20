@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Сочтёмся — Splitwise Bot</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+  <!-- Header -->
+  <div class="header">
+    <h1>💰 <span data-i18n="appName">Сочтёмся</span></h1>
+    <div class="header-actions">
+      <button class="header-btn" onclick="navigateTo('settings')" title="Settings">⚙️</button>
+    </div>
+  </div>
+
+  <!-- Pages -->
+
+  <!-- Groups Page -->
+  <div id="page-groups" class="page active">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px">
+      <h2 data-i18n="myGroups">Мои группы</h2>
+      <div style="display:flex; gap:8px">
+        <button class="btn btn-outline btn-sm" onclick="showJoinGroupModal()">🔗</button>
+        <button class="btn btn-primary btn-sm" onclick="showCreateGroupModal()">+ <span data-i18n="create">Создать</span></button>
+      </div>
+    </div>
+    <div id="groups-list"></div>
+  </div>
+
+  <!-- Group Detail Page -->
+  <div id="page-group-detail" class="page">
+    <div style="margin-bottom:12px">
+      <button class="btn btn-outline btn-sm" onclick="navigateTo('groups')">← <span data-i18n="back">Назад</span></button>
+    </div>
+    <div id="group-detail-content"></div>
+  </div>
+
+  <!-- Add Expense Page -->
+  <div id="page-add-expense" class="page">
+    <div style="margin-bottom:12px">
+      <button class="btn btn-outline btn-sm" onclick="navigateTo('groups')">← <span data-i18n="back">Назад</span></button>
+    </div>
+    <div id="expense-form-content"></div>
+  </div>
+
+  <!-- Balance Page -->
+  <div id="page-balance" class="page">
+    <div id="balance-content"></div>
+  </div>
+
+  <!-- History Page -->
+  <div id="page-history" class="page">
+    <div id="history-content"></div>
+  </div>
+
+  <!-- Settle Page -->
+  <div id="page-settle" class="page">
+    <div style="margin-bottom:12px">
+      <button class="btn btn-outline btn-sm" onclick="navigateTo('groups')">← <span data-i18n="back">Назад</span></button>
+    </div>
+    <div id="settle-content"></div>
+  </div>
+
+  <!-- Settings Page -->
+  <div id="page-settings" class="page">
+    <div id="settings-content"></div>
+  </div>
+
+  <!-- Bottom Navigation -->
+  <nav class="bottom-nav">
+    <button class="nav-item active" data-nav="groups" onclick="navigateTo('groups')">
+      <span class="icon">👥</span>
+      <span data-i18n="groups">Группы</span>
+    </button>
+    <button class="nav-item" data-nav="balance" onclick="navigateTo('balance')">
+      <span class="icon">📊</span>
+      <span data-i18n="balance">Баланс</span>
+    </button>
+    <button class="nav-item add-btn" onclick="navigateTo('add-expense')">
+      <span class="icon">+</span>
+    </button>
+    <button class="nav-item" data-nav="history" onclick="navigateTo('history')">
+      <span class="icon">📋</span>
+      <span data-i18n="history">История</span>
+    </button>
+    <button class="nav-item" data-nav="settings" onclick="navigateTo('settings')">
+      <span class="icon">⚙️</span>
+      <span data-i18n="settings">Настройки</span>
+    </button>
+  </nav>
+
+  <!-- Modal -->
+  <div id="modal-overlay" class="modal-overlay" onclick="if(event.target===this)closeModal()">
+    <div class="modal" id="modal-content"></div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast" class="toast"></div>
+
+  <!-- Scripts -->
+  <script src="/js/i18n.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>
