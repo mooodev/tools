@@ -33,8 +33,14 @@ function createServer(port) {
 
   // Get or create user by telegram ID
   app.get('/api/user/:telegramId', (req, res) => {
-    const user = userService.getUser(req.params.telegramId);
-    if (!user) return res.status(404).json({ error: 'User not found' });
+    let user = userService.getUser(req.params.telegramId);
+    if (!user) {
+      // Auto-create user on first web access (e.g. demo_user on localhost)
+      user = userService.ensureUser({
+        id: req.params.telegramId,
+        first_name: req.params.telegramId === 'demo_user' ? 'Demo User' : req.params.telegramId,
+      });
+    }
     res.json(user);
   });
 
@@ -47,16 +53,26 @@ function createServer(port) {
 
   // Get user groups
   app.get('/api/user/:telegramId/groups', (req, res) => {
-    const user = userService.getUser(req.params.telegramId);
-    if (!user) return res.status(404).json({ error: 'User not found' });
+    let user = userService.getUser(req.params.telegramId);
+    if (!user) {
+      user = userService.ensureUser({
+        id: req.params.telegramId,
+        first_name: req.params.telegramId === 'demo_user' ? 'Demo User' : req.params.telegramId,
+      });
+    }
     const groups = groupService.getUserGroups(user.id);
     res.json(groups);
   });
 
   // Get user total balance
   app.get('/api/user/:telegramId/balance', (req, res) => {
-    const user = userService.getUser(req.params.telegramId);
-    if (!user) return res.status(404).json({ error: 'User not found' });
+    let user = userService.getUser(req.params.telegramId);
+    if (!user) {
+      user = userService.ensureUser({
+        id: req.params.telegramId,
+        first_name: req.params.telegramId === 'demo_user' ? 'Demo User' : req.params.telegramId,
+      });
+    }
     const balance = balanceService.getUserTotalBalance(user.id);
 
     // Resolve user names
