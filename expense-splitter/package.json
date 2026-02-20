@@ -1,0 +1,25 @@
+{
+  "name": "sochtiomsya-expense-splitter",
+  "version": "1.0.0",
+  "description": "Telegram bot for splitting expenses between groups with web interface",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "migrate": "node src/db/migrate.js",
+    "seed": "node src/db/seed.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.7.0",
+    "express": "^4.21.0",
+    "node-telegram-bot-api": "^0.66.0",
+    "node-cron": "^3.0.3",
+    "uuid": "^10.0.0",
+    "multer": "^1.4.5-lts.1",
+    "csv-stringify": "^6.5.0",
+    "dotenv": "^16.4.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
+  }
+}
