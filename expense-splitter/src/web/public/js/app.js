@@ -94,7 +94,12 @@ async function loadGroups() {
 
   try {
     const res = await fetch(`${API}/api/user/${state.telegramId}/groups`);
-    state.groups = await res.json();
+    if (res.ok) {
+      const data = await res.json();
+      state.groups = Array.isArray(data) ? data : [];
+    } else {
+      state.groups = [];
+    }
   } catch {
     state.groups = [];
   }
@@ -383,8 +388,17 @@ async function loadExpenseForm(groupId) {
 
   let members = [];
   let group = null;
+
+  if (!groupId) {
+    const container = document.getElementById('expense-form-content');
+    container.innerHTML = `<div class="empty-state"><div class="emoji">👥</div><p>${_('noGroups')}</p></div>
+      <button class="btn btn-outline btn-full" onclick="navigateTo('groups')">${_('back')}</button>`;
+    return;
+  }
+
   try {
     const gRes = await fetch(`${API}/api/groups/${groupId}`);
+    if (!gRes.ok) throw new Error('Failed to load group');
     group = await gRes.json();
     members = group.members || [];
     state.currentGroup = group;
