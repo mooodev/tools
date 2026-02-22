@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Fog of War - RTS</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: #000; touch-action: none; user-select: none; -webkit-user-select: none; font-family: 'Segoe UI', Arial, sans-serif; }
+#gameCanvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+
+/* Top resource bar */
+#topBar { position: absolute; top: 0; left: 0; right: 0; height: 36px; background: linear-gradient(180deg, #2a1a0a 0%, #1a0e04 100%); border-bottom: 2px solid #8B7355; display: flex; align-items: center; justify-content: space-around; padding: 0 8px; z-index: 10; }
+.res { display: flex; align-items: center; gap: 4px; color: #FFD700; font-size: 13px; font-weight: bold; text-shadow: 1px 1px 2px #000; }
+.res-icon { width: 18px; height: 18px; border-radius: 3px; display: inline-block; }
+.res-gold .res-icon { background: #FFD700; }
+.res-lumber .res-icon { background: #228B22; }
+.res-oil .res-icon { background: #4a4a4a; }
+.res-food .res-icon { background: #CD853F; }
+
+/* Bottom panel */
+#bottomPanel { position: absolute; bottom: 0; left: 0; right: 0; height: 140px; background: linear-gradient(0deg, #1a0e04 0%, #2a1a0a 100%); border-top: 2px solid #8B7355; display: flex; z-index: 10; }
+#infoPanel { width: 35%; padding: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; border-right: 1px solid #5a4a35; }
+#infoPanel .portrait { width: 48px; height: 48px; border: 2px solid #8B7355; border-radius: 4px; margin-bottom: 4px; }
+#infoPanel .info-name { color: #FFD700; font-size: 11px; font-weight: bold; text-align: center; }
+#infoPanel .info-hp { color: #0f0; font-size: 10px; }
+#infoPanel .info-stats { color: #ccc; font-size: 9px; text-align: center; }
+#actionPanel { width: 65%; padding: 6px; display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(3, 1fr); gap: 4px; }
+.action-btn { background: linear-gradient(180deg, #3a2a1a 0%, #2a1a0a 100%); border: 1px solid #8B7355; border-radius: 4px; color: #FFD700; font-size: 9px; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; min-height: 34px; text-shadow: 1px 1px 1px #000; }
+.action-btn:active { background: #5a4a2a; }
+.action-btn .btn-icon { width: 20px; height: 20px; border-radius: 3px; margin-bottom: 2px; }
+.action-btn.disabled { opacity: 0.4; pointer-events: none; }
+
+/* Minimap */
+#minimapContainer { position: absolute; bottom: 144px; left: 4px; z-index: 10; border: 2px solid #8B7355; background: #000; }
+#minimap { display: block; }
+
+/* Faction select screen */
+#startScreen { position: absolute; inset: 0; background: radial-gradient(ellipse at center, #1a0e04 0%, #000 100%); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 100; }
+#startScreen h1 { color: #FFD700; font-size: 28px; margin-bottom: 8px; text-shadow: 2px 2px 4px #000; }
+#startScreen h2 { color: #CD853F; font-size: 16px; margin-bottom: 30px; }
+.faction-btn { width: 200px; padding: 16px; margin: 8px; border: 2px solid #8B7355; border-radius: 8px; font-size: 18px; font-weight: bold; cursor: pointer; text-shadow: 1px 1px 2px #000; }
+.faction-btn.humans { background: linear-gradient(180deg, #1a3a6a 0%, #0a1a3a 100%); color: #6af; }
+.faction-btn.orcs { background: linear-gradient(180deg, #5a1a1a 0%, #3a0a0a 100%); color: #f66; }
+.faction-btn:active { transform: scale(0.95); }
+
+/* Notifications */
+#notifications { position: absolute; top: 42px; right: 8px; z-index: 20; display: flex; flex-direction: column; gap: 4px; }
+.notif { background: rgba(0,0,0,0.85); color: #FFD700; padding: 6px 12px; border-radius: 4px; font-size: 11px; border: 1px solid #8B7355; animation: fadeIn 0.3s; }
+@keyframes fadeIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+
+/* Build submenu */
+#buildMenu { display: none; position: absolute; bottom: 144px; right: 4px; background: #1a0e04; border: 2px solid #8B7355; border-radius: 6px; padding: 6px; z-index: 15; max-height: 60vh; overflow-y: auto; }
+#buildMenu .build-item { display: flex; align-items: center; gap: 8px; padding: 8px; border: 1px solid #5a4a35; border-radius: 4px; margin-bottom: 4px; color: #FFD700; font-size: 11px; cursor: pointer; }
+#buildMenu .build-item:active { background: #3a2a1a; }
+#buildMenu .build-item .build-icon { width: 32px; height: 32px; border-radius: 4px; border: 1px solid #8B7355; }
+#buildMenu .build-item .build-cost { color: #ccc; font-size: 9px; }
+#buildMenu .build-item.cant-afford { opacity: 0.4; }
+
+/* Placement mode indicator */
+#placementHint { display: none; position: absolute; top: 42px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); color: #FFD700; padding: 8px 16px; border-radius: 6px; border: 1px solid #8B7355; font-size: 13px; z-index: 20; }
+</style>
+</head>
+<body>
+<div id="startScreen">
+  <h1>FOG OF WAR</h1>
+  <h2>Real-Time Strategy</h2>
+  <button class="faction-btn humans" onclick="startGame('humans')">Humans</button>
+  <button class="faction-btn orcs" onclick="startGame('orcs')">Orcs</button>
+</div>
+
+<canvas id="gameCanvas"></canvas>
+
+<div id="topBar">
+  <div class="res res-gold"><span class="res-icon"></span><span id="resGold">0</span></div>
+  <div class="res res-lumber"><span class="res-icon"></span><span id="resLumber">0</span></div>
+  <div class="res res-oil"><span class="res-icon"></span><span id="resOil">0</span></div>
+  <div class="res res-food"><span class="res-icon"></span><span id="resFood">0/0</span></div>
+</div>
+
+<div id="bottomPanel">
+  <div id="infoPanel">
+    <div class="portrait" id="portrait"></div>
+    <div class="info-name" id="infoName">-</div>
+    <div class="info-hp" id="infoHP"></div>
+    <div class="info-stats" id="infoStats"></div>
+  </div>
+  <div id="actionPanel"></div>
+</div>
+
+<div id="minimapContainer">
+  <canvas id="minimap" width="120" height="120"></canvas>
+</div>
+
+<div id="notifications"></div>
+<div id="buildMenu"></div>
+<div id="placementHint">Tap to place building. Tap here to cancel.</div>
+
+<script src="config.js"></script>
+<script src="utils.js"></script>
+<script src="map.js"></script>
+<script src="fog.js"></script>
+<script src="pathfinding.js"></script>
+<script src="entities.js"></script>
+<script src="player.js"></script>
+<script src="combat.js"></script>
+<script src="spells.js"></script>
+<script src="ai.js"></script>
+<script src="input.js"></script>
+<script src="renderer.js"></script>
+<script src="ui.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
