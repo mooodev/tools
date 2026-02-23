@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Связи (Connections)</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #ffffff;
+            color: #000000;
+            margin: 0;
+            padding: 20px;
+        }
+        h1 {
+            margin-bottom: 5px;
+        }
+        p.subtitle {
+            margin-top: 0;
+            margin-bottom: 20px;
+            color: #555;
+            text-align: center;
+        }
+        .board-container {
+            width: 100%;
+            max-width: 600px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .solved-area {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .solved-row {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .solved-theme {
+            font-weight: bold;
+            font-size: 1.1em;
+            margin-bottom: 5px;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+        }
+        .card {
+            background-color: #efefe6;
+            border: none;
+            border-radius: 8px;
+            padding: 20px 10px;
+            font-size: 14px;
+            font-weight: 700;
+            text-align: center;
+            cursor: pointer;
+            user-select: none;
+            text-transform: uppercase;
+            transition: background-color 0.2s, transform 0.1s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 40px;
+        }
+        .card.selected {
+            background-color: #5a594e;
+            color: white;
+        }
+        .card.shake {
+            animation: shake 0.4s;
+        }
+        .mistakes {
+            margin: 20px 0;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .dot {
+            height: 12px;
+            width: 12px;
+            background-color: #5a594e;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        .controls {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        button.action-btn {
+            padding: 12px 20px;
+            font-size: 16px;
+            font-weight: 600;
+            border-radius: 24px;
+            border: 1px solid #000;
+            background-color: white;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        button.action-btn:disabled {
+            border-color: #ccc;
+            color: #ccc;
+            cursor: not-allowed;
+        }
+        button.action-btn#submit {
+            background-color: #000;
+            color: #fff;
+        }
+        button.action-btn#submit:disabled {
+            background-color: #ccc;
+            border-color: #ccc;
+            color: #fff;
+        }
+        #message {
+            height: 20px;
+            font-weight: bold;
+            color: #e02424;
+            margin-bottom: 10px;
+        }
+        @keyframes shake {
+            0% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            50% { transform: translateX(5px); }
+            75% { transform: translateX(-5px); }
+            100% { transform: translateX(0); }
+        }
+        @media (max-width: 480px) {
+            .card { font-size: 11px; padding: 15px 5px; }
+            button.action-btn { padding: 10px 15px; font-size: 14px; }
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Связи</h1>
+    <p class="subtitle">Сгруппируйте слова по 4<br>в соответствии с их общей категорией.</p>
+
+    <div id="message"></div>
+
+    <div class="board-container">
+        <div class="solved-area" id="solved-area"></div>
+        <div class="grid" id="grid"></div>
+    </div>
+
+    <div class="mistakes" id="mistakes-container">
+        Осталось ошибок: <span id="dots"></span>
+    </div>
+
+    <div class="controls">
+        <button class="action-btn" id="shuffle">Перемешать</button>
+        <button class="action-btn" id="deselect" disabled>Сбросить</button>
+        <button class="action-btn" id="submit" disabled>Проверить</button>
+    </div>
+
+    <script>
+        // Исходные данные с категориями
+        const gameData = [
+            { theme: "ЦВЕТА", words: ["КРАСНЫЙ", "СИНИЙ", "ЗЕЛЕНЫЙ", "ЖЕЛТЫЙ"], color: "#faddc7" },
+            { theme: "ОВОЩИ", words: ["МОРКОВЬ", "КАРТОФЕЛЬ", "ОГУРЕЦ", "ТОМАТ"], color: "#b5e352" },
+            { theme: "ЕДИНИЦЫ ИЗМЕРЕНИЯ", words: ["МЕТР", "ЛИТР", "ГРАММ", "СЕКУНДА"], color: "#729bba" },
+            { theme: "ВАЛЮТЫ", words: ["РУБЛЬ", "ДОЛЛАР", "ЕВРО", "ЮАНЬ"], color: "#bc70c4" }
+        ];
+
+        let activeWords = [];
+        let solvedCategories = [];
+        let selectedWords = [];
+        let mistakes = 4;
+        let isGameOver = false;
+
+        const gridElement = document.getElementById('grid');
+        const solvedAreaElement = document.getElementById('solved-area');
+        const dotsElement = document.getElementById('dots');
+        const messageElement = document.getElementById('message');
+        
+        const btnShuffle = document.getElementById('shuffle');
+        const btnDeselect = document.getElementById('deselect');
+        const btnSubmit = document.getElementById('submit');
+
+        // Инициализация игры
+        function initGame() {
+            activeWords = [];
+            gameData.forEach(cat => {
+                cat.words.forEach(word => {
+                    activeWords.push({ word: word, category: cat.theme });
+                });
+            });
+            shuffleArray(activeWords);
+            updateBoard();
+            updateMistakes();
+        }
+
+        // Перемешивание массива (алгоритм Фишера-Йейтса)
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+        }
+
+        // Отрисовка карточек
+        function updateBoard() {
+            gridElement.innerHTML = '';
+            
+            // Отрисовка отгаданных категорий
+            solvedAreaElement.innerHTML = '';
+            solvedCategories.forEach(cat => {
+                const row = document.createElement('div');
+                row.className = 'solved-row';
+                row.style.backgroundColor = cat.color;
+                row.innerHTML = `<div class="solved-theme">${cat.theme}</div><div>${cat.words.join(', ')}</div>`;
+                solvedAreaElement.appendChild(row);
+            });
+
+            // Отрисовка оставшихся слов
+            activeWords.forEach((item, index) => {
+                const card = document.createElement('div');
+                card.className = 'card';
+                if (selectedWords.includes(item)) {
+                    card.classList.add('selected');
+                }
+                card.textContent = item.word;
+                card.onclick = () => toggleSelect(item);
+                gridElement.appendChild(card);
+            });
+
+            updateButtons();
+        }
+
+        // Выбор/отмена выбора слова
+        function toggleSelect(item) {
+            if (isGameOver) return;
+            showMessage(""); 
+            
+            const index = selectedWords.indexOf(item);
+            if (index > -1) {
+                selectedWords.splice(index, 1);
+            } else {
+                if (selectedWords.length < 4) {
+                    selectedWords.push(item);
+                }
+            }
+            updateBoard();
+        }
+
+        // Обновление состояния кнопок
+        function updateButtons() {
+            btnDeselect.disabled = selectedWords.length === 0 || isGameOver;
+            btnSubmit.disabled = selectedWords.length !== 4 || isGameOver;
+            btnShuffle.disabled = isGameOver;
+        }
+
+        // Обновление кружочков с ошибками
+        function updateMistakes() {
+            dotsElement.innerHTML = '';
+            for (let i = 0; i < mistakes; i++) {
+                dotsElement.innerHTML += '<span class="dot"></span>';
+            }
+        }
+
+        // Показ временного сообщения
+        function showMessage(msg) {
+            messageElement.textContent = msg;
+            if (msg) {
+                setTimeout(() => {
+                    if (messageElement.textContent === msg) {
+                        messageElement.textContent = "";
+                    }
+                }, 2500);
+            }
+        }
+
+        // Анимация тряски при ошибке
+        function shakeSelected() {
+            const cards = gridElement.querySelectorAll('.card.selected');
+            cards.forEach(card => {
+                card.classList.remove('shake');
+                void card.offsetWidth; // Триггер рефлоу для перезапуска анимации
+                card.classList.add('shake');
+            });
+        }
+
+        // Проверка выбранных слов
+        function checkSubmission() {
+            if (selectedWords.length !== 4 || isGameOver) return;
+
+            // Проверяем, принадлежат ли все 4 слова к одной категории
+            const firstCategory = selectedWords[0].category;
+            const isCorrect = selectedWords.every(item => item.category === firstCategory);
+
+            if (isCorrect) {
+                // Правильный ответ
+                const categoryData = gameData.find(c => c.theme === firstCategory);
+                solvedCategories.push(categoryData);
+                
+                // Удаляем угаданные слова из активных
+                activeWords = activeWords.filter(item => item.category !== firstCategory);
+                selectedWords = [];
+                
+                if (activeWords.length === 0) {
+                    isGameOver = true;
+                    showMessage("Вы победили! 🎉");
+                }
+                
+                updateBoard();
+            } else {
+                // Неправильный ответ
+                shakeSelected();
+                mistakes--;
+                updateMistakes();
+                
+                // Проверка на "одно слово до правильного ответа"
+                const categoryCounts = {};
+                selectedWords.forEach(item => {
+                    categoryCounts[item.category] = (categoryCounts[item.category] || 0) + 1;
+                });
+                
+                const hasThree = Object.values(categoryCounts).some(count => count === 3);
+                
+                if (mistakes === 0) {
+                    isGameOver = true;
+                    showMessage("Игра окончена! 😔");
+                    revealAnswers();
+                } else if (hasThree) {
+                    showMessage("Одно слово лишнее!");
+                } else {
+                    showMessage("Неверно!");
+                }
+            }
+        }
+
+        // Раскрыть оставшиеся ответы при проигрыше
+        function revealAnswers() {
+            selectedWords = [];
+            const remainingCategories = [...new Set(activeWords.map(item => item.category))];
+            
+            remainingCategories.forEach(theme => {
+                const categoryData = gameData.find(c => c.theme === theme);
+                solvedCategories.push(categoryData);
+            });
+            activeWords = [];
+            updateBoard();
+        }
+
+        // Обработчики кнопок
+        btnShuffle.onclick = () => {
+            shuffleArray(activeWords);
+            updateBoard();
+        };
+
+        btnDeselect.onclick = () => {
+            selectedWords = [];
+            updateBoard();
+        };
+
+        btnSubmit.onclick = checkSubmission;
+
+        // Запуск
+        initGame();
+    </script>
+</body>
+</html>
