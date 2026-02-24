@@ -7,986 +7,160 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="theme-color" content="#0f0f13">
     <title>Связи — Словесная игра</title>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            -webkit-tap-highlight-color: transparent;
-        }
-
-        :root {
-            --bg: #0f0f13;
-            --surface: #1a1a23;
-            --surface-2: #242430;
-            --surface-3: #2e2e3d;
-            --text: #eeeef0;
-            --text-dim: #8888a0;
-            --accent: #7c6af6;
-            --accent-glow: rgba(124, 106, 246, 0.25);
-            --success: #34d399;
-            --error: #f87171;
-            --warning: #fbbf24;
-            --card-bg: #20202c;
-            --card-selected: #7c6af6;
-            --radius: 16px;
-            --radius-sm: 12px;
-            --safe-bottom: env(safe-area-inset-bottom, 0px);
-        }
-
-        html, body {
-            height: 100%;
-            overflow: hidden;
-        }
-
-        body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-            background-color: var(--bg);
-            color: var(--text);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            min-height: 100dvh;
-            padding: 0;
-            overscroll-behavior: none;
-        }
-
-        /* ===== SCREEN: Start ===== */
-        .screen {
-            display: none;
-            flex-direction: column;
-            align-items: center;
-            width: 100%;
-            max-width: 480px;
-            padding: 0 20px;
-            height: 100dvh;
-        }
-        .screen.active { display: flex; }
-
-        /* Start Screen */
-        #start-screen {
-            justify-content: center;
-            gap: 32px;
-            padding-bottom: var(--safe-bottom);
-        }
-
-        .logo {
-            font-size: 48px;
-            font-weight: 800;
-            letter-spacing: -2px;
-            background: linear-gradient(135deg, #7c6af6, #c084fc, #f0abfc);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            animation: logoFloat 3s ease-in-out infinite;
-        }
-
-        @keyframes logoFloat {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-6px); }
-        }
-
-        .start-subtitle {
-            color: var(--text-dim);
-            font-size: 15px;
-            text-align: center;
-            line-height: 1.5;
-            max-width: 280px;
-        }
-
-        .difficulty-selector {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            width: 100%;
-        }
-
-        .difficulty-btn {
-            width: 100%;
-            padding: 16px 20px;
-            border: 1.5px solid var(--surface-3);
-            border-radius: var(--radius);
-            background: var(--surface);
-            color: var(--text);
-            font-family: inherit;
-            font-size: 15px;
-            font-weight: 600;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-            position: relative;
-            overflow: hidden;
-        }
-
-        .difficulty-btn::before {
-            content: '';
-            position: absolute;
-            inset: 0;
-            opacity: 0;
-            transition: opacity 0.25s;
-        }
-
-        .difficulty-btn:active {
-            transform: scale(0.97);
-        }
-
-        .difficulty-btn:hover, .difficulty-btn:focus {
-            border-color: var(--accent);
-            box-shadow: 0 0 20px var(--accent-glow);
-        }
-
-        .diff-label {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .diff-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            flex-shrink: 0;
-        }
-
-        .diff-dot.easy { background: var(--success); }
-        .diff-dot.medium { background: var(--warning); }
-        .diff-dot.hard { background: #fb923c; }
-        .diff-dot.expert { background: var(--error); }
-
-        .diff-arrow {
-            color: var(--text-dim);
-            font-size: 18px;
-            transition: transform 0.2s;
-        }
-
-        .difficulty-btn:hover .diff-arrow { transform: translateX(3px); }
-
-        /* ===== SCREEN: Game ===== */
-        #game-screen {
-            justify-content: flex-start;
-            padding-top: 16px;
-            padding-bottom: calc(16px + var(--safe-bottom));
-            gap: 0;
-            overflow: hidden;
-        }
-
-        /* Top bar */
-        .top-bar {
-            width: 100%;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 12px;
-            flex-shrink: 0;
-        }
-
-        .back-btn {
-            background: none;
-            border: none;
-            color: var(--text-dim);
-            font-size: 14px;
-            font-family: inherit;
-            font-weight: 500;
-            cursor: pointer;
-            padding: 8px 0;
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            transition: color 0.2s;
-        }
-        .back-btn:hover { color: var(--text); }
-
-        .game-title {
-            font-size: 18px;
-            font-weight: 700;
-            letter-spacing: -0.5px;
-        }
-
-        .difficulty-badge {
-            font-size: 11px;
-            font-weight: 600;
-            padding: 4px 10px;
-            border-radius: 20px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        .difficulty-badge.easy { background: rgba(52,211,153,0.15); color: var(--success); }
-        .difficulty-badge.medium { background: rgba(251,191,36,0.15); color: var(--warning); }
-        .difficulty-badge.hard { background: rgba(251,146,60,0.15); color: #fb923c; }
-        .difficulty-badge.expert { background: rgba(248,113,113,0.15); color: var(--error); }
-
-        /* Message */
-        .message-bar {
-            width: 100%;
-            height: 36px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-bottom: 8px;
-            flex-shrink: 0;
-        }
-
-        .message-text {
-            font-size: 13px;
-            font-weight: 600;
-            padding: 6px 16px;
-            border-radius: 20px;
-            opacity: 0;
-            transform: translateY(-5px);
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        .message-text.visible {
-            opacity: 1;
-            transform: translateY(0);
-        }
-
-        .message-text.error {
-            background: rgba(248,113,113,0.15);
-            color: var(--error);
-        }
-        .message-text.warn {
-            background: rgba(251,191,36,0.15);
-            color: var(--warning);
-        }
-        .message-text.success {
-            background: rgba(52,211,153,0.15);
-            color: var(--success);
-        }
-
-        /* Board area */
-        .board {
-            width: 100%;
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            min-height: 0;
-        }
-
-        /* Solved categories */
-        .solved-area {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            flex-shrink: 0;
-        }
-
-        .solved-row {
-            border-radius: var(--radius-sm);
-            padding: 14px 16px;
-            text-align: center;
-            animation: solvedReveal 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        @keyframes solvedReveal {
-            0% { opacity: 0; transform: scaleY(0.6); }
-            60% { transform: scaleY(1.03); }
-            100% { opacity: 1; transform: scaleY(1); }
-        }
-
-        .solved-theme {
-            font-weight: 700;
-            font-size: 13px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 3px;
-            color: rgba(0,0,0,0.8);
-        }
-
-        .solved-words {
-            font-size: 12px;
-            font-weight: 500;
-            color: rgba(0,0,0,0.55);
-        }
-
-        /* Grid */
-        .grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 8px;
-            flex: 1;
-            align-content: start;
-        }
-
-        .card {
-            background: var(--card-bg);
-            border: 1.5px solid transparent;
-            border-radius: var(--radius-sm);
-            padding: 0 6px;
-            font-family: inherit;
-            font-size: 12px;
-            font-weight: 700;
-            text-align: center;
-            text-transform: uppercase;
-            letter-spacing: 0.3px;
-            color: var(--text);
-            cursor: pointer;
-            user-select: none;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            min-height: 60px;
-            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-            position: relative;
-            overflow: hidden;
-            word-break: break-word;
-            line-height: 1.2;
-        }
-
-        .card::after {
-            content: '';
-            position: absolute;
-            inset: 0;
-            border-radius: inherit;
-            opacity: 0;
-            background: radial-gradient(circle at center, rgba(255,255,255,0.1) 0%, transparent 70%);
-            transition: opacity 0.2s;
-        }
-
-        .card:active {
-            transform: scale(0.94);
-        }
-
-        .card:active::after {
-            opacity: 1;
-        }
-
-        .card.selected {
-            background: var(--card-selected);
-            border-color: var(--card-selected);
-            color: #fff;
-            box-shadow: 0 4px 20px var(--accent-glow);
-            transform: scale(1.02);
-        }
-
-        .card.shake {
-            animation: cardShake 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97);
-        }
-
-        @keyframes cardShake {
-            0%, 100% { transform: translateX(0) rotate(0); }
-            15% { transform: translateX(-6px) rotate(-1deg); }
-            30% { transform: translateX(5px) rotate(0.5deg); }
-            45% { transform: translateX(-4px) rotate(-0.5deg); }
-            60% { transform: translateX(3px) rotate(0.3deg); }
-            75% { transform: translateX(-2px) rotate(0); }
-        }
-
-        .card.pop-in {
-            animation: cardPopIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
-        }
-
-        @keyframes cardPopIn {
-            0% { opacity: 0; transform: scale(0.7); }
-            100% { opacity: 1; transform: scale(1); }
-        }
-
-        /* Bottom controls */
-        .bottom-area {
-            flex-shrink: 0;
-            width: 100%;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 14px;
-            padding-top: 12px;
-        }
-
-        /* Mistakes */
-        .mistakes-row {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .mistakes-label {
-            font-size: 12px;
-            color: var(--text-dim);
-            font-weight: 500;
-        }
-
-        .mistake-dot {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            background: var(--accent);
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        .mistake-dot.lost {
-            background: var(--surface-3);
-            transform: scale(0.7);
-        }
-
-        .mistake-dot.pop {
-            animation: dotPop 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        @keyframes dotPop {
-            0% { transform: scale(1); background: var(--error); }
-            50% { transform: scale(1.5); }
-            100% { transform: scale(0.7); background: var(--surface-3); }
-        }
-
-        /* Buttons */
-        .controls-row {
-            display: flex;
-            gap: 10px;
-            width: 100%;
-        }
-
-        .ctrl-btn {
-            flex: 1;
-            padding: 14px 8px;
-            border: 1.5px solid var(--surface-3);
-            border-radius: var(--radius-sm);
-            background: var(--surface);
-            color: var(--text);
-            font-family: inherit;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        .ctrl-btn:active { transform: scale(0.95); }
-
-        .ctrl-btn:disabled {
-            opacity: 0.35;
-            cursor: not-allowed;
-            transform: none;
-        }
-
-        .ctrl-btn.primary {
-            background: var(--accent);
-            border-color: var(--accent);
-            color: #fff;
-            box-shadow: 0 4px 16px var(--accent-glow);
-        }
-
-        .ctrl-btn.primary:disabled {
-            background: var(--surface-3);
-            border-color: var(--surface-3);
-            box-shadow: none;
-        }
-
-        /* ===== SCREEN: Result ===== */
-        #result-screen {
-            justify-content: center;
-            gap: 24px;
-            padding-bottom: var(--safe-bottom);
-        }
-
-        .result-icon {
-            font-size: 64px;
-            animation: resultBounce 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
-        }
-
-        @keyframes resultBounce {
-            0% { opacity: 0; transform: scale(0.3); }
-            100% { opacity: 1; transform: scale(1); }
-        }
-
-        .result-title {
-            font-size: 28px;
-            font-weight: 800;
-            letter-spacing: -1px;
-        }
-
-        .result-subtitle {
-            color: var(--text-dim);
-            font-size: 15px;
-            text-align: center;
-            max-width: 260px;
-            line-height: 1.5;
-        }
-
-        .result-stats {
-            display: flex;
-            gap: 24px;
-        }
-
-        .stat {
-            text-align: center;
-        }
-
-        .stat-num {
-            font-size: 28px;
-            font-weight: 800;
-            color: var(--accent);
-        }
-
-        .stat-label {
-            font-size: 11px;
-            color: var(--text-dim);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-top: 2px;
-        }
-
-        .result-actions {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            width: 100%;
-        }
-
-        .result-btn {
-            width: 100%;
-            padding: 16px;
-            border: 1.5px solid var(--surface-3);
-            border-radius: var(--radius);
-            background: var(--surface);
-            color: var(--text);
-            font-family: inherit;
-            font-size: 15px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .result-btn:active { transform: scale(0.97); }
-
-        .result-btn.primary {
-            background: var(--accent);
-            border-color: var(--accent);
-            color: #fff;
-        }
-
-        /* ===== Confetti ===== */
-        .confetti-container {
-            position: fixed;
-            inset: 0;
-            pointer-events: none;
-            z-index: 100;
-            overflow: hidden;
-        }
-
-        .confetti {
-            position: absolute;
-            width: 8px;
-            height: 8px;
-            border-radius: 2px;
-            top: -10px;
-            animation: confettiFall linear forwards;
-        }
-
-        @keyframes confettiFall {
-            0% { transform: translateY(0) rotate(0deg); opacity: 1; }
-            100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
-        }
-
-        /* Responsive tweaks */
-        @media (max-height: 680px) {
-            .card { min-height: 50px; font-size: 11px; }
-            .solved-row { padding: 10px 12px; }
-            .solved-theme { font-size: 12px; }
-            .solved-words { font-size: 11px; }
-        }
-
-        @media (min-width: 480px) {
-            .card { min-height: 70px; font-size: 13px; }
-        }
-    </style>
+    <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 
-    <!-- START SCREEN -->
-    <div class="screen active" id="start-screen">
+<!-- ===== START SCREEN ===== -->
+<div class="screen active" id="start-screen">
+    <div class="start-top">
+        <div class="coins-display" id="home-coins">
+            <span class="coin-icon">&#9679;</span>
+            <span id="home-coins-val">0</span>
+        </div>
+        <button class="profile-btn" id="profile-btn" title="Профиль">
+            <span id="home-avatar">&#128100;</span>
+            <div class="lvl-ring"></div>
+        </button>
+    </div>
+
+    <div class="start-hero">
         <div class="logo">Связи</div>
-        <p class="start-subtitle">Найди скрытые связи между словами.<br>Сгруппируй 16 слов в 4 категории.</p>
-        <div class="difficulty-selector" id="difficulty-selector"></div>
+        <p class="start-sub">Найди скрытые связи между словами. Сгруппируй 16 слов в 4 категории.</p>
     </div>
 
-    <!-- GAME SCREEN -->
-    <div class="screen" id="game-screen">
-        <div class="top-bar">
-            <button class="back-btn" id="back-btn">&#8592; Меню</button>
-            <span class="difficulty-badge" id="diff-badge"></span>
+    <div class="xp-bar-wrap" id="home-xp-wrap">
+        <div class="xp-label">
+            <span id="home-lvl-label">Уровень 1</span>
+            <span id="home-xp-label">0 / 200 XP</span>
         </div>
+        <div class="xp-bar"><div class="xp-fill" id="home-xp-fill" style="width:0%"></div></div>
+    </div>
 
-        <div class="message-bar">
-            <div class="message-text" id="message"></div>
+    <div class="mode-section">
+        <div class="mode-title">Выбери сложность</div>
+        <div class="diff-grid" id="diff-grid"></div>
+    </div>
+
+    <div class="mode-section">
+        <div class="mode-title">Режимы</div>
+        <button class="endless-btn" id="endless-btn">&#8734; Бесконечный режим</button>
+    </div>
+</div>
+
+<!-- ===== GAME SCREEN ===== -->
+<div class="screen" id="game-screen">
+    <div class="game-hdr">
+        <div class="game-hdr-left">
+            <button class="hdr-back" id="game-back">&#8592;</button>
+            <span class="badge" id="game-badge"></span>
         </div>
-
-        <div class="board">
-            <div class="solved-area" id="solved-area"></div>
-            <div class="grid" id="grid"></div>
+        <div class="game-hdr-right">
+            <span class="timer-display" id="timer-display">0:00</span>
+            <span class="game-coins" id="game-coins">
+                <span class="coin-icon">&#9679;</span>
+                <span id="game-coins-val">0</span>
+            </span>
         </div>
+    </div>
 
-        <div class="bottom-area">
-            <div class="mistakes-row" id="mistakes-row"></div>
-            <div class="controls-row">
-                <button class="ctrl-btn" id="shuffle-btn">Перемешать</button>
-                <button class="ctrl-btn" id="deselect-btn" disabled>Сбросить</button>
-                <button class="ctrl-btn primary" id="submit-btn" disabled>Проверить</button>
+    <div class="msg-bar"><div class="msg" id="msg"></div></div>
+
+    <div class="board">
+        <div class="solved-area" id="solved-area"></div>
+        <div class="grid" id="grid"></div>
+    </div>
+
+    <div class="bottom-area">
+        <div class="mistakes-row" id="mistakes-row"></div>
+        <div class="hints-row">
+            <button class="hint-btn" id="hint-reveal" title="Подсветить одно слово из группы">
+                &#128161; Подсветить
+                <span class="hint-cost" id="hint-reveal-cost">20 &#9679;</span>
+            </button>
+            <button class="hint-btn" id="hint-remove" title="Убрать одно лишнее слово">
+                &#10060; Убрать лишнее
+                <span class="hint-cost" id="hint-remove-cost">15 &#9679;</span>
+            </button>
+        </div>
+        <div class="ctrl-row">
+            <button class="ctrl-btn" id="shuffle-btn">Перемешать</button>
+            <button class="ctrl-btn" id="deselect-btn" disabled>Сбросить</button>
+            <button class="ctrl-btn primary" id="submit-btn" disabled>Проверить</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== RESULT SCREEN ===== -->
+<div class="screen" id="result-screen">
+    <div class="result-icon" id="res-icon"></div>
+    <div class="result-title" id="res-title"></div>
+    <div class="stars-row" id="res-stars"></div>
+    <div class="result-sub" id="res-sub"></div>
+    <div class="result-stats" id="res-stats"></div>
+    <div class="xp-gain" id="res-xp">
+        <div class="xp-gain-left">Опыт</div>
+        <div class="xp-gain-right" id="res-xp-val">+0 XP</div>
+    </div>
+    <div id="res-lvlup"></div>
+    <div id="res-achievements"></div>
+    <div class="result-actions" id="res-actions"></div>
+</div>
+
+<!-- ===== PROFILE SCREEN ===== -->
+<div class="screen" id="profile-screen">
+    <div class="hdr">
+        <button class="hdr-back" id="profile-back">&#8592; Назад</button>
+        <span class="hdr-title">Профиль</span>
+        <span></span>
+    </div>
+    <div class="profile-card">
+        <div class="profile-avatar">
+            <span id="p-avatar">&#128100;</span>
+            <span class="profile-level" id="p-level">1</span>
+        </div>
+        <div class="profile-name" id="p-name">Игрок</div>
+        <div class="profile-xp-wrap">
+            <div class="xp-label">
+                <span id="p-lvl-label">Уровень 1</span>
+                <span id="p-xp-label">0 / 200 XP</span>
             </div>
+            <div class="xp-bar"><div class="xp-fill" id="p-xp-fill" style="width:0%"></div></div>
+        </div>
+        <div class="coins-display" style="font-size:16px">
+            <span class="coin-icon">&#9679;</span>
+            <span id="p-coins">0</span>
         </div>
     </div>
+    <div class="profile-stats-grid" id="p-stats-grid"></div>
+    <div class="section-title">Достижения</div>
+    <div class="ach-list" id="ach-list"></div>
+    <div style="height:8px"></div>
+    <button class="pill-btn" id="archive-btn">&#128218; Архив паззлов</button>
+    <button class="pill-btn" id="reset-btn" style="border-color:var(--error);color:var(--error);font-size:13px;margin-top:4px">Сбросить прогресс</button>
+</div>
 
-    <!-- RESULT SCREEN -->
-    <div class="screen" id="result-screen">
-        <div class="result-icon" id="result-icon"></div>
-        <div class="result-title" id="result-title"></div>
-        <div class="result-subtitle" id="result-subtitle"></div>
-        <div class="result-stats" id="result-stats"></div>
-        <div class="result-actions">
-            <button class="result-btn primary" id="play-again-btn">Играть ещё</button>
-            <button class="result-btn" id="menu-btn">В меню</button>
-        </div>
+<!-- ===== ARCHIVE SCREEN ===== -->
+<div class="screen" id="archive-screen">
+    <div class="hdr">
+        <button class="hdr-back" id="archive-back">&#8592; Назад</button>
+        <span class="hdr-title">Архив</span>
+        <span></span>
     </div>
+    <div id="archive-content"></div>
+</div>
 
-    <div class="confetti-container" id="confetti-container"></div>
+<!-- ===== Overlays & Effects ===== -->
+<div class="combo-overlay" id="combo-overlay"></div>
+<div class="confetti-container" id="confetti-container"></div>
+<div class="toast-container" id="toast-container"></div>
 
-    <script src="words.js"></script>
-    <script>
-        // ===== State =====
-        let currentPuzzle = null;
-        let currentDifficulty = null;
-        let activeWords = [];
-        let solvedCategories = [];
-        let selectedWords = [];
-        let maxMistakes = 4;
-        let mistakes = 0;
-        let isGameOver = false;
+<!-- ===== Scripts (order matters) ===== -->
+<script src="words.js"></script>
+<script src="save.js"></script>
+<script src="audio.js"></script>
+<script src="game.js"></script>
+<script src="ui.js"></script>
 
-        // ===== DOM refs =====
-        const $ = id => document.getElementById(id);
-        const startScreen = $('start-screen');
-        const gameScreen = $('game-screen');
-        const resultScreen = $('result-screen');
-        const diffSelector = $('difficulty-selector');
-        const diffBadge = $('diff-badge');
-        const messageEl = $('message');
-        const solvedAreaEl = $('solved-area');
-        const gridEl = $('grid');
-        const mistakesRow = $('mistakes-row');
-        const shuffleBtn = $('shuffle-btn');
-        const deselectBtn = $('deselect-btn');
-        const submitBtn = $('submit-btn');
-        const backBtn = $('back-btn');
-
-        // ===== Screens =====
-        function showScreen(screen) {
-            [startScreen, gameScreen, resultScreen].forEach(s => s.classList.remove('active'));
-            screen.classList.add('active');
-        }
-
-        // ===== Difficulty names =====
-        const DIFF_META = {
-            easy:   { label: 'Лёгкий',       labelShort: 'Лёгкий' },
-            medium: { label: 'Средний',       labelShort: 'Средний' },
-            hard:   { label: 'Трудный',       labelShort: 'Трудный' },
-            expert: { label: 'Очень трудный', labelShort: 'Эксперт' },
-        };
-
-        // ===== Build start screen =====
-        function buildStartScreen() {
-            diffSelector.innerHTML = '';
-            for (const [key, meta] of Object.entries(DIFF_META)) {
-                const puzzles = WORD_PUZZLES.filter(p => p.difficulty === key);
-                if (puzzles.length === 0) continue;
-                const btn = document.createElement('button');
-                btn.className = 'difficulty-btn';
-                btn.innerHTML = `
-                    <span class="diff-label">
-                        <span class="diff-dot ${key}"></span>
-                        ${meta.label}
-                    </span>
-                    <span style="color:var(--text-dim);font-size:12px;">${puzzles.length} набор${pluralSuffix(puzzles.length)}</span>
-                `;
-                btn.onclick = () => startGame(key);
-                diffSelector.appendChild(btn);
-            }
-        }
-
-        function pluralSuffix(n) {
-            const mod10 = n % 10;
-            const mod100 = n % 100;
-            if (mod10 === 1 && mod100 !== 11) return '';
-            if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return 'а';
-            return 'ов';
-        }
-
-        // ===== Start Game =====
-        function startGame(difficulty) {
-            currentDifficulty = difficulty;
-            const puzzles = WORD_PUZZLES.filter(p => p.difficulty === difficulty);
-            currentPuzzle = puzzles[Math.floor(Math.random() * puzzles.length)];
-
-            activeWords = [];
-            currentPuzzle.categories.forEach(cat => {
-                cat.words.forEach(word => {
-                    activeWords.push({ word, category: cat.theme });
-                });
-            });
-            shuffleArray(activeWords);
-
-            solvedCategories = [];
-            selectedWords = [];
-            mistakes = 0;
-            isGameOver = false;
-
-            diffBadge.textContent = DIFF_META[difficulty].labelShort;
-            diffBadge.className = 'difficulty-badge ' + difficulty;
-
-            showScreen(gameScreen);
-            renderMistakes();
-            renderBoard(true);
-        }
-
-        // ===== Shuffle =====
-        function shuffleArray(arr) {
-            for (let i = arr.length - 1; i > 0; i--) {
-                const j = Math.floor(Math.random() * (i + 1));
-                [arr[i], arr[j]] = [arr[j], arr[i]];
-            }
-        }
-
-        // ===== Render Board =====
-        function renderBoard(animate = false) {
-            // Solved
-            solvedAreaEl.innerHTML = '';
-            solvedCategories.forEach(cat => {
-                const row = document.createElement('div');
-                row.className = 'solved-row';
-                row.style.backgroundColor = cat.color;
-                row.innerHTML = `
-                    <div class="solved-theme">${cat.theme}</div>
-                    <div class="solved-words">${cat.words.join(', ')}</div>
-                `;
-                solvedAreaEl.appendChild(row);
-            });
-
-            // Grid
-            gridEl.innerHTML = '';
-            activeWords.forEach((item, i) => {
-                const card = document.createElement('div');
-                card.className = 'card';
-                if (selectedWords.includes(item)) card.classList.add('selected');
-                if (animate) {
-                    card.classList.add('pop-in');
-                    card.style.animationDelay = `${i * 30}ms`;
-                }
-                card.textContent = item.word;
-                card.onclick = () => toggleSelect(item);
-                gridEl.appendChild(card);
-            });
-
-            updateButtons();
-        }
-
-        // ===== Select / Deselect =====
-        function toggleSelect(item) {
-            if (isGameOver) return;
-            hideMessage();
-
-            const idx = selectedWords.indexOf(item);
-            if (idx > -1) {
-                selectedWords.splice(idx, 1);
-            } else if (selectedWords.length < 4) {
-                selectedWords.push(item);
-            }
-            renderBoard();
-        }
-
-        // ===== Buttons =====
-        function updateButtons() {
-            deselectBtn.disabled = selectedWords.length === 0 || isGameOver;
-            submitBtn.disabled = selectedWords.length !== 4 || isGameOver;
-            shuffleBtn.disabled = isGameOver;
-        }
-
-        // ===== Mistakes =====
-        function renderMistakes() {
-            mistakesRow.innerHTML = '<span class="mistakes-label">Осталось: </span>';
-            for (let i = 0; i < maxMistakes; i++) {
-                const dot = document.createElement('span');
-                dot.className = 'mistake-dot';
-                if (i < mistakes) dot.classList.add('lost');
-                mistakesRow.appendChild(dot);
-            }
-        }
-
-        function animateMistakeLoss() {
-            const dots = mistakesRow.querySelectorAll('.mistake-dot');
-            const target = dots[mistakes - 1];
-            if (target) {
-                target.classList.add('pop');
-                target.addEventListener('animationend', () => {
-                    target.classList.remove('pop');
-                    target.classList.add('lost');
-                }, { once: true });
-            }
-        }
-
-        // ===== Messages =====
-        let messageTimeout = null;
-
-        function showMessage(text, type = 'error') {
-            clearTimeout(messageTimeout);
-            messageEl.textContent = text;
-            messageEl.className = 'message-text ' + type + ' visible';
-            messageTimeout = setTimeout(hideMessage, 2500);
-        }
-
-        function hideMessage() {
-            clearTimeout(messageTimeout);
-            messageEl.classList.remove('visible');
-        }
-
-        // ===== Submit =====
-        function checkSubmission() {
-            if (selectedWords.length !== 4 || isGameOver) return;
-
-            const firstCat = selectedWords[0].category;
-            const isCorrect = selectedWords.every(item => item.category === firstCat);
-
-            if (isCorrect) {
-                const catData = currentPuzzle.categories.find(c => c.theme === firstCat);
-                solvedCategories.push(catData);
-                activeWords = activeWords.filter(item => item.category !== firstCat);
-                selectedWords = [];
-
-                if (activeWords.length === 0) {
-                    isGameOver = true;
-                    renderBoard();
-                    setTimeout(() => showResult(true), 600);
-                    return;
-                }
-                renderBoard(true);
-                showMessage('Верно!', 'success');
-            } else {
-                shakeSelected();
-                mistakes++;
-                animateMistakeLoss();
-
-                // Check for "one away"
-                const counts = {};
-                selectedWords.forEach(item => {
-                    counts[item.category] = (counts[item.category] || 0) + 1;
-                });
-                const hasThree = Object.values(counts).some(c => c === 3);
-
-                if (mistakes >= maxMistakes) {
-                    isGameOver = true;
-                    showMessage('Нет попыток!', 'error');
-                    setTimeout(() => {
-                        revealRemaining();
-                        setTimeout(() => showResult(false), 1200);
-                    }, 800);
-                } else if (hasThree) {
-                    showMessage('Одно слово лишнее!', 'warn');
-                } else {
-                    showMessage('Неверно!', 'error');
-                }
-            }
-        }
-
-        function shakeSelected() {
-            const cards = gridEl.querySelectorAll('.card.selected');
-            cards.forEach(card => {
-                card.classList.remove('shake');
-                void card.offsetWidth;
-                card.classList.add('shake');
-            });
-        }
-
-        function revealRemaining() {
-            selectedWords = [];
-            const remaining = [...new Set(activeWords.map(item => item.category))];
-            remaining.forEach(theme => {
-                const catData = currentPuzzle.categories.find(c => c.theme === theme);
-                solvedCategories.push(catData);
-            });
-            activeWords = [];
-            renderBoard();
-        }
-
-        // ===== Result =====
-        function showResult(won) {
-            const icon = $('result-icon');
-            const title = $('result-title');
-            const subtitle = $('result-subtitle');
-            const stats = $('result-stats');
-
-            if (won) {
-                icon.textContent = '🎉';
-                title.textContent = 'Победа!';
-                subtitle.textContent = 'Отличная работа! Все связи найдены.';
-                launchConfetti();
-            } else {
-                icon.textContent = '😔';
-                title.textContent = 'Не повезло';
-                subtitle.textContent = 'Попробуй ещё раз — ты справишься!';
-            }
-
-            const found = solvedCategories.length - (won ? 0 : [...new Set(activeWords.map(i=>i.category))].length);
-            stats.innerHTML = `
-                <div class="stat">
-                    <div class="stat-num">${maxMistakes - mistakes}/${maxMistakes}</div>
-                    <div class="stat-label">Попытки</div>
-                </div>
-                <div class="stat">
-                    <div class="stat-num">${won ? solvedCategories.length : solvedCategories.length - (maxMistakes > mistakes ? 0 : [...new Set([])].length)}</div>
-                    <div class="stat-label">Найдено</div>
-                </div>
-            `;
-
-            showScreen(resultScreen);
-        }
-
-        // ===== Confetti =====
-        function launchConfetti() {
-            const container = $('confetti-container');
-            container.innerHTML = '';
-            const colors = ['#7c6af6', '#f9df6d', '#a0c35a', '#f87171', '#c084fc', '#34d399', '#fbbf24'];
-            for (let i = 0; i < 80; i++) {
-                const piece = document.createElement('div');
-                piece.className = 'confetti';
-                piece.style.left = Math.random() * 100 + '%';
-                piece.style.background = colors[Math.floor(Math.random() * colors.length)];
-                piece.style.animationDuration = (1.5 + Math.random() * 2) + 's';
-                piece.style.animationDelay = (Math.random() * 0.8) + 's';
-                piece.style.width = (5 + Math.random() * 6) + 'px';
-                piece.style.height = (5 + Math.random() * 6) + 'px';
-                container.appendChild(piece);
-            }
-            setTimeout(() => { container.innerHTML = ''; }, 4000);
-        }
-
-        // ===== Event Listeners =====
-        shuffleBtn.onclick = () => {
-            shuffleArray(activeWords);
-            renderBoard(true);
-        };
-
-        deselectBtn.onclick = () => {
-            selectedWords = [];
-            renderBoard();
-        };
-
-        submitBtn.onclick = checkSubmission;
-
-        backBtn.onclick = () => {
-            showScreen(startScreen);
-        };
-
-        $('play-again-btn').onclick = () => {
-            startGame(currentDifficulty);
-        };
-
-        $('menu-btn').onclick = () => {
-            showScreen(startScreen);
-        };
-
-        // ===== Init =====
-        buildStartScreen();
-    </script>
 </body>
 </html>
