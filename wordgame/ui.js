@@ -51,8 +51,14 @@ function refreshHome() {
         const puzzles = WORD_PUZZLES.filter(p => p.difficulty === key);
         if (!puzzles.length) continue;
         const completed = puzzles.filter((_, i) => save.completedPuzzles[`${key}_${i}`] !== undefined).length;
-        const totalStars = puzzles.reduce((sum, _, i) => sum + (save.completedPuzzles[`${key}_${i}`] || 0), 0);
-        const starDisplay = totalStars > 0 ? '&#9733;'.repeat(Math.min(totalStars, 15)) : '—';
+        let starHtml = '';
+        puzzles.forEach((_, i) => {
+            const s = save.completedPuzzles[`${key}_${i}`];
+            if (s !== undefined) {
+                starHtml += `<span class="puzzle-star puzzle-star-${s}">&#9733;</span>`;
+            }
+        });
+        const starDisplay = starHtml || '—';
 
         const btn = document.createElement('button');
         btn.className = 'diff-btn';

@@ -263,6 +263,16 @@ body {
 .diff-dot.hard   { background: var(--orange); }
 .diff-dot.expert { background: var(--error); }
 .diff-info { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--text-dim); }
+.diff-stars { display: flex; gap: 1px; flex-wrap: wrap; }
+.puzzle-star { font-size: 11px; line-height: 1; }
+.puzzle-star-1 { color: var(--text-dim2); }
+.puzzle-star-2 {
+    background: linear-gradient(90deg, var(--text-dim2) 50%, var(--gold) 50%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+.puzzle-star-3 { color: var(--gold); }
 
 .endless-btn {
     width: 100%;
