@@ -75,7 +75,7 @@ function setupGameScreen() {
     $('game-badge').textContent = meta.short;
     $('game-badge').className = 'badge ' + meta.color;
     $('game-coins-val').textContent = save.coins;
-    $('hint-reveal-cost').innerHTML = `${HINT_REVEAL_COST} &#9679;`;
+    $('hint-explain-cost').innerHTML = `${HINT_REVEAL_COST} &#9679;`;
     $('hint-remove-cost').innerHTML = `${HINT_REMOVE_COST} &#9679;`;
 
     showScreen('game-screen');
@@ -106,6 +106,7 @@ function renderBoard(animate = false) {
         const card = document.createElement('div');
         card.className = 'card';
         if (selected.includes(item)) card.classList.add('selected');
+        if (explainMode) card.classList.add('explain-target');
         if (animate) {
             card.classList.add('pop-in');
             card.style.animationDelay = `${i * 25}ms`;
@@ -131,9 +132,17 @@ function updateBtns() {
     $('deselect-btn').disabled = selected.length === 0 || gameOver;
     $('submit-btn').disabled = selected.length !== 4 || gameOver;
     $('shuffle-btn').disabled = gameOver;
-    $('hint-reveal').disabled = gameOver || save.coins < HINT_REVEAL_COST || activeWords.length === 0;
-    $('hint-remove').disabled = gameOver || save.coins < HINT_REMOVE_COST || activeWords.length <= 4;
+    $('hint-explain').disabled = gameOver || save.coins < HINT_REVEAL_COST || activeWords.length === 0;
+    $('hint-remove').disabled = gameOver || save.coins < HINT_REMOVE_COST || activeWords.length <= 4 || selected.length === 0;
     $('game-coins-val').textContent = save.coins;
+
+    // Visual feedback for explain mode
+    const explainBtn = $('hint-explain');
+    if (explainMode) {
+        explainBtn.classList.add('hint-active');
+    } else {
+        explainBtn.classList.remove('hint-active');
+    }
 }
 
 // =============================================
@@ -144,6 +153,24 @@ function highlightHintCard(idx) {
     if (cards[idx]) {
         cards[idx].classList.add('hint-glow');
     }
+}
+
+function showExplainPopup(word, meaning) {
+    // Remove any existing popup
+    const existing = document.querySelector('.explain-popup');
+    if (existing) existing.remove();
+
+    const overlay = document.createElement('div');
+    overlay.className = 'explain-popup';
+    overlay.innerHTML = `
+        <div class="explain-popup-content">
+            <div class="explain-popup-word">${word}</div>
+            <div class="explain-popup-meaning">${meaning}</div>
+            <button class="explain-popup-close">Понятно</button>
+        </div>`;
+    overlay.querySelector('.explain-popup-close').onclick = () => overlay.remove();
+    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+    document.body.appendChild(overlay);
 }
 
 function animateHintRemove(idx, callback) {
@@ -376,11 +403,11 @@ function initEventListeners() {
     $('profile-btn').onclick = () => { refreshProfile(); showScreen('profile-screen'); };
 
     // Game
-    $('shuffle-btn').onclick = () => { shuffleArray(activeWords); renderBoard(true); SFX.select(); haptic(5); };
+    $('shuffle-btn').onclick = () => { returnRemovedWords(); shuffleArray(activeWords); renderBoard(true); SFX.select(); haptic(5); updateBtns(); };
     $('deselect-btn').onclick = () => { selected = []; renderBoard(); updateBtns(); };
     $('submit-btn').onclick = checkSubmission;
     $('game-back').onclick = () => { stopTimer(); refreshHome(); showScreen('start-screen'); };
-    $('hint-reveal').onclick = useHintReveal;
+    $('hint-explain').onclick = useHintExplain;
     $('hint-remove').onclick = useHintRemove;
 
     // Profile
