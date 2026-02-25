@@ -24,6 +24,8 @@ let hintsUsedThisRound = 0;
 let timerStart = 0;
 let timerInterval = null;
 let noHintWins = 0;
+let removedWords = [];    // words temporarily removed by hint
+let explainMode = false;  // true when waiting for word click to explain
 
 // =============================================
 // UTILITIES
@@ -109,6 +111,8 @@ function initRound() {
     gameOver = false;
     combo = 0;
     hintsUsedThisRound = 0;
+    removedWords = [];
+    explainMode = false;
 
     // UI setup delegated to ui.js
     setupGameScreen();
@@ -121,6 +125,20 @@ function initRound() {
 function toggleSelect(item) {
     if (gameOver) return;
     hideMsg();
+
+    // Explain mode: show word meaning instead of selecting
+    if (explainMode) {
+        explainMode = false;
+        renderBoard();
+        updateBtns();
+        const meaning = typeof WORD_MEANINGS !== 'undefined' && WORD_MEANINGS[item.word];
+        if (meaning) {
+            showExplainPopup(item.word, meaning);
+        } else {
+            showMsg('Нет подсказки для этого слова', 'warn');
+        }
+        return;
+    }
 
     const idx = selected.indexOf(item);
     if (idx > -1) {
@@ -138,7 +156,7 @@ function toggleSelect(item) {
 // =============================================
 // HINTS
 // =============================================
-function useHintReveal() {
+function useHintExplain() {
     if (save.coins < HINT_REVEAL_COST || gameOver || activeWords.length === 0) return;
     save.coins -= HINT_REVEAL_COST;
     save.hintsUsed++;
@@ -147,19 +165,46 @@ function useHintReveal() {
     SFX.hint();
     haptic(15);
 
-    const unsolvedThemes = [...new Set(activeWords.map(w => w.category))];
-    const theme = unsolvedThemes[Math.floor(Math.random() * unsolvedThemes.length)];
-    const wordsInCat = activeWords.filter(w => w.category === theme);
-    const target = wordsInCat[Math.floor(Math.random() * wordsInCat.length)];
-    const targetIdx = activeWords.indexOf(target);
-
-    highlightHintCard(targetIdx);
+    explainMode = true;
+    renderBoard();
     updateBtns();
-    showMsg('Слово подсвечено!', 'ok');
+    showMsg('Нажмите на слово для объяснения', 'ok');
+}
+
+function cancelExplainMode() {
+    if (explainMode) {
+        explainMode = false;
+        renderBoard();
+        updateBtns();
+        hideMsg();
+    }
+}
+
+function returnRemovedWords() {
+    if (removedWords.length === 0) return;
+    // Return removed words that still belong to unsolved categories
+    const solvedThemes = new Set(solvedCats.map(c => c.theme));
+    removedWords.forEach(w => {
+        if (!solvedThemes.has(w.category)) {
+            activeWords.push(w);
+        }
+    });
+    removedWords = [];
 }
 
 function useHintRemove() {
+    // Must have at least one word selected
+    if (selected.length === 0) {
+        showMsg('Сначала выберите слово!', 'warn');
+        return;
+    }
     if (save.coins < HINT_REMOVE_COST || gameOver || activeWords.length <= 4) return;
+
+    // Find words NOT in the selected word's category
+    const selectedCat = selected[0].category;
+    const candidates = activeWords.filter(w => w.category !== selectedCat);
+    if (candidates.length === 0) return;
+
     save.coins -= HINT_REMOVE_COST;
     save.hintsUsed++;
     hintsUsedThisRound++;
@@ -167,20 +212,17 @@ function useHintRemove() {
     SFX.hint();
     haptic(15);
 
-    const counts = {};
-    activeWords.forEach(w => { counts[w.category] = (counts[w.category] || 0) + 1; });
-    const maxCat = Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0];
-    const candidates = activeWords.filter(w => w.category === maxCat);
     const victim = candidates[Math.floor(Math.random() * candidates.length)];
     const victimIdx = activeWords.indexOf(victim);
 
     animateHintRemove(victimIdx, () => {
         activeWords.splice(activeWords.indexOf(victim), 1);
         selected = selected.filter(s => s !== victim);
+        removedWords.push(victim);
         renderBoard(false);
         updateBtns();
     });
-    showMsg('Слово убрано!', 'ok');
+    showMsg('Лишнее слово убрано!', 'ok');
 }
 
 // =============================================
@@ -209,6 +251,9 @@ function handleCorrectGuess(categoryTheme) {
     solvedCats.push(catData);
     activeWords = activeWords.filter(item => item.category !== categoryTheme);
     selected = [];
+
+    // Return removed words on correct guess
+    returnRemovedWords();
 
     if (combo >= 2) {
         showCombo(combo);
