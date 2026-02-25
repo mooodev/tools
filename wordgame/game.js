@@ -144,6 +144,7 @@ function toggleSelect(item) {
     if (idx > -1) {
         selected.splice(idx, 1);
         SFX.deselect();
+        if (selected.length === 0) returnRemovedWords();
     } else if (selected.length < 4) {
         selected.push(item);
         SFX.select();
@@ -193,9 +194,9 @@ function returnRemovedWords() {
 }
 
 function useHintRemove() {
-    // Must have at least one word selected
-    if (selected.length === 0) {
-        showMsg('Сначала выберите слово!', 'warn');
+    // Must have exactly one word selected
+    if (selected.length !== 1) {
+        showMsg('Выберите одно слово!', 'warn');
         return;
     }
     if (save.coins < HINT_REMOVE_COST || gameOver || activeWords.length <= 4) return;

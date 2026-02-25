@@ -133,7 +133,7 @@ function updateBtns() {
     $('submit-btn').disabled = selected.length !== 4 || gameOver;
     $('shuffle-btn').disabled = gameOver;
     $('hint-explain').disabled = gameOver || save.coins < HINT_REVEAL_COST || activeWords.length === 0;
-    $('hint-remove').disabled = gameOver || save.coins < HINT_REMOVE_COST || activeWords.length <= 4 || selected.length === 0;
+    $('hint-remove').disabled = gameOver || save.coins < HINT_REMOVE_COST || activeWords.length <= 4 || selected.length !== 1;
     $('game-coins-val').textContent = save.coins;
 
     // Visual feedback for explain mode
@@ -404,7 +404,7 @@ function initEventListeners() {
 
     // Game
     $('shuffle-btn').onclick = () => { returnRemovedWords(); shuffleArray(activeWords); renderBoard(true); SFX.select(); haptic(5); updateBtns(); };
-    $('deselect-btn').onclick = () => { selected = []; renderBoard(); updateBtns(); };
+    $('deselect-btn').onclick = () => { selected = []; returnRemovedWords(); renderBoard(); updateBtns(); };
     $('submit-btn').onclick = checkSubmission;
     $('game-back').onclick = () => { stopTimer(); refreshHome(); showScreen('start-screen'); };
     $('hint-explain').onclick = useHintExplain;
