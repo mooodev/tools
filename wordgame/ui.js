@@ -45,6 +45,8 @@ function refreshHome() {
     $('home-xp-label').textContent = `${save.xp} / ${need} XP`;
     $('home-xp-fill').style.width = Math.min(100, (save.xp / need) * 100) + '%';
 
+    renderHomeWeekly();
+
     const grid = $('diff-grid');
     grid.innerHTML = '';
     for (const [key, meta] of Object.entries(DIFF_META)) {
