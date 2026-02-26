@@ -272,7 +272,7 @@ function handleCorrectGuess(categoryTheme) {
         stopTimer();
         renderBoard();
         updateBtns();
-        setTimeout(() => endRound(true), 500);
+        setTimeout(() => endRound(true), 2000);
         return;
     }
 
@@ -293,7 +293,7 @@ function handleCorrectGuess(categoryTheme) {
             renderBoard();
             updateBtns();
             if (combo >= 2) { showCombo(combo); SFX.combo(combo); }
-            setTimeout(() => endRound(true), 500);
+            setTimeout(() => endRound(true), 2000);
         }, 400);
         return;
     }
@@ -315,11 +315,12 @@ function handleWrongGuess() {
     const hasThree = Object.values(counts).some(c => c === 3);
 
     if (mistakesMade >= maxMist) {
+        const firstSelectedCategory = selected.length > 0 ? selected[0].category : null;
         gameOver = true;
         stopTimer();
         showMsg('Нет попыток!', 'error');
         setTimeout(() => {
-            revealRemaining();
+            revealRemaining(firstSelectedCategory);
             setTimeout(() => endRound(false), 1000);
         }, 700);
     } else if (hasThree) {
@@ -329,11 +330,20 @@ function handleWrongGuess() {
     }
 }
 
-function revealRemaining() {
+function revealRemaining(onlyCategory) {
     selected = [];
-    [...new Set(activeWords.map(w => w.category))].forEach(theme => {
-        solvedCats.push(puzzle.categories.find(c => c.theme === theme));
-    });
+    if (onlyCategory) {
+        // Loss: only reveal the group the player was trying to guess
+        const catData = puzzle.categories.find(c => c.theme === onlyCategory);
+        if (catData && !solvedCats.find(sc => sc.theme === onlyCategory)) {
+            solvedCats.push(catData);
+        }
+    } else {
+        // Reveal all remaining
+        [...new Set(activeWords.map(w => w.category))].forEach(theme => {
+            solvedCats.push(puzzle.categories.find(c => c.theme === theme));
+        });
+    }
     activeWords = [];
     renderBoard();
 }
