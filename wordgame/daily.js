@@ -284,7 +284,53 @@ function onRoundFinished(roundData) {
 }
 
 // =============================================
-// RENDER DAILY PANEL (Home Screen)
+// RENDER WEEKLY CHALLENGE ON HOME SCREEN
+// =============================================
+function renderHomeWeekly() {
+    const el = $('home-weekly');
+    if (!el) return;
+
+    if (!save.weeklyChallenge) { el.innerHTML = ''; return; }
+
+    const wc = save.weeklyChallenge;
+    let html = '';
+
+    if (wc.completed && !wc.claimed) {
+        html = `<div class="weekly-card completed">
+            <div class="weekly-header">
+                <span class="weekly-icon">&#127942;</span>
+                <span class="weekly-title">Еженедельный челлендж</span>
+            </div>
+            <div class="weekly-desc">Завершён!</div>
+            <button class="weekly-claim-btn" onclick="handleClaimWeeklyReward()">
+                Забрать +${WEEKLY_COIN_REWARD} &#9679; и +${WEEKLY_XP_REWARD} XP
+            </button>
+        </div>`;
+    } else if (wc.claimed) {
+        html = `<div class="weekly-card done">
+            <div class="weekly-header">
+                <span class="weekly-icon">&#127942;</span>
+                <span class="weekly-title">Еженедельный челлендж</span>
+            </div>
+            <div class="weekly-desc">&#10003; Выполнен на этой неделе</div>
+        </div>`;
+    } else {
+        html = `<div class="weekly-card">
+            <div class="weekly-header">
+                <span class="weekly-icon">&#127942;</span>
+                <span class="weekly-title">Еженедельный челлендж</span>
+            </div>
+            <div class="weekly-desc">Победи в экспертном режиме!</div>
+            <div class="weekly-reward">&#127873; ${WEEKLY_COIN_REWARD} &#9679; + ${WEEKLY_XP_REWARD} XP</div>
+            <button class="weekly-play-btn" onclick="launchWeeklyChallenge()">Принять вызов</button>
+        </div>`;
+    }
+
+    el.innerHTML = html;
+}
+
+// =============================================
+// RENDER DAILY PANEL (Profile Screen)
 // =============================================
 function renderDailyPanel() {
     const panel = $('daily-panel');
@@ -345,42 +391,6 @@ function renderDailyPanel() {
         html += '</div>';
     }
 
-    // --- Weekly challenge ---
-    if (save.weeklyChallenge) {
-        const wc = save.weeklyChallenge;
-
-        if (wc.completed && !wc.claimed) {
-            html += `<div class="weekly-card completed">
-                <div class="weekly-header">
-                    <span class="weekly-icon">&#127942;</span>
-                    <span class="weekly-title">Еженедельный челлендж</span>
-                </div>
-                <div class="weekly-desc">Завершён!</div>
-                <button class="weekly-claim-btn" onclick="handleClaimWeeklyReward()">
-                    Забрать +${WEEKLY_COIN_REWARD} &#9679; и +${WEEKLY_XP_REWARD} XP
-                </button>
-            </div>`;
-        } else if (wc.claimed) {
-            html += `<div class="weekly-card done">
-                <div class="weekly-header">
-                    <span class="weekly-icon">&#127942;</span>
-                    <span class="weekly-title">Еженедельный челлендж</span>
-                </div>
-                <div class="weekly-desc">&#10003; Выполнен на этой неделе</div>
-            </div>`;
-        } else {
-            html += `<div class="weekly-card">
-                <div class="weekly-header">
-                    <span class="weekly-icon">&#127942;</span>
-                    <span class="weekly-title">Еженедельный челлендж</span>
-                </div>
-                <div class="weekly-desc">Победи в экспертном режиме!</div>
-                <div class="weekly-reward">&#127873; ${WEEKLY_COIN_REWARD} &#9679; + ${WEEKLY_XP_REWARD} XP</div>
-                <button class="weekly-play-btn" onclick="launchWeeklyChallenge()">Принять вызов</button>
-            </div>`;
-        }
-    }
-
     panel.innerHTML = html;
 }
 
@@ -407,6 +417,7 @@ function handleClaimWeeklyReward() {
             SFX.levelUp();
             showToast('&#11088;', `Новый уровень: ${save.level}!`);
         }
+        renderHomeWeekly();
         renderDailyPanel();
         refreshProfile();
     }
