@@ -68,6 +68,8 @@ async function submitToLeaderboard() {
 // FETCH LEADERBOARD
 // =============================================
 let currentLeaderboardSort = 'xp';
+let lastLeaderboardData = null;
+let lastLeaderboardMyRank = -1;
 
 async function fetchLeaderboard(sort = 'xp') {
     try {
@@ -99,6 +101,8 @@ async function refreshLeaderboard(sort) {
 
     const data = await fetchLeaderboard(currentLeaderboardSort);
     const myId = ensurePlayerId();
+    lastLeaderboardData = data;
+    lastLeaderboardMyRank = data.players.findIndex(p => p.id === myId) + 1;
 
     if (!data.players.length) {
         content.innerHTML = '<div class="lb-empty">Пока нет игроков. Будь первым!</div>';
@@ -106,7 +110,7 @@ async function refreshLeaderboard(sort) {
     }
 
     const sortLabels = {
-        xp: 'XP', streak: 'Стрик', stars: 'Звёзды', level: 'Уровень', duels: 'Дуэли'
+        xp: 'Уровень', streak: 'Стрик', stars: 'Звёзды', duels: 'Дуэли'
     };
 
     let html = '';
@@ -117,10 +121,9 @@ async function refreshLeaderboard(sort) {
 
         let statValue = '';
         switch (currentLeaderboardSort) {
-            case 'xp':     statValue = `${player.level} ур. (${player.xp} XP)`; break;
+            case 'xp':     statValue = `Ур. ${player.level} (${player.xp} XP)`; break;
             case 'streak': statValue = `${player.bestStreak} подряд`; break;
             case 'stars':  statValue = `${player.totalStars} &#9733;`; break;
-            case 'level':  statValue = `Ур. ${player.level}`; break;
             case 'duels':  statValue = `${player.duelWins || 0} побед`; break;
         }
 

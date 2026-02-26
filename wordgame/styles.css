@@ -1074,6 +1074,23 @@ body {
 }
 .share-btn:active { transform: scale(0.95); }
 .share-btn:hover { border-color: var(--accent); }
+.share-btn-wide {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+    font-size: 14px;
+    padding: 14px 8px;
+}
+.share-btn-wide:hover { border-color: var(--accent-light); background: var(--accent-light); }
+
+.share-lb-btn {
+    width: 100%;
+    margin-top: 12px;
+    flex-shrink: 0;
+    background: var(--surface);
+    border-color: var(--accent);
+    color: var(--accent);
+}
 
 /* ==============================
    LEADERBOARD SCREEN

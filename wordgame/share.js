@@ -220,6 +220,129 @@ async function shareResultImage() {
 }
 
 // =============================================
+// LEADERBOARD SHARE
+// =============================================
+function generateLeaderboardCard() {
+    return new Promise((resolve) => {
+        const W = 480;
+        const H = 400;
+        const canvas = document.createElement('canvas');
+        canvas.width = W;
+        canvas.height = H;
+        const ctx = canvas.getContext('2d');
+
+        // Background
+        ctx.fillStyle = '#0f0f13';
+        ctx.fillRect(0, 0, W, H);
+
+        // Gradient top bar
+        const grad = ctx.createLinearGradient(0, 0, W, 0);
+        grad.addColorStop(0, '#7c6af6');
+        grad.addColorStop(0.5, '#c084fc');
+        grad.addColorStop(1, '#f0abfc');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, W, 4);
+
+        // Title
+        ctx.fillStyle = '#eeeef0';
+        ctx.font = 'bold 32px Inter, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('Связи — Лидерборд', W / 2, 50);
+
+        // Sort label
+        const sortNames = { xp: 'Уровень', streak: 'Стрик', stars: 'Звёзды', duels: 'Дуэли' };
+        const sortName = sortNames[currentLeaderboardSort] || 'Уровень';
+        ctx.font = '600 16px Inter, sans-serif';
+        ctx.fillStyle = '#8888a0';
+        ctx.fillText(`Рейтинг: ${sortName}`, W / 2, 80);
+
+        // Rank circle
+        const rank = lastLeaderboardMyRank > 0 ? lastLeaderboardMyRank : '?';
+        const rankY = 150;
+        ctx.beginPath();
+        ctx.arc(W / 2, rankY, 45, 0, Math.PI * 2);
+        const rankGrad = ctx.createRadialGradient(W / 2, rankY, 0, W / 2, rankY, 45);
+        rankGrad.addColorStop(0, '#7c6af6');
+        rankGrad.addColorStop(1, '#c084fc');
+        ctx.fillStyle = rankGrad;
+        ctx.fill();
+
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 36px Inter, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(`#${rank}`, W / 2, rankY + 13);
+
+        // Player name
+        const name = getPlayerName();
+        ctx.fillStyle = '#eeeef0';
+        ctx.font = 'bold 22px Inter, sans-serif';
+        ctx.fillText(name, W / 2, rankY + 75);
+
+        // Stats boxes
+        const statsY = rankY + 100;
+        const stats = [
+            { label: 'УРОВЕНЬ', value: `${save.level}`, color: '#fbbf24' },
+            { label: 'ПОБЕДЫ', value: `${save.totalWins}`, color: '#34d399' },
+            { label: 'СТРИК', value: `${save.bestStreak}`, color: '#f87171' },
+            { label: 'ЗВЁЗДЫ', value: `${calcTotalStars()}`, color: '#7c6af6' }
+        ];
+
+        const statBoxW = (W - 80 - 30) / 4;
+        const gridX = 40;
+        stats.forEach((stat, i) => {
+            const x = gridX + i * (statBoxW + 10);
+            ctx.fillStyle = '#1a1a23';
+            roundRect(ctx, x, statsY, statBoxW, 60, 10);
+            ctx.fill();
+
+            ctx.fillStyle = stat.color;
+            ctx.font = 'bold 22px Inter, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(stat.value, x + statBoxW / 2, statsY + 30);
+
+            ctx.fillStyle = '#8888a0';
+            ctx.font = '600 9px Inter, sans-serif';
+            ctx.fillText(stat.label, x + statBoxW / 2, statsY + 50);
+        });
+
+        // Footer
+        ctx.fillStyle = '#55556a';
+        ctx.font = '500 13px Inter, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('Сыграй сам — Связи', W / 2, H - 20);
+
+        canvas.toBlob((blob) => resolve(blob), 'image/png');
+    });
+}
+
+async function shareLeaderboardPosition() {
+    try {
+        const blob = await generateLeaderboardCard();
+
+        if (navigator.share && navigator.canShare) {
+            const file = new File([blob], 'svyazi-leaderboard.png', { type: 'image/png' });
+            const shareData = { files: [file], text: 'Моё место в лидерборде Связей!' };
+            if (navigator.canShare(shareData)) {
+                await navigator.share(shareData);
+                return;
+            }
+        }
+
+        // Fallback: download
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'svyazi-leaderboard.png';
+        a.click();
+        URL.revokeObjectURL(url);
+        showToast('&#128228;', 'Карточка сохранена!');
+    } catch (e) {
+        console.warn('Share leaderboard failed:', e.message);
+        showToast('&#9888;', 'Не удалось поделиться');
+    }
+}
+
+// =============================================
 // CANVAS HELPER
 // =============================================
 function roundRect(ctx, x, y, w, h, r) {

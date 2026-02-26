@@ -321,7 +321,7 @@ function handleWrongGuess() {
         showMsg('Нет попыток!', 'error');
         setTimeout(() => {
             revealRemaining(firstSelectedCategory);
-            setTimeout(() => endRound(false), 1000);
+            setTimeout(() => endRound(false), 3500);
         }, 700);
     } else if (hasThree) {
         showMsg('Одно слово лишнее!', 'warn');

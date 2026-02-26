@@ -95,7 +95,6 @@ app.get('/api/leaderboard', (req, res) => {
         xp:     (a, b) => (b.level * 10000 + b.xp) - (a.level * 10000 + a.xp),
         streak: (a, b) => b.bestStreak - a.bestStreak,
         stars:  (a, b) => b.totalStars - a.totalStars,
-        level:  (a, b) => (b.level * 10000 + b.xp) - (a.level * 10000 + a.xp),
         wins:   (a, b) => b.totalWins - a.totalWins,
         duels:  (a, b) => b.duelWins - a.duelWins
     };
