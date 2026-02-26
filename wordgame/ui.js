@@ -9,7 +9,7 @@
 // =============================================
 const $ = id => document.getElementById(id);
 
-const SCREEN_IDS = ['start-screen', 'game-screen', 'result-screen', 'profile-screen', 'archive-screen'];
+const SCREEN_IDS = ['start-screen', 'game-screen', 'result-screen', 'profile-screen', 'archive-screen', 'lb-screen', 'duel-pick-screen', 'duel-search-screen'];
 
 function showScreen(id) {
     SCREEN_IDS.forEach(sid => $(sid).classList.remove('active'));
@@ -325,10 +325,16 @@ function showResultScreen(won, stars, xpGain, coinsGain, elapsed, leveledUp, new
             </div>`;
     }
 
+    // Clear duel result (filled by duel.js if in duel mode)
+    const resDuel = $('res-duel');
+    if (resDuel) resDuel.innerHTML = '';
+
     // Action buttons
     const actEl = $('res-actions');
     actEl.innerHTML = '';
-    if (isEndless) {
+    if (typeof isDuel !== 'undefined' && isDuel) {
+        actEl.innerHTML += `<button class="pill-btn primary" onclick="showDuelDiffPicker()">Ещё дуэль</button>`;
+    } else if (isEndless) {
         actEl.innerHTML += `<button class="pill-btn primary" onclick="launchEndless()">Следующий раунд</button>`;
     } else {
         actEl.innerHTML += `<button class="pill-btn primary" onclick="launchGame('${difficulty}')">Играть ещё</button>`;
@@ -355,6 +361,7 @@ function refreshProfile() {
     $('p-xp-label').textContent = `${save.xp} / ${need} XP`;
     $('p-xp-fill').style.width = Math.min(100, (save.xp / need) * 100) + '%';
     $('p-coins').textContent = save.coins;
+    $('p-name').textContent = save.playerName || 'Игрок';
 
     const winRate = save.totalGames > 0 ? Math.round((save.totalWins / save.totalGames) * 100) : 0;
     $('p-stats-grid').innerHTML = `
@@ -363,7 +370,7 @@ function refreshProfile() {
         <div class="pstat"><div class="pstat-num">${save.bestStreak}</div><div class="pstat-label">Лучший стрик</div></div>
         <div class="pstat"><div class="pstat-num">${save.perfectGames}</div><div class="pstat-label">Безупречных</div></div>
         <div class="pstat"><div class="pstat-num">${save.dailyStreak || 0}</div><div class="pstat-label">Дейли-стрик</div></div>
-        <div class="pstat"><div class="pstat-num">${save.bestDailyStreak || 0}</div><div class="pstat-label">Лучший дейли</div></div>
+        <div class="pstat"><div class="pstat-num">${save.duelWins || 0}</div><div class="pstat-label">Побед дуэлей</div></div>
     `;
 
     // Achievement list
@@ -458,7 +465,15 @@ function initEventListeners() {
     $('shuffle-btn').onclick = () => { returnRemovedWords(); shuffleArray(activeWords); renderBoard(true); SFX.select(); haptic(5); updateBtns(); };
     $('deselect-btn').onclick = () => { selected = []; returnRemovedWords(); renderBoard(); updateBtns(); };
     $('submit-btn').onclick = checkSubmission;
-    $('game-back').onclick = () => { stopTimer(); refreshHome(); showScreen('start-screen'); };
+    $('game-back').onclick = () => {
+        stopTimer();
+        if (typeof isDuel !== 'undefined' && isDuel) {
+            isDuel = false;
+            if (typeof hideDuelOverlay === 'function') hideDuelOverlay();
+        }
+        refreshHome();
+        showScreen('start-screen');
+    };
     $('hint-explain').onclick = useHintExplain;
     $('hint-remove').onclick = useHintRemove;
 
@@ -476,6 +491,14 @@ function initEventListeners() {
 
     // Archive
     $('archive-back').onclick = () => { refreshProfile(); showScreen('profile-screen'); };
+
+    // Leaderboard
+    $('lb-btn').onclick = () => { refreshLeaderboard(); showScreen('lb-screen'); };
+    $('lb-back').onclick = () => { refreshHome(); showScreen('start-screen'); };
+
+    // Duel
+    $('duel-btn').onclick = () => showDuelDiffPicker();
+    $('duel-pick-back').onclick = () => { refreshHome(); showScreen('start-screen'); };
 }
 
 // =============================================

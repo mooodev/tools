@@ -256,6 +256,9 @@ function handleCorrectGuess(categoryTheme) {
     activeWords = activeWords.filter(item => item.category !== categoryTheme);
     selected = [];
 
+    // Report duel progress
+    if (typeof reportDuelProgress === 'function') reportDuelProgress();
+
     // Return removed words on correct guess
     returnRemovedWords();
 
@@ -435,6 +438,16 @@ function endRound(won) {
     }
 
     writeSave(save);
+
+    // Report duel finish
+    if (typeof reportDuelFinished === 'function' && isDuel) {
+        reportDuelFinished(won, stars);
+    }
+
+    // Submit to leaderboard
+    if (typeof submitToLeaderboard === 'function') {
+        submitToLeaderboard();
+    }
 
     // Daily engagement integration
     const dailyResult = onRoundFinished({

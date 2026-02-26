@@ -80,6 +80,10 @@ const DEFAULT_SAVE = {
     weeklyChallenge: null,   // { weekId, completed, claimed }
     dailyGamesPlayed: 0,
     dailyGamesWon: 0,
+    // Multiplayer
+    playerId: null,
+    playerName: null,
+    duelWins: 0,
 };
 
 // =============================================

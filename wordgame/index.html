@@ -49,7 +49,13 @@
 
     <div class="mode-section">
         <div class="mode-title">Режимы</div>
+        <button class="mode-btn duel-mode-btn" id="duel-btn">&#9876; Дуэль</button>
         <button class="endless-btn" id="endless-btn">&#8734; Бесконечный режим</button>
+    </div>
+
+    <div class="mode-section">
+        <div class="mode-title">Соревнование</div>
+        <button class="mode-btn lb-mode-btn" id="lb-btn">&#127942; Лидерборд</button>
     </div>
 </div>
 
@@ -111,6 +117,15 @@
     <div id="res-lvlup"></div>
     <div id="res-achievements"></div>
     <div id="res-daily"></div>
+    <div id="res-duel"></div>
+    <div class="share-row" id="res-share">
+        <button class="share-btn" id="share-text-btn" onclick="shareResultText()">
+            &#128203; Текст
+        </button>
+        <button class="share-btn" id="share-img-btn" onclick="shareResultImage()">
+            &#128247; Карточка
+        </button>
+    </div>
     <div class="result-actions" id="res-actions"></div>
 </div>
 
@@ -157,17 +172,58 @@
     <div id="archive-content"></div>
 </div>
 
+<!-- ===== LEADERBOARD SCREEN ===== -->
+<div class="screen" id="lb-screen">
+    <div class="hdr">
+        <button class="hdr-back" id="lb-back">&#8592; Назад</button>
+        <span class="hdr-title">Лидерборд</span>
+        <span></span>
+    </div>
+    <div class="lb-tabs" id="lb-tabs">
+        <button class="lb-tab active" data-sort="xp" onclick="refreshLeaderboard('xp')">&#128200; XP</button>
+        <button class="lb-tab" data-sort="streak" onclick="refreshLeaderboard('streak')">&#128293; Стрик</button>
+        <button class="lb-tab" data-sort="stars" onclick="refreshLeaderboard('stars')">&#11088; Звёзды</button>
+        <button class="lb-tab" data-sort="level" onclick="refreshLeaderboard('level')">&#127941; Уровень</button>
+        <button class="lb-tab" data-sort="duels" onclick="refreshLeaderboard('duels')">&#9876; Дуэли</button>
+    </div>
+    <div class="lb-content" id="lb-content"></div>
+</div>
+
+<!-- ===== DUEL PICK SCREEN ===== -->
+<div class="screen" id="duel-pick-screen">
+    <div class="hdr">
+        <button class="hdr-back" id="duel-pick-back">&#8592; Назад</button>
+        <span class="hdr-title">Дуэль</span>
+        <span></span>
+    </div>
+    <div class="duel-pick-hero">
+        <div class="duel-pick-icon">&#9876;</div>
+        <div class="duel-pick-title">Режим дуэли</div>
+        <div class="duel-pick-sub">Кто быстрее решит ту же сетку?<br>Выбери сложность для поиска соперника.</div>
+    </div>
+    <div class="diff-grid" id="duel-diff-grid"></div>
+</div>
+
+<!-- ===== DUEL SEARCH SCREEN ===== -->
+<div class="screen" id="duel-search-screen">
+    <div id="duel-search-content" class="duel-search-wrap"></div>
+</div>
+
 <!-- ===== Overlays & Effects ===== -->
 <div class="combo-overlay" id="combo-overlay"></div>
 <div class="confetti-container" id="confetti-container"></div>
 <div class="toast-container" id="toast-container"></div>
 
 <!-- ===== Scripts (order matters) ===== -->
+<script src="/socket.io/socket.io.js"></script>
 <script src="words.js"></script>
 <script src="meanings.js"></script>
 <script src="save.js"></script>
 <script src="audio.js"></script>
 <script src="daily.js"></script>
+<script src="leaderboard.js"></script>
+<script src="share.js"></script>
+<script src="duel.js"></script>
 <script src="game.js"></script>
 <script src="ui.js"></script>
 
