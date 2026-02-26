@@ -116,11 +116,8 @@
     <div id="res-daily"></div>
     <div id="res-duel"></div>
     <div class="share-row" id="res-share">
-        <button class="share-btn" id="share-text-btn" onclick="shareResultText()">
-            &#128203; Текст
-        </button>
-        <button class="share-btn" id="share-img-btn" onclick="shareResultImage()">
-            &#128247; Карточка
+        <button class="share-btn share-btn-wide" id="share-img-btn" onclick="shareResultImage()">
+            &#128228; Поделиться с друзьями
         </button>
     </div>
     <div class="result-actions" id="res-actions"></div>
@@ -179,13 +176,13 @@
         <span></span>
     </div>
     <div class="lb-tabs" id="lb-tabs">
-        <button class="lb-tab active" data-sort="xp" onclick="refreshLeaderboard('xp')">&#128200; XP</button>
+        <button class="lb-tab active" data-sort="xp" onclick="refreshLeaderboard('xp')">&#127941; Уровень</button>
         <button class="lb-tab" data-sort="streak" onclick="refreshLeaderboard('streak')">&#128293; Стрик</button>
         <button class="lb-tab" data-sort="stars" onclick="refreshLeaderboard('stars')">&#11088; Звёзды</button>
-        <button class="lb-tab" data-sort="level" onclick="refreshLeaderboard('level')">&#127941; Уровень</button>
         <button class="lb-tab" data-sort="duels" onclick="refreshLeaderboard('duels')">&#9876; Дуэли</button>
     </div>
     <div class="lb-content" id="lb-content"></div>
+    <button class="pill-btn share-lb-btn" id="share-lb-btn" onclick="shareLeaderboardPosition()">&#128228; Поделиться местом</button>
 </div>
 
 <!-- ===== DUEL PICK SCREEN ===== -->
