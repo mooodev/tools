@@ -240,7 +240,7 @@ function checkWeeklyChallengeComplete(won) {
 }
 
 function claimWeeklyReward() {
-    if (!save.weeklyChallenge || !save.weeklyChallenge.completed || save.weeklyChallenge.claimed) return false;
+    if (!save.weeklyChallenge || !save.weeklyChallenge.completed || save.weeklyChallenge.claimed) return null;
     save.weeklyChallenge.claimed = true;
     save.coins += WEEKLY_COIN_REWARD;
     save.xp += WEEKLY_XP_REWARD;
@@ -393,13 +393,13 @@ function handleClaimDailyBonus() {
         haptic(20);
         showToast('&#127873;', `+${DAILY_BONUS_ALL} монет за все задания!`);
         renderDailyPanel();
-        $('home-coins-val').textContent = save.coins;
+        refreshProfile();
     }
 }
 
 function handleClaimWeeklyReward() {
     const leveledUp = claimWeeklyReward();
-    if (leveledUp !== false) {
+    if (leveledUp !== null) {
         SFX.ach();
         haptic([20, 50, 20]);
         showToast('&#127942;', `+${WEEKLY_COIN_REWARD} монет и +${WEEKLY_XP_REWARD} XP!`);
@@ -408,7 +408,7 @@ function handleClaimWeeklyReward() {
             showToast('&#11088;', `Новый уровень: ${save.level}!`);
         }
         renderDailyPanel();
-        refreshHome();
+        refreshProfile();
     }
 }
 

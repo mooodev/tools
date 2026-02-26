@@ -45,9 +45,6 @@ function refreshHome() {
     $('home-xp-label').textContent = `${save.xp} / ${need} XP`;
     $('home-xp-fill').style.width = Math.min(100, (save.xp / need) * 100) + '%';
 
-    // Daily panel
-    renderDailyPanel();
-
     const grid = $('diff-grid');
     grid.innerHTML = '';
     for (const [key, meta] of Object.entries(DIFF_META)) {
@@ -372,6 +369,9 @@ function refreshProfile() {
         <div class="pstat"><div class="pstat-num">${save.dailyStreak || 0}</div><div class="pstat-label">Дейли-стрик</div></div>
         <div class="pstat"><div class="pstat-num">${save.duelWins || 0}</div><div class="pstat-label">Побед дуэлей</div></div>
     `;
+
+    // Daily panel
+    renderDailyPanel();
 
     // Achievement list
     const achList = $('ach-list');
