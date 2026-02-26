@@ -45,6 +45,9 @@ function refreshHome() {
     $('home-xp-label').textContent = `${save.xp} / ${need} XP`;
     $('home-xp-fill').style.width = Math.min(100, (save.xp / need) * 100) + '%';
 
+    // Daily panel
+    renderDailyPanel();
+
     const grid = $('diff-grid');
     grid.innerHTML = '';
     for (const [key, meta] of Object.entries(DIFF_META)) {
@@ -224,7 +227,7 @@ function showCombo(n) {
 // =============================================
 // RESULT SCREEN
 // =============================================
-function showResultScreen(won, stars, xpGain, coinsGain, elapsed, leveledUp, newLevel, newAchs) {
+function showResultScreen(won, stars, xpGain, coinsGain, elapsed, leveledUp, newLevel, newAchs, dailyResult) {
     $('res-icon').textContent = won ? '🎉' : '😔';
     $('res-title').textContent = won ? 'Победа!' : 'Не повезло';
     $('res-sub').textContent = won ? 'Все связи найдены!' : 'Попробуй ещё раз!';
@@ -250,6 +253,20 @@ function showResultScreen(won, stars, xpGain, coinsGain, elapsed, leveledUp, new
         <div class="stat"><div class="stat-num">${minutes}:${secs}</div><div class="stat-label">Время</div></div>
         <div class="stat"><div class="stat-num coins">+${coinsGain}</div><div class="stat-label">Монеты</div></div>
     `;
+
+    // Streak bonus info
+    const streakEl = $('res-streak');
+    streakEl.innerHTML = '';
+    if (dailyResult && dailyResult.streakDays > 0) {
+        const bonusLabel = dailyResult.streakBonus > 0
+            ? `<span class="streak-result-bonus">+${Math.round(dailyResult.streakBonus * 100)}% к монетам</span>`
+            : '';
+        streakEl.innerHTML = `<div class="streak-result">
+            <span class="streak-result-fire">&#128293;</span>
+            <span class="streak-result-text">${dailyResult.streakDays} ${pluralDays(dailyResult.streakDays)} подряд</span>
+            ${bonusLabel}
+        </div>`;
+    }
 
     // XP bar
     $('res-xp-val').textContent = `+${xpGain} XP`;
@@ -278,6 +295,35 @@ function showResultScreen(won, stars, xpGain, coinsGain, elapsed, leveledUp, new
             </div>`;
         SFX.ach();
     });
+
+    // Daily challenge completions
+    const dailyEl = $('res-daily');
+    dailyEl.innerHTML = '';
+    if (dailyResult && dailyResult.completedChallenges.length > 0) {
+        dailyResult.completedChallenges.forEach(ch => {
+            dailyEl.innerHTML += `
+                <div class="daily-unlock">
+                    <span class="daily-unlock-icon">${ch.icon}</span>
+                    <div class="daily-unlock-text">
+                        <div class="daily-unlock-name">${ch.name}</div>
+                        <div class="daily-unlock-desc">+${ch.reward} &#9679;</div>
+                    </div>
+                </div>`;
+        });
+        SFX.coin();
+    }
+
+    // Weekly challenge completion
+    if (dailyResult && dailyResult.weeklyDone) {
+        dailyEl.innerHTML += `
+            <div class="daily-unlock weekly">
+                <span class="daily-unlock-icon">&#127942;</span>
+                <div class="daily-unlock-text">
+                    <div class="daily-unlock-name">Еженедельный челлендж!</div>
+                    <div class="daily-unlock-desc">Заберите награду в меню</div>
+                </div>
+            </div>`;
+    }
 
     // Action buttons
     const actEl = $('res-actions');
@@ -316,8 +362,8 @@ function refreshProfile() {
         <div class="pstat"><div class="pstat-num">${winRate}%</div><div class="pstat-label">Побед</div></div>
         <div class="pstat"><div class="pstat-num">${save.bestStreak}</div><div class="pstat-label">Лучший стрик</div></div>
         <div class="pstat"><div class="pstat-num">${save.perfectGames}</div><div class="pstat-label">Безупречных</div></div>
-        <div class="pstat"><div class="pstat-num">${save.categoriesFound}</div><div class="pstat-label">Категорий</div></div>
-        <div class="pstat"><div class="pstat-num">${save.hintsUsed}</div><div class="pstat-label">Подсказок</div></div>
+        <div class="pstat"><div class="pstat-num">${save.dailyStreak || 0}</div><div class="pstat-label">Дейли-стрик</div></div>
+        <div class="pstat"><div class="pstat-num">${save.bestDailyStreak || 0}</div><div class="pstat-label">Лучший дейли</div></div>
     `;
 
     // Achievement list
@@ -436,6 +482,7 @@ function initEventListeners() {
 // INIT
 // =============================================
 function initApp() {
+    checkDailyReset();
     initEventListeners();
     refreshHome();
 }

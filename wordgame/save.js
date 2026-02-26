@@ -72,6 +72,14 @@ const DEFAULT_SAVE = {
     achievements: [],
     endlessPlayed: 0,
     endlessWins: 0,
+    // Daily engagement
+    dailyStreak: 0,
+    bestDailyStreak: 0,
+    lastPlayDate: null,
+    dailyChallenges: null,   // { date, tasks: [{id, progress, completed}], allCompleted, claimed }
+    weeklyChallenge: null,   // { weekId, completed, claimed }
+    dailyGamesPlayed: 0,
+    dailyGamesWon: 0,
 };
 
 // =============================================

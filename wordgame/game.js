@@ -20,6 +20,7 @@ let maxMist = 4;
 let mistakesMade = 0;
 let gameOver = false;
 let combo = 0;
+let maxCombo = 0;
 let hintsUsedThisRound = 0;
 let timerStart = 0;
 let timerInterval = null;
@@ -110,6 +111,7 @@ function initRound() {
     mistakesMade = 0;
     gameOver = false;
     combo = 0;
+    maxCombo = 0;
     hintsUsedThisRound = 0;
     removedWords = [];
     explainMode = false;
@@ -247,6 +249,7 @@ function handleCorrectGuess(categoryTheme) {
     SFX.correct();
     haptic(20);
     combo++;
+    if (combo > maxCombo) maxCombo = combo;
 
     const catData = puzzle.categories.find(c => c.theme === categoryTheme);
     solvedCats.push(catData);
@@ -280,6 +283,7 @@ function handleCorrectGuess(categoryTheme) {
         setTimeout(() => {
             solvedCats.push(lastCatData);
             combo++;
+            if (combo > maxCombo) maxCombo = combo;
             activeWords = [];
             gameOver = true;
             stopTimer();
@@ -342,6 +346,9 @@ function endRound(won) {
     let stars = 0;
     const newAchs = [];
 
+    // Update daily streak early so bonus applies to this round
+    updateDailyStreak();
+
     if (won) {
         stars = getStars(mistakesMade, maxMist);
 
@@ -355,6 +362,12 @@ function endRound(won) {
         // Coins calculation
         coinsGain = 10 + (maxMist - mistakesMade) * 5;
         coinsGain *= meta.coinMult;
+
+        // Apply daily streak bonus
+        const streakMult = getStreakBonus();
+        if (streakMult > 0) {
+            coinsGain = Math.floor(coinsGain * (1 + streakMult));
+        }
 
         // Update save stats
         save.totalWins++;
@@ -423,6 +436,15 @@ function endRound(won) {
 
     writeSave(save);
 
+    // Daily engagement integration
+    const dailyResult = onRoundFinished({
+        won, mistakesMade, elapsed,
+        hintsUsed: hintsUsedThisRound,
+        maxCombo: maxCombo,
+        solvedCats, puzzle, difficulty,
+        coinsGain
+    });
+
     // Delegate to UI
-    showResultScreen(won, stars, xpGain, coinsGain, elapsed, leveledUp, newLevel, newAchs);
+    showResultScreen(won, stars, xpGain, coinsGain, elapsed, leveledUp, newLevel, newAchs, dailyResult);
 }
