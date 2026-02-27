@@ -784,6 +784,7 @@ body {
 /* ==============================
    DAILY ENGAGEMENT PANEL
    ============================== */
+#daily-panel { width: 100%; }
 
 /* Streak */
 .daily-streak {
@@ -1519,6 +1520,11 @@ body {
 /* ==============================
    DAILY / WEEKLY PUZZLE BUTTONS
    ============================== */
+#home-weekly,
+#home-daily {
+    margin-bottom: 16px;
+}
+
 .daily-weekly-grid {
     display: flex;
     flex-direction: column;
