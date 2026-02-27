@@ -1,7 +1,7 @@
 {
   "name": "svyazi-game",
   "version": "1.1.0",
-  "description": "Связи — Словесная игра с мультиплеером и Telegram ботом",
+  "description": "В тему! — Словесная игра с мультиплеером и Telegram ботом",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

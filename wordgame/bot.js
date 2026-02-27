@@ -85,7 +85,7 @@ bot.onText(/\/start/, (msg) => {
     const chatId = msg.chat.id;
     addSubscriber(chatId);
 
-    const welcomeText = `Привет! Я бот игры *Связи* — словесная головоломка!
+    const welcomeText = `Привет! Я бот игры *В тему!* — словесная головоломка!
 
 Каждый день я присылаю новый паззл, а каждую неделю — сложный челлендж.
 
@@ -103,7 +103,7 @@ bot.onText(/\/start/, (msg) => {
         parse_mode: 'Markdown',
         reply_markup: {
             inline_keyboard: [
-                [{ text: '🎮 Играть в Связи', web_app: { url: WEBAPP_URL } }],
+                [{ text: '🎮 Играть в «В тему!»', web_app: { url: WEBAPP_URL } }],
                 [{ text: '📅 Ежедневный паззл', web_app: { url: `${WEBAPP_URL}?mode=daily` } }],
                 [{ text: '🏆 Еженедельный паззл', web_app: { url: `${WEBAPP_URL}?mode=weekly` } }]
             ]
@@ -147,7 +147,7 @@ bot.onText(/\/play/, (msg) => {
         parse_mode: 'Markdown',
         reply_markup: {
             inline_keyboard: [
-                [{ text: '🎮 Играть в Связи', web_app: { url: WEBAPP_URL } }]
+                [{ text: '🎮 Играть в «В тему!»', web_app: { url: WEBAPP_URL } }]
             ]
         }
     });
@@ -182,7 +182,7 @@ bot.onText(/\/stop/, (msg) => {
 
 bot.onText(/\/help/, (msg) => {
     const chatId = msg.chat.id;
-    bot.sendMessage(chatId, `*Связи — Словесная головоломка*
+    bot.sendMessage(chatId, `*В тему! — Словесная головоломка*
 
 16 слов, 4 категории. Найди скрытые связи!
 

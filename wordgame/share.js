@@ -32,7 +32,7 @@ function generateShareText() {
     const starStr = '⭐'.repeat(stars) + '☆'.repeat(3 - stars);
     const puzzleNum = isEndless ? 'Бесконечный' : `#${puzzleIndex + 1}`;
 
-    return `Связи ${puzzleNum} (${diff.label}) ${starStr}\n\n${grid}\n⏱ ${minutes}:${secs} | ❌ ${mistakesMade}/${maxMist}\n🔥 Серия: ${save.currentStreak}`;
+    return `В тему! ${puzzleNum} (${diff.label}) ${starStr}\n\n${grid}\n⏱ ${minutes}:${secs} | ❌ ${mistakesMade}/${maxMist}\n🔥 Серия: ${save.currentStreak}`;
 }
 
 // =============================================
@@ -63,7 +63,7 @@ function generateShareCard() {
         ctx.fillStyle = '#eeeef0';
         ctx.font = 'bold 36px Inter, sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText('Связи', W / 2, 50);
+        ctx.fillText('В тему!', W / 2, 50);
 
         // Difficulty badge
         const diff = DIFF_META[difficulty];
@@ -154,7 +154,7 @@ function generateShareCard() {
         ctx.fillStyle = '#55556a';
         ctx.font = '500 13px Inter, sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText('Сыграй сам — Связи', W / 2, H - 20);
+        ctx.fillText('Сыграй сам — В тему!', W / 2, H - 20);
 
         canvas.toBlob((blob) => resolve(blob), 'image/png');
     });
@@ -198,8 +198,8 @@ async function shareResultImage() {
         const blob = await generateShareCard();
 
         if (navigator.share && navigator.canShare) {
-            const file = new File([blob], 'svyazi-result.png', { type: 'image/png' });
-            const shareData = { files: [file], text: 'Мой результат в Связях!' };
+            const file = new File([blob], 'vtemu-result.png', { type: 'image/png' });
+            const shareData = { files: [file], text: 'Мой результат в «В тему!»' };
             if (navigator.canShare(shareData)) {
                 await navigator.share(shareData);
                 return;
@@ -210,7 +210,7 @@ async function shareResultImage() {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'svyazi-result.png';
+        a.download = 'vtemu-result.png';
         a.click();
         URL.revokeObjectURL(url);
         showToast('&#128247;', 'Карточка сохранена!');
@@ -248,7 +248,7 @@ function generateLeaderboardCard() {
         ctx.fillStyle = '#eeeef0';
         ctx.font = 'bold 32px Inter, sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText('Связи — Лидерборд', W / 2, 50);
+        ctx.fillText('В тему! — Лидерборд', W / 2, 50);
 
         // Sort label
         const sortNames = { xp: 'Уровень', streak: 'Стрик', stars: 'Звёзды', duels: 'Дуэли' };
@@ -310,7 +310,7 @@ function generateLeaderboardCard() {
         ctx.fillStyle = '#55556a';
         ctx.font = '500 13px Inter, sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText('Сыграй сам — Связи', W / 2, H - 20);
+        ctx.fillText('Сыграй сам — В тему!', W / 2, H - 20);
 
         canvas.toBlob((blob) => resolve(blob), 'image/png');
     });
@@ -321,8 +321,8 @@ async function shareLeaderboardPosition() {
         const blob = await generateLeaderboardCard();
 
         if (navigator.share && navigator.canShare) {
-            const file = new File([blob], 'svyazi-leaderboard.png', { type: 'image/png' });
-            const shareData = { files: [file], text: 'Моё место в лидерборде Связей!' };
+            const file = new File([blob], 'vtemu-leaderboard.png', { type: 'image/png' });
+            const shareData = { files: [file], text: 'Моё место в лидерборде «В тему!»' };
             if (navigator.canShare(shareData)) {
                 await navigator.share(shareData);
                 return;
@@ -333,7 +333,7 @@ async function shareLeaderboardPosition() {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'svyazi-leaderboard.png';
+        a.download = 'vtemu-leaderboard.png';
         a.click();
         URL.revokeObjectURL(url);
         showToast('&#128228;', 'Карточка сохранена!');

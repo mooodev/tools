@@ -519,5 +519,5 @@ if (process.env.BOT_TOKEN) {
 // START SERVER
 // =============================================
 server.listen(PORT, () => {
-    console.log(`Связи game server running on http://localhost:${PORT}`);
+    console.log(`В тему! game server running on http://localhost:${PORT}`);
 });
