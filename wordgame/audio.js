@@ -30,18 +30,22 @@ function playTone(freq, dur, type = 'sine', vol = 0.12) {
 const SFX = {
     select() {
         playTone(600, 0.08, 'sine', 0.06);
+        if (typeof tgHaptic === 'function' && isTelegram) tgHaptic('selection');
     },
     deselect() {
         playTone(400, 0.06, 'sine', 0.04);
+        if (typeof tgHaptic === 'function' && isTelegram) tgHaptic('selection');
     },
     correct() {
         playTone(523, 0.12);
         setTimeout(() => playTone(659, 0.12), 80);
         setTimeout(() => playTone(784, 0.15), 160);
+        if (typeof tgHaptic === 'function' && isTelegram) tgHaptic('notification', 'success');
     },
     wrong() {
         playTone(300, 0.15, 'square', 0.08);
         setTimeout(() => playTone(250, 0.2, 'square', 0.08), 100);
+        if (typeof tgHaptic === 'function' && isTelegram) tgHaptic('notification', 'error');
     },
     combo(n) {
         for (let i = 0; i < n; i++) {
@@ -52,31 +56,52 @@ const SFX = {
         [523, 587, 659, 784, 1047].forEach((f, i) =>
             setTimeout(() => playTone(f, 0.15, 'sine', 0.1), i * 80)
         );
+        if (typeof tgHaptic === 'function' && isTelegram) tgHaptic('notification', 'success');
     },
     lose() {
         [400, 350, 300, 250].forEach((f, i) =>
             setTimeout(() => playTone(f, 0.15, 'square', 0.06), i * 100)
         );
+        if (typeof tgHaptic === 'function' && isTelegram) tgHaptic('notification', 'warning');
     },
     coin() {
         playTone(1200, 0.08, 'sine', 0.08);
         setTimeout(() => playTone(1600, 0.1, 'sine', 0.08), 60);
+        if (typeof tgHaptic === 'function' && isTelegram) tgHaptic('impact', 'light');
     },
     hint() {
         playTone(880, 0.1, 'triangle', 0.08);
+        if (typeof tgHaptic === 'function' && isTelegram) tgHaptic('impact', 'soft');
     },
     levelUp() {
         [523, 659, 784, 1047].forEach((f, i) =>
             setTimeout(() => playTone(f, 0.12, 'sine', 0.12), i * 100)
         );
+        if (typeof tgHaptic === 'function' && isTelegram) tgHaptic('impact', 'heavy');
     },
     ach() {
         playTone(1047, 0.15, 'sine', 0.1);
         setTimeout(() => playTone(1318, 0.2, 'sine', 0.1), 120);
+        if (typeof tgHaptic === 'function' && isTelegram) tgHaptic('impact', 'rigid');
     },
 };
 
 function haptic(pattern) {
+    // Use Telegram WebApp haptics if available
+    if (typeof tgHaptic === 'function' && typeof isTelegram !== 'undefined' && isTelegram) {
+        if (Array.isArray(pattern)) {
+            // Complex pattern → medium impact
+            tgHaptic('impact', 'medium');
+        } else if (pattern >= 20) {
+            tgHaptic('impact', 'medium');
+        } else if (pattern >= 10) {
+            tgHaptic('impact', 'light');
+        } else {
+            tgHaptic('selection');
+        }
+        return;
+    }
+    // Fallback to navigator.vibrate
     try {
         if (Array.isArray(pattern)) {
             navigator.vibrate(pattern);

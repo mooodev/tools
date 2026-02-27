@@ -61,8 +61,9 @@ let leaderboardData = loadLeaderboard();
 // LEADERBOARD API
 // =============================================
 app.post('/api/leaderboard', (req, res) => {
-    const { id, name, xp, level, totalStars, bestStreak, totalWins,
-            totalGames, perfectGames, duelWins } = req.body;
+    const { id, name, xp, level, totalStars, bestStreak, currentStreak,
+            dailyStreak, totalWins, totalGames, perfectGames, duelWins,
+            categoriesFound, dailyPuzzlesTotal, weeklyPuzzlesTotal } = req.body;
 
     if (!id || !name) {
         return res.status(400).json({ error: 'id and name required' });
@@ -75,10 +76,15 @@ app.post('/api/leaderboard', (req, res) => {
         level: Number(level) || 1,
         totalStars: Number(totalStars) || 0,
         bestStreak: Number(bestStreak) || 0,
+        currentStreak: Number(currentStreak) || 0,
+        dailyStreak: Number(dailyStreak) || 0,
         totalWins: Number(totalWins) || 0,
         totalGames: Number(totalGames) || 0,
         perfectGames: Number(perfectGames) || 0,
         duelWins: Number(duelWins) || 0,
+        categoriesFound: Number(categoriesFound) || 0,
+        dailyPuzzlesTotal: Number(dailyPuzzlesTotal) || 0,
+        weeklyPuzzlesTotal: Number(weeklyPuzzlesTotal) || 0,
         lastActive: new Date().toISOString()
     };
 

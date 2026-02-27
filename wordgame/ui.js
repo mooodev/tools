@@ -15,6 +15,14 @@ function showScreen(id) {
     SCREEN_IDS.forEach(sid => $(sid).classList.remove('active'));
     $(id).classList.add('active');
     $(id).scrollTop = 0;
+
+    // Track current screen for Telegram BackButton
+    if (typeof _currentScreen !== 'undefined') {
+        _currentScreen = id;
+    }
+    if (typeof tgUpdateBackButton === 'function') {
+        tgUpdateBackButton();
+    }
 }
 
 // =============================================
@@ -525,10 +533,24 @@ function handleUrlParams() {
 // INIT
 // =============================================
 function initApp() {
+    // Initialize Telegram WebApp features (fullscreen, haptics, back button)
+    if (typeof initTelegram === 'function') {
+        initTelegram();
+    }
+
     checkDailyReset();
     initEventListeners();
     refreshHome();
-    handleUrlParams();
+
+    // Load fresh puzzles from GitHub, then refresh UI
+    if (typeof initPuzzleLoader === 'function') {
+        initPuzzleLoader().then(() => {
+            refreshHome();
+            handleUrlParams();
+        });
+    } else {
+        handleUrlParams();
+    }
 }
 
 // Run on load
