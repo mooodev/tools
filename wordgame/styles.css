@@ -537,6 +537,7 @@ body {
 .hint-btn:active { transform: scale(0.95); }
 .hint-btn:disabled { opacity: 0.3; cursor: not-allowed; transform: none; }
 .hint-cost { font-size: 10px; color: var(--coin); font-weight: 700; }
+.hint-penalty { font-size: 9px; color: var(--error); font-weight: 700; opacity: 0.8; }
 
 .ctrl-row { display: flex; gap: 8px; width: 100%; }
 .ctrl-btn {
@@ -1470,4 +1471,103 @@ body {
 }
 @media (min-width: 480px) {
     .card { min-height: 66px; font-size: 12px; }
+}
+
+/* ==============================
+   DAILY / WEEKLY PUZZLE BUTTONS
+   ============================== */
+.daily-weekly-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+}
+
+.daily-puzzle-btn,
+.weekly-puzzle-btn {
+    width: 100%;
+    padding: 14px 16px;
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--text);
+    font: 600 14px/1 'Inter', sans-serif;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.daily-puzzle-btn {
+    border: 1.5px solid var(--success);
+    background: rgba(52,211,153,0.06);
+}
+.daily-puzzle-btn:hover { box-shadow: 0 0 20px rgba(52,211,153,0.15); }
+.daily-puzzle-btn:active { transform: scale(0.97); }
+
+.weekly-puzzle-btn {
+    border: 1.5px solid var(--accent);
+    background: rgba(124,106,246,0.06);
+}
+.weekly-puzzle-btn:hover { box-shadow: 0 0 20px var(--accent-glow); }
+.weekly-puzzle-btn:active { transform: scale(0.97); }
+
+.daily-puzzle-btn.completed,
+.weekly-puzzle-btn.completed {
+    opacity: 0.65;
+    border-color: var(--surface-3);
+    background: var(--surface);
+}
+
+.dp-icon { font-size: 24px; flex-shrink: 0; width: 32px; text-align: center; }
+.dp-info { flex: 1; text-align: left; }
+.dp-title { font-size: 14px; font-weight: 800; margin-bottom: 2px; }
+.dp-desc { font-size: 11px; color: var(--text-dim); font-weight: 500; }
+.dp-arrow { font-size: 14px; color: var(--text-dim); flex-shrink: 0; }
+
+/* ==============================
+   ORIENTATION LOCK (portrait only)
+   ============================== */
+.orientation-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 99999;
+    background: var(--bg);
+    color: var(--text);
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    text-align: center;
+    padding: 40px;
+}
+
+.orientation-overlay .orient-icon {
+    font-size: 64px;
+    animation: orientRotate 2s ease-in-out infinite;
+}
+
+@keyframes orientRotate {
+    0%, 100% { transform: rotate(0deg); }
+    25% { transform: rotate(-30deg); }
+    75% { transform: rotate(30deg); }
+}
+
+.orientation-overlay .orient-text {
+    font-size: 18px;
+    font-weight: 700;
+}
+
+.orientation-overlay .orient-sub {
+    font-size: 14px;
+    color: var(--text-dim);
+}
+
+@media (orientation: landscape) and (max-height: 500px) {
+    .orientation-overlay { display: flex !important; }
+    .screen { display: none !important; }
+    .combo-overlay,
+    .confetti-container,
+    .toast-container { display: none !important; }
 }

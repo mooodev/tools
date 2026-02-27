@@ -46,6 +46,7 @@ function refreshHome() {
     $('home-xp-fill').style.width = Math.min(100, (save.xp / need) * 100) + '%';
 
     renderHomeWeekly();
+    renderDailyWeeklyButtons();
 
     const grid = $('diff-grid');
     grid.innerHTML = '';
@@ -473,6 +474,8 @@ function initEventListeners() {
             isDuel = false;
             if (typeof hideDuelOverlay === 'function') hideDuelOverlay();
         }
+        if (typeof isDailyPuzzleMode !== 'undefined') isDailyPuzzleMode = false;
+        if (typeof isWeeklyPuzzleMode !== 'undefined') isWeeklyPuzzleMode = false;
         refreshHome();
         showScreen('start-screen');
     };
@@ -504,12 +507,68 @@ function initEventListeners() {
 }
 
 // =============================================
+// DAILY / WEEKLY PUZZLE BUTTONS
+// =============================================
+function renderDailyWeeklyButtons() {
+    const grid = $('daily-weekly-grid');
+    if (!grid) return;
+
+    grid.innerHTML = '';
+
+    // Daily puzzle button
+    const dailyDone = typeof isDailyPuzzleCompleted === 'function' && isDailyPuzzleCompleted();
+    const dailyBtn = document.createElement('button');
+    dailyBtn.className = 'daily-puzzle-btn' + (dailyDone ? ' completed' : '');
+    dailyBtn.innerHTML = `
+        <div class="dp-icon">${dailyDone ? '&#10003;' : '&#128197;'}</div>
+        <div class="dp-info">
+            <div class="dp-title">Паззл дня</div>
+            <div class="dp-desc">${dailyDone ? 'Пройден! ⭐'.repeat(save.dailyPuzzleStars || 0) : 'Новый паззл каждый день'}</div>
+        </div>
+        <div class="dp-arrow">${dailyDone ? '' : '&#9654;'}</div>`;
+    dailyBtn.onclick = () => {
+        if (typeof launchDailyPuzzle === 'function') launchDailyPuzzle();
+    };
+    grid.appendChild(dailyBtn);
+
+    // Weekly puzzle button
+    const weeklyDone = typeof isWeeklyPuzzleCompleted === 'function' && isWeeklyPuzzleCompleted();
+    const weeklyBtn = document.createElement('button');
+    weeklyBtn.className = 'weekly-puzzle-btn' + (weeklyDone ? ' completed' : '');
+    weeklyBtn.innerHTML = `
+        <div class="dp-icon">${weeklyDone ? '&#10003;' : '&#127942;'}</div>
+        <div class="dp-info">
+            <div class="dp-title">Паззл недели</div>
+            <div class="dp-desc">${weeklyDone ? 'Пройден! ⭐'.repeat(save.weeklyPuzzleStars || 0) : 'Сложный паззл на неделю'}</div>
+        </div>
+        <div class="dp-arrow">${weeklyDone ? '' : '&#9654;'}</div>`;
+    weeklyBtn.onclick = () => {
+        if (typeof launchWeeklyPuzzle === 'function') launchWeeklyPuzzle();
+    };
+    grid.appendChild(weeklyBtn);
+}
+
+// =============================================
+// URL PARAMS (Telegram Mini App deep links)
+// =============================================
+function handleUrlParams() {
+    const params = new URLSearchParams(window.location.search);
+    const mode = params.get('mode');
+    if (mode === 'daily' && typeof launchDailyPuzzle === 'function') {
+        launchDailyPuzzle();
+    } else if (mode === 'weekly' && typeof launchWeeklyPuzzle === 'function') {
+        launchWeeklyPuzzle();
+    }
+}
+
+// =============================================
 // INIT
 // =============================================
 function initApp() {
     checkDailyReset();
     initEventListeners();
     refreshHome();
+    handleUrlParams();
 }
 
 // Run on load

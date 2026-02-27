@@ -503,6 +503,19 @@ function resolveDuel(roomId) {
 }
 
 // =============================================
+// TELEGRAM BOT (optional)
+// =============================================
+if (process.env.BOT_TOKEN) {
+    try {
+        require('./bot');
+        console.log('Telegram bot started');
+    } catch (e) {
+        console.warn('Failed to start Telegram bot:', e.message);
+        console.warn('Install node-telegram-bot-api: npm install node-telegram-bot-api');
+    }
+}
+
+// =============================================
 // START SERVER
 // =============================================
 server.listen(PORT, () => {

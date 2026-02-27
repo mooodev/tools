@@ -39,6 +39,11 @@
 
     <div id="home-weekly" style="width:100%"></div>
 
+    <div class="mode-section" id="daily-weekly-section">
+        <div class="mode-title">Паззл дня и недели</div>
+        <div class="daily-weekly-grid" id="daily-weekly-grid"></div>
+    </div>
+
     <div class="mode-section">
         <div class="mode-title">Выбери сложность</div>
         <div class="diff-grid" id="diff-grid"></div>
@@ -82,13 +87,15 @@
     <div class="bottom-area">
         <div class="mistakes-row" id="mistakes-row"></div>
         <div class="hints-row">
-            <button class="hint-btn" id="hint-explain" title="Объяснить значение слова">
+            <button class="hint-btn" id="hint-explain" title="Объяснить значение слова (-1 звезда)">
                 &#128218; Объяснить
                 <span class="hint-cost" id="hint-explain-cost">20 &#9679;</span>
+                <span class="hint-penalty">-1&#9733;</span>
             </button>
-            <button class="hint-btn" id="hint-remove" title="Убрать одно лишнее слово">
+            <button class="hint-btn" id="hint-remove" title="Убрать одно лишнее слово (-1 звезда)">
                 &#10060; Убрать лишнее
                 <span class="hint-cost" id="hint-remove-cost">15 &#9679;</span>
+                <span class="hint-penalty">-1&#9733;</span>
             </button>
         </div>
         <div class="ctrl-row">
@@ -205,6 +212,13 @@
     <div id="duel-search-content" class="duel-search-wrap"></div>
 </div>
 
+<!-- ===== Orientation Lock Overlay ===== -->
+<div class="orientation-overlay" id="orientation-overlay">
+    <div class="orient-icon">&#128241;</div>
+    <div class="orient-text">Поверните устройство</div>
+    <div class="orient-sub">Игра работает только в вертикальном режиме</div>
+</div>
+
 <!-- ===== Overlays & Effects ===== -->
 <div class="combo-overlay" id="combo-overlay"></div>
 <div class="confetti-container" id="confetti-container"></div>
@@ -213,6 +227,8 @@
 <!-- ===== Scripts (order matters) ===== -->
 <script src="/socket.io/socket.io.js"></script>
 <script src="words.js"></script>
+<script src="dailypuzzlewords.js"></script>
+<script src="weeklypuzzlewords.js"></script>
 <script src="meanings.js"></script>
 <script src="save.js"></script>
 <script src="audio.js"></script>

@@ -363,7 +363,7 @@ function endRound(won) {
     updateDailyStreak();
 
     if (won) {
-        stars = getStars(mistakesMade, maxMist);
+        stars = getStars(mistakesMade, maxMist, hintsUsedThisRound);
 
         // XP calculation
         xpGain = meta.baseXP;
@@ -445,6 +445,16 @@ function endRound(won) {
                 if (unlockAch(save, achId)) newAchs.push(achId);
             }
         }
+    }
+
+    // Handle daily/weekly puzzle completion
+    if (won && typeof isDailyPuzzleMode !== 'undefined' && isDailyPuzzleMode) {
+        completeDailyPuzzle(stars);
+        isDailyPuzzleMode = false;
+    }
+    if (won && typeof isWeeklyPuzzleMode !== 'undefined' && isWeeklyPuzzleMode) {
+        completeWeeklyPuzzle(stars);
+        isWeeklyPuzzleMode = false;
     }
 
     writeSave(save);
