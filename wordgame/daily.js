@@ -127,6 +127,12 @@ function checkDailyReset() {
         save.dailyGamesWon = 0;
     }
 
+    // Reset daily puzzle if new day
+    if (save.dailyPuzzleDate !== today) {
+        save.dailyPuzzleCompleted = false;
+        save.dailyPuzzleStars = 0;
+    }
+
     // Reset weekly challenge if new week
     const weekId = getWeekId();
     if (!save.weeklyChallenge || save.weeklyChallenge.weekId !== weekId) {
@@ -135,6 +141,12 @@ function checkDailyReset() {
             completed: false,
             claimed: false
         };
+    }
+
+    // Reset weekly puzzle if new week
+    if (save.weeklyPuzzleWeekId !== weekId) {
+        save.weeklyPuzzleCompleted = false;
+        save.weeklyPuzzleStars = 0;
     }
 
     writeSave(save);

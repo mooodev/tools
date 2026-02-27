@@ -24,10 +24,16 @@ function xpForLevel(lvl) {
     return lvl * 200;
 }
 
-function getStars(mistakesMade, maxMistakes) {
-    if (mistakesMade === 0) return 3;
-    if (mistakesMade <= Math.floor(maxMistakes * 0.5)) return 2;
-    return 1;
+function getStars(mistakesMade, maxMistakes, hintsUsed) {
+    let stars = 3;
+    if (mistakesMade > 0 && mistakesMade <= Math.floor(maxMistakes * 0.5)) stars = 2;
+    else if (mistakesMade > Math.floor(maxMistakes * 0.5)) stars = 1;
+
+    // Each hint deducts one star (minimum 1 star)
+    const hintPenalty = hintsUsed || 0;
+    stars = Math.max(1, stars - hintPenalty);
+
+    return stars;
 }
 
 // =============================================
@@ -80,6 +86,15 @@ const DEFAULT_SAVE = {
     weeklyChallenge: null,   // { weekId, completed, claimed }
     dailyGamesPlayed: 0,
     dailyGamesWon: 0,
+    // Daily/Weekly puzzles
+    dailyPuzzleDate: null,
+    dailyPuzzleCompleted: false,
+    dailyPuzzleStars: 0,
+    dailyPuzzlesTotal: 0,
+    weeklyPuzzleWeekId: null,
+    weeklyPuzzleCompleted: false,
+    weeklyPuzzleStars: 0,
+    weeklyPuzzlesTotal: 0,
     // Multiplayer
     playerId: null,
     playerName: null,

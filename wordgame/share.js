@@ -9,7 +9,7 @@
 // =============================================
 function generateShareText() {
     const diff = DIFF_META[difficulty];
-    const stars = getStars(mistakesMade, maxMist);
+    const stars = getStars(mistakesMade, maxMist, hintsUsedThisRound);
     const elapsed = getElapsed();
     const minutes = Math.floor(elapsed / 60);
     const secs = String(elapsed % 60).padStart(2, '0');
@@ -41,7 +41,7 @@ function generateShareText() {
 function generateShareCard() {
     return new Promise((resolve) => {
         const W = 480;
-        const H = 560;
+        const H = 640;
         const canvas = document.createElement('canvas');
         canvas.width = W;
         canvas.height = H;
@@ -74,7 +74,7 @@ function generateShareCard() {
         ctx.fillText(`${diff.label} — ${puzzleNum}`, W / 2, 80);
 
         // Stars
-        const stars = getStars(mistakesMade, maxMist);
+        const stars = getStars(mistakesMade, maxMist, hintsUsedThisRound);
         const starY = 115;
         ctx.font = '32px serif';
         ctx.textAlign = 'center';
@@ -83,42 +83,43 @@ function generateShareCard() {
             ctx.fillText('★', W / 2 - 40 + i * 40, starY);
         }
 
-        // Category grid
+        // Category grid — each row includes category label below it
         const gridX = 40;
         const gridY = 150;
         const cellW = (W - 80) / 4;
-        const cellH = 52;
-        const gap = 6;
+        const cellH = 48;
+        const cellGap = 6;
+        const labelHeight = 22;   // space for category label below cells
+        const rowHeight = cellH + labelHeight;  // total height per category row
 
         solvedCats.forEach((cat, row) => {
+            const rowY = gridY + row * (rowHeight + cellGap);
+
+            // Draw word cells
             for (let col = 0; col < 4; col++) {
-                const x = gridX + col * (cellW + gap);
-                const y = gridY + row * (cellH + gap);
+                const x = gridX + col * (cellW + cellGap);
 
                 // Cell background
                 ctx.fillStyle = cat.color;
-                roundRect(ctx, x, y, cellW - gap, cellH, 10);
+                roundRect(ctx, x, rowY, cellW - cellGap, cellH, 10);
                 ctx.fill();
 
                 // Word text
                 ctx.fillStyle = 'rgba(0,0,0,0.7)';
                 ctx.font = 'bold 11px Inter, sans-serif';
                 ctx.textAlign = 'center';
-                ctx.fillText(cat.words[col], x + (cellW - gap) / 2, y + cellH / 2 + 4);
+                ctx.fillText(cat.words[col], x + (cellW - cellGap) / 2, rowY + cellH / 2 + 4);
             }
-        });
 
-        // Category labels (below each row)
-        solvedCats.forEach((cat, row) => {
-            const y = gridY + row * (cellH + gap) + cellH + 16;
+            // Category label directly below its row
             ctx.fillStyle = cat.color;
             ctx.font = 'bold 12px Inter, sans-serif';
             ctx.textAlign = 'left';
-            ctx.fillText(cat.theme, gridX, y);
+            ctx.fillText(cat.theme, gridX, rowY + cellH + 15);
         });
 
-        // Stats section
-        const statsY = gridY + 4 * (cellH + gap) + 50;
+        // Stats section — positioned after all category rows
+        const statsY = gridY + 4 * (rowHeight + cellGap) + 20;
 
         // Stat boxes
         const elapsed = getElapsed();
