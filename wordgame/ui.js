@@ -45,7 +45,7 @@ function refreshHome() {
     $('home-xp-label').textContent = `${save.xp} / ${need} XP`;
     $('home-xp-fill').style.width = Math.min(100, (save.xp / need) * 100) + '%';
 
-    renderHomeDailyChallenge();
+    renderHomeDailyPuzzle();
     renderHomeWeekly();
 
     const grid = $('diff-grid');

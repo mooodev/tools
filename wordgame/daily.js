@@ -343,58 +343,32 @@ function renderHomeWeekly() {
 }
 
 // =============================================
-// RENDER DAILY CHALLENGE ON HOME SCREEN
+// RENDER DAILY PUZZLE ON HOME SCREEN
 // =============================================
-function renderHomeDailyChallenge() {
+function renderHomeDailyPuzzle() {
     const el = $('home-daily');
     if (!el) return;
 
-    if (!save.dailyChallenges || save.dailyChallenges.date !== getToday()) {
-        el.innerHTML = '';
-        return;
-    }
+    const completed = isDailyPuzzleCompleted();
+    const stars = save.dailyPuzzleStars || 0;
 
-    const tasks = save.dailyChallenges.tasks;
-    const allDone = save.dailyChallenges.allCompleted;
-    const claimed = save.dailyChallenges.claimed;
+    const starsHtml = completed
+        ? `<span class="dp-stars">${'&#9733;'.repeat(stars)}${'&#9734;'.repeat(3 - stars)}</span>`
+        : '';
 
-    let tasksHtml = '';
-    tasks.forEach(task => {
-        const def = DAILY_CHALLENGE_POOL.find(d => d.id === task.id);
-        if (!def) return;
-        const progressText = def.target > 1 ? `${Math.min(task.progress, def.target)}/${def.target}` : '';
-        tasksHtml += `<div class="daily-home-task ${task.completed ? 'done' : ''}">
-            <span class="daily-home-task-icon">${def.icon}</span>
-            <div class="daily-home-task-info">
-                <div class="daily-home-task-name">${def.name}</div>
-                <div class="daily-home-task-desc">${def.desc}</div>
-            </div>
-            <div class="daily-home-task-right">
-                ${task.completed
-                    ? '<span class="daily-home-task-check">&#10003;</span>'
-                    : `<span class="daily-home-task-reward">+${def.reward} &#9679;</span>`}
-                ${progressText && !task.completed ? `<span class="daily-home-task-progress">${progressText}</span>` : ''}
-            </div>
-        </div>`;
-    });
+    const desc = completed
+        ? '&#10003; Пройден сегодня'
+        : 'Лёгкий паззл, новый каждый день';
 
-    let footerHtml = '';
-    if (allDone && !claimed) {
-        footerHtml = `<button class="daily-claim-btn" onclick="handleClaimDailyBonus()">
-            &#127873; Забрать бонус +${DAILY_BONUS_ALL} &#9679;
-        </button>`;
-    } else if (claimed) {
-        footerHtml = `<div class="daily-claimed">&#10003; Бонус получен!</div>`;
-    }
-
-    el.innerHTML = `<div class="daily-home-card${allDone && !claimed ? ' ready' : claimed ? ' done' : ''}">
-        <div class="daily-home-header">
-            <span class="daily-home-icon">&#127919;</span>
-            <span class="daily-home-title">Ежедневный челлендж</span>
+    el.innerHTML = `<button class="daily-puzzle-btn${completed ? ' completed' : ''}" onclick="launchDailyPuzzle()">
+        <span class="dp-icon">&#128197;</span>
+        <div class="dp-info">
+            <div class="dp-title">Паззл дня</div>
+            <div class="dp-desc">${desc}</div>
         </div>
-        <div class="daily-home-tasks">${tasksHtml}</div>
-        ${footerHtml}
-    </div>`;
+        ${starsHtml}
+        ${completed ? '' : '<span class="dp-arrow">&#9654;</span>'}
+    </button>`;
 }
 
 // =============================================
@@ -471,7 +445,7 @@ function handleClaimDailyBonus() {
         haptic(20);
         showToast('&#127873;', `+${DAILY_BONUS_ALL} монет за все задания!`);
         renderDailyPanel();
-        renderHomeDailyChallenge();
+        renderHomeDailyPuzzle();
         refreshProfile();
     }
 }
