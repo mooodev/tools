@@ -911,6 +911,49 @@ body {
 }
 .weekly-claim-btn:active { transform: scale(0.97); }
 
+/* Daily challenge card (home screen) */
+.daily-home-card {
+    padding: 16px;
+    background: var(--surface);
+    border-radius: var(--radius-sm);
+    border: 1.5px solid var(--surface-3);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+.daily-home-card.ready {
+    border-color: var(--success);
+    background: rgba(52,211,153,0.06);
+}
+.daily-home-card.done { opacity: 0.7; }
+.daily-home-header { display: flex; align-items: center; gap: 8px; }
+.daily-home-icon { font-size: 22px; }
+.daily-home-title { font-size: 14px; font-weight: 800; }
+.daily-home-tasks { display: flex; flex-direction: column; gap: 4px; }
+.daily-home-task {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    background: rgba(0,0,0,0.15);
+    border-radius: var(--radius-xs);
+    border: 1px solid transparent;
+    transition: all 0.3s;
+}
+.daily-home-task.done {
+    border-color: rgba(52,211,153,0.25);
+    background: rgba(52,211,153,0.06);
+}
+.daily-home-task-icon { font-size: 18px; flex-shrink: 0; width: 24px; text-align: center; }
+.daily-home-task-info { flex: 1; min-width: 0; }
+.daily-home-task-name { font-size: 12px; font-weight: 700; }
+.daily-home-task-desc { font-size: 10px; color: var(--text-dim); margin-top: 1px; }
+.daily-home-task-right { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex-shrink: 0; }
+.daily-home-task-reward { font-size: 10px; color: var(--coin); font-weight: 700; }
+.daily-home-task-progress { font-size: 9px; color: var(--text-dim); font-weight: 600; }
+.daily-home-task-check { font-size: 14px; color: var(--success); font-weight: 800; }
+
 /* Result screen — streak & daily */
 .streak-result {
     display: flex;

@@ -45,8 +45,8 @@ function refreshHome() {
     $('home-xp-label').textContent = `${save.xp} / ${need} XP`;
     $('home-xp-fill').style.width = Math.min(100, (save.xp / need) * 100) + '%';
 
+    renderHomeDailyChallenge();
     renderHomeWeekly();
-    renderDailyWeeklyButtons();
 
     const grid = $('diff-grid');
     grid.innerHTML = '';
@@ -506,47 +506,7 @@ function initEventListeners() {
     $('duel-pick-back').onclick = () => { refreshHome(); showScreen('start-screen'); };
 }
 
-// =============================================
-// DAILY / WEEKLY PUZZLE BUTTONS
-// =============================================
-function renderDailyWeeklyButtons() {
-    const grid = $('daily-weekly-grid');
-    if (!grid) return;
-
-    grid.innerHTML = '';
-
-    // Daily puzzle button
-    const dailyDone = typeof isDailyPuzzleCompleted === 'function' && isDailyPuzzleCompleted();
-    const dailyBtn = document.createElement('button');
-    dailyBtn.className = 'daily-puzzle-btn' + (dailyDone ? ' completed' : '');
-    dailyBtn.innerHTML = `
-        <div class="dp-icon">${dailyDone ? '&#10003;' : '&#128197;'}</div>
-        <div class="dp-info">
-            <div class="dp-title">Паззл дня</div>
-            <div class="dp-desc">${dailyDone ? 'Пройден! ⭐'.repeat(save.dailyPuzzleStars || 0) : 'Новый паззл каждый день'}</div>
-        </div>
-        <div class="dp-arrow">${dailyDone ? '' : '&#9654;'}</div>`;
-    dailyBtn.onclick = () => {
-        if (typeof launchDailyPuzzle === 'function') launchDailyPuzzle();
-    };
-    grid.appendChild(dailyBtn);
-
-    // Weekly puzzle button
-    const weeklyDone = typeof isWeeklyPuzzleCompleted === 'function' && isWeeklyPuzzleCompleted();
-    const weeklyBtn = document.createElement('button');
-    weeklyBtn.className = 'weekly-puzzle-btn' + (weeklyDone ? ' completed' : '');
-    weeklyBtn.innerHTML = `
-        <div class="dp-icon">${weeklyDone ? '&#10003;' : '&#127942;'}</div>
-        <div class="dp-info">
-            <div class="dp-title">Паззл недели</div>
-            <div class="dp-desc">${weeklyDone ? 'Пройден! ⭐'.repeat(save.weeklyPuzzleStars || 0) : 'Сложный паззл на неделю'}</div>
-        </div>
-        <div class="dp-arrow">${weeklyDone ? '' : '&#9654;'}</div>`;
-    weeklyBtn.onclick = () => {
-        if (typeof launchWeeklyPuzzle === 'function') launchWeeklyPuzzle();
-    };
-    grid.appendChild(weeklyBtn);
-}
+// (Daily/Weekly puzzle buttons removed)
 
 // =============================================
 // URL PARAMS (Telegram Mini App deep links)
