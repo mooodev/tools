@@ -53,10 +53,15 @@ async function submitToLeaderboard() {
                 level: save.level,
                 totalStars: calcTotalStars(),
                 bestStreak: save.bestStreak,
+                currentStreak: save.currentStreak,
+                dailyStreak: save.dailyStreak || 0,
                 totalWins: save.totalWins,
                 totalGames: save.totalGames,
                 perfectGames: save.perfectGames,
-                duelWins: save.duelWins || 0
+                duelWins: save.duelWins || 0,
+                categoriesFound: save.categoriesFound || 0,
+                dailyPuzzlesTotal: save.dailyPuzzlesTotal || 0,
+                weeklyPuzzlesTotal: save.weeklyPuzzlesTotal || 0
             })
         });
     } catch (e) {
