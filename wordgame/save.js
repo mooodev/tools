@@ -95,6 +95,8 @@ const DEFAULT_SAVE = {
     weeklyPuzzleCompleted: false,
     weeklyPuzzleStars: 0,
     weeklyPuzzlesTotal: 0,
+    // Bonus words
+    bonusWordsUnlocked: false,
     // Multiplayer
     playerId: null,
     playerName: null,
