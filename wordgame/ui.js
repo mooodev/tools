@@ -47,6 +47,9 @@ function hideMsg() {
 // HOME SCREEN
 // =============================================
 function refreshHome() {
+    // Sync bonus puzzles with save state before counting
+    syncBonusWords();
+
     $('home-coins-val').textContent = save.coins;
     $('home-lvl-label').textContent = `Уровень ${save.level}`;
     const need = xpForLevel(save.level);
@@ -466,39 +469,27 @@ function showToast(icon, text) {
 }
 
 // =============================================
-// BONUS WORDS GIFT BUTTON
+// BONUS WORDS SYNC (unlock only via Telegram bot)
 // =============================================
+
+/**
+ * Sync WORD_PUZZLES with bonus unlock state.
+ * If unlocked  → ensure bonus puzzles are appended.
+ * If not unlocked → ensure bonus puzzles are removed.
+ */
+function syncBonusWords() {
+    if (save.bonusWordsUnlocked) {
+        if (typeof appendBonusWords === 'function') appendBonusWords();
+    } else {
+        if (typeof removeBonusWords === 'function') removeBonusWords();
+    }
+}
+
 function renderBonusWordsButton() {
     const el = $('bonus-words-section');
     if (!el) return;
-
-    if (save.bonusWordsUnlocked) {
-        // Already unlocked — hide the section entirely
-        el.innerHTML = '';
-        return;
-    }
-
-    el.innerHTML = `<div class="mode-section">
-        <button class="bonus-gift-btn" id="bonus-gift-btn" onclick="handleUnlockBonusWords()">
-            <span class="bonus-gift-icon">🎁</span>
-            <div class="bonus-gift-info">
-                <div class="bonus-gift-title">Открыть доп. слова</div>
-                <div class="bonus-gift-desc">+4 бонусных паззла всех уровней</div>
-            </div>
-            <span class="bonus-gift-arrow">&#9654;</span>
-        </button>
-    </div>`;
-}
-
-function handleUnlockBonusWords() {
-    if (save.bonusWordsUnlocked) return;
-    if (typeof unlockBonusWords === 'function') {
-        unlockBonusWords();
-    }
-    SFX.ach();
-    haptic(20);
-    showToast('🎁', 'Добавлено 4 бонусных паззла!');
-    refreshHome();
+    // Button removed from webapp — unlock only via Telegram bot menu
+    el.innerHTML = '';
 }
 
 // =============================================
@@ -587,10 +578,8 @@ function initApp() {
         initTelegram();
     }
 
-    // Load bonus words if previously unlocked
-    if (save.bonusWordsUnlocked && typeof appendBonusWords === 'function') {
-        appendBonusWords();
-    }
+    // Sync bonus words: append if unlocked, remove stale ones if not
+    syncBonusWords();
 
     // Handle Telegram startapp parameter (deep link from bot)
     if (typeof TG !== 'undefined' && TG && TG.initDataUnsafe && TG.initDataUnsafe.start_param === 'unlock_bonus') {

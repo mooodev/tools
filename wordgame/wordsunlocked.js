@@ -74,6 +74,26 @@ function appendBonusWords() {
 }
 
 /**
+ * Remove bonus puzzles from WORD_PUZZLES (if present).
+ * Used to ensure clean state when bonus is not unlocked.
+ */
+function removeBonusWords() {
+    if (typeof WORD_PUZZLES === 'undefined' || !Array.isArray(WORD_PUZZLES)) return;
+    for (let i = WORD_PUZZLES.length - 1; i >= 0; i--) {
+        const p = WORD_PUZZLES[i];
+        const isBonus = BONUS_WORD_PUZZLES.some(bp =>
+            bp.difficulty === p.difficulty &&
+            bp.categories.length === p.categories.length &&
+            bp.categories[0] && p.categories[0] &&
+            p.categories[0].theme === bp.categories[0].theme
+        );
+        if (isBonus) {
+            WORD_PUZZLES.splice(i, 1);
+        }
+    }
+}
+
+/**
  * Unlock bonus words: set save flag + append to WORD_PUZZLES.
  * Returns true if newly unlocked, false if already was.
  */
