@@ -136,8 +136,8 @@ function tgInitUser() {
     if (!TG || !TG.initDataUnsafe || !TG.initDataUnsafe.user) return;
     const user = TG.initDataUnsafe.user;
 
-    // Set player name from Telegram if not already set
-    if (!save.playerName && user.first_name) {
+    // Always sync player name from Telegram profile
+    if (user.first_name) {
         const name = user.first_name + (user.last_name ? ' ' + user.last_name : '');
         save.playerName = name.slice(0, 20);
         writeSave(save);

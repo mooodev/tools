@@ -147,55 +147,6 @@ async function refreshLeaderboard(sort) {
 }
 
 // =============================================
-// NAME INPUT
-// =============================================
-function showNameInput(callback) {
-    const existing = document.querySelector('.name-popup');
-    if (existing) existing.remove();
-
-    const overlay = document.createElement('div');
-    overlay.className = 'name-popup';
-    overlay.innerHTML = `
-        <div class="name-popup-content">
-            <div class="name-popup-title">Твоё имя</div>
-            <div class="name-popup-sub">Будет видно в лидерборде и дуэлях</div>
-            <input type="text" class="name-popup-input" id="name-input"
-                   maxlength="20" placeholder="Введи имя..."
-                   value="${escapeHtml(getPlayerName())}">
-            <div class="name-popup-btns">
-                <button class="pill-btn" id="name-cancel">Отмена</button>
-                <button class="pill-btn primary" id="name-save">Сохранить</button>
-            </div>
-        </div>`;
-
-    document.body.appendChild(overlay);
-
-    const input = overlay.querySelector('#name-input');
-    input.focus();
-    input.select();
-
-    overlay.querySelector('#name-cancel').onclick = () => overlay.remove();
-    overlay.querySelector('#name-save').onclick = () => {
-        const val = input.value.trim();
-        if (val) {
-            setPlayerName(val);
-            overlay.remove();
-            if (callback) callback(val);
-        }
-    };
-    input.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-            const val = input.value.trim();
-            if (val) {
-                setPlayerName(val);
-                overlay.remove();
-                if (callback) callback(val);
-            }
-        }
-    });
-}
-
-// =============================================
 // HELPERS
 // =============================================
 function escapeHtml(str) {
