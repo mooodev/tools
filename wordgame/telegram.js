@@ -40,6 +40,32 @@ function tgExpand() {
 }
 
 // =============================================
+// SAFE AREA INSETS (fullscreen top offset)
+// =============================================
+function tgApplySafeArea() {
+    if (!TG) return;
+    // Telegram exposes two insets in fullscreen:
+    //   safeAreaInset — device safe area (notch, status bar)
+    //   contentSafeAreaInset — Telegram UI (close button, settings)
+    const device = TG.safeAreaInset || {};
+    const content = TG.contentSafeAreaInset || {};
+    const top = (device.top || 0) + (content.top || 0);
+    document.documentElement.style.setProperty('--safe-top', top + 'px');
+}
+
+function tgListenSafeArea() {
+    if (!TG) return;
+    // Apply once immediately
+    tgApplySafeArea();
+    // Re-apply when Telegram reports changes (orientation, fullscreen toggle)
+    if (TG.onEvent) {
+        try { TG.onEvent('safeAreaChanged', tgApplySafeArea); } catch (e) { /* silent */ }
+        try { TG.onEvent('contentSafeAreaChanged', tgApplySafeArea); } catch (e) { /* silent */ }
+        try { TG.onEvent('fullscreenChanged', tgApplySafeArea); } catch (e) { /* silent */ }
+    }
+}
+
+// =============================================
 // HAPTIC FEEDBACK
 // =============================================
 /**
@@ -188,4 +214,5 @@ function initTelegram() {
     tgSyncTheme();
     tgInitUser();
     tgInitBackButton();
+    tgListenSafeArea();
 }
