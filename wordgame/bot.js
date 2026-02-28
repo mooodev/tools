@@ -314,10 +314,9 @@ async function sendWeeklyNotification() {
 // SCHEDULER
 // =============================================
 function scheduleNotifications() {
-    const now = new Date();
-
-    // Calculate next 09:00 Moscow time (UTC+3)
+    // Calculate next target hour in Moscow time (UTC+3)
     function getNextMoscowHour(targetHour) {
+        const now = new Date(); // Fresh timestamp each call
         const utcHour = targetHour - 3; // Moscow is UTC+3
         const next = new Date();
         next.setUTCHours(utcHour, 0, 0, 0);

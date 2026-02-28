@@ -38,9 +38,16 @@ function getYesterday() {
 
 function getWeekId() {
     const d = new Date();
-    const yearStart = new Date(d.getFullYear(), 0, 1);
-    const weekNum = Math.ceil(((d - yearStart) / 86400000 + yearStart.getDay() + 1) / 7);
-    return `${d.getFullYear()}-W${String(weekNum).padStart(2, '0')}`;
+    // Use date-only to avoid fractional-day drift from time-of-day
+    const date = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    // ISO 8601: week starts Monday; week number defined by which year contains Thursday
+    const day = date.getDay() || 7; // Sunday=0 → 7, Monday=1, ..., Saturday=6
+    // Set to Thursday of the current week
+    date.setDate(date.getDate() + 4 - day);
+    const year = date.getFullYear();
+    const jan1 = new Date(year, 0, 1);
+    const weekNum = Math.ceil(((date - jan1) / 86400000 + 1) / 7);
+    return `${year}-W${String(weekNum).padStart(2, '0')}`;
 }
 
 function dateSeed(str) {

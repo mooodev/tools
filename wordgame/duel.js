@@ -75,14 +75,6 @@ function startDuelSearch(diff) {
     duelOpponent = null;
     duelRoomId = null;
 
-    // Ensure player has a name
-    if (!save.playerName) {
-        showNameInput((name) => {
-            performDuelSearch();
-        });
-        return;
-    }
-
     performDuelSearch();
 }
 
