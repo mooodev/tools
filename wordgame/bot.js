@@ -23,6 +23,9 @@ if (!BOT_TOKEN) {
     process.exit(1);
 }
 
+// Count bonus words from wordsunlocked.js (4 puzzles × 4 categories × 4 words)
+const BONUS_WORDS_COUNT = 4 * 4 * 4;
+
 // =============================================
 // SUBSCRIBER STORE
 // =============================================
@@ -104,8 +107,7 @@ bot.onText(/\/start/, (msg) => {
         reply_markup: {
             inline_keyboard: [
                 [{ text: '🎮 Играть в «В тему!»', web_app: { url: WEBAPP_URL } }],
-                [{ text: '📅 Ежедневный паззл', web_app: { url: `${WEBAPP_URL}?mode=daily` } }],
-                [{ text: '🏆 Еженедельный паззл', web_app: { url: `${WEBAPP_URL}?mode=weekly` } }]
+                [{ text: '🎁 Открыть доп.слова', callback_data: 'unlock_bonus_words' }]
             ]
         }
     });
@@ -212,6 +214,22 @@ bot.on('callback_query', (query) => {
 
     if (!subscribers.settings[chatId]) {
         subscribers.settings[chatId] = { daily: true, weekly: true };
+    }
+
+    if (query.data === 'unlock_bonus_words') {
+        bot.answerCallbackQuery(query.id, {
+            text: `🎁 Вы открыли новую подборку слов из ${BONUS_WORDS_COUNT} слов!`,
+            show_alert: true
+        });
+        bot.sendMessage(chatId, `🎁 *Вы открыли новую подборку слов из ${BONUS_WORDS_COUNT} слов!*\n\nДополнительные паззлы добавлены ко всем уровням сложности. Открой игру и попробуй!`, {
+            parse_mode: 'Markdown',
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: '🎮 Играть с новыми словами', web_app: { url: WEBAPP_URL } }]
+                ]
+            }
+        });
+        return;
     }
 
     if (query.data === 'toggle_daily') {
