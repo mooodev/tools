@@ -165,12 +165,11 @@ async function loadPuzzlesFromGitHub() {
         }
     });
 
-    // Re-append bonus puzzles if unlocked — the GitHub fetch replaces WORD_PUZZLES,
+    // Re-sync bonus puzzles after fetch — the GitHub fetch may replace WORD_PUZZLES,
     // which loses any bonus words that were appended at load time.
-    if (typeof save !== 'undefined' && save.bonusWordsUnlocked &&
-        typeof appendBonusWords === 'function') {
-        appendBonusWords();
-        console.log(`[puzzle-loader] Re-appended bonus puzzles (unlocked)`);
+    if (typeof syncBonusWords === 'function') {
+        syncBonusWords();
+        console.log(`[puzzle-loader] Re-synced bonus puzzles after fetch`);
     }
 
     const loaded = results.filter(r => r.status === 'fulfilled' && r.value).length;
