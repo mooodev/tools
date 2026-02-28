@@ -88,6 +88,9 @@ bot.onText(/\/start/, (msg) => {
     const chatId = msg.chat.id;
     addSubscriber(chatId);
 
+    const settings = subscribers.settings[chatId] || {};
+    const bonusUnlocked = settings.bonusWordsUnlocked || false;
+
     const welcomeText = `Привет! Я бот игры *В тему!* — словесная головоломка!
 
 Каждый день я присылаю новый паззл, а каждую неделю — сложный челлендж.
@@ -102,14 +105,18 @@ bot.onText(/\/start/, (msg) => {
 
 Нажми кнопку ниже, чтобы начать игру!`;
 
+    const keyboard = [
+        [{ text: '🎮 Играть в «В тему!»', web_app: { url: WEBAPP_URL } }]
+    ];
+
+    // Only show bonus words button if not yet unlocked
+    if (!bonusUnlocked) {
+        keyboard.push([{ text: '🎁 Открыть доп.слова', callback_data: 'unlock_bonus_words' }]);
+    }
+
     bot.sendMessage(chatId, welcomeText, {
         parse_mode: 'Markdown',
-        reply_markup: {
-            inline_keyboard: [
-                [{ text: '🎮 Играть в «В тему!»', web_app: { url: WEBAPP_URL } }],
-                [{ text: '🎁 Открыть доп.слова', callback_data: 'unlock_bonus_words' }]
-            ]
-        }
+        reply_markup: { inline_keyboard: keyboard }
     });
 });
 
@@ -217,15 +224,31 @@ bot.on('callback_query', (query) => {
     }
 
     if (query.data === 'unlock_bonus_words') {
+        // Mark as unlocked for this user
+        if (!subscribers.settings[chatId]) {
+            subscribers.settings[chatId] = { daily: true, weekly: true };
+        }
+        subscribers.settings[chatId].bonusWordsUnlocked = true;
+        saveSubscribers(subscribers);
+
         bot.answerCallbackQuery(query.id, {
-            text: `🎁 Вы открыли новую подборку слов из ${BONUS_WORDS_COUNT} слов!`,
+            text: `🎁 Вы открыли новую подборку из ${BONUS_WORDS_COUNT} слов!`,
             show_alert: true
         });
-        bot.sendMessage(chatId, `🎁 *Вы открыли новую подборку слов из ${BONUS_WORDS_COUNT} слов!*\n\nДополнительные паззлы добавлены ко всем уровням сложности. Открой игру и попробуй!`, {
+
+        // Edit original message to remove the bonus button (gift opened)
+        bot.editMessageReplyMarkup(
+            { inline_keyboard: [[{ text: '🎮 Играть в «В тему!»', web_app: { url: WEBAPP_URL } }]] },
+            { chat_id: chatId, message_id: query.message.message_id }
+        ).catch(() => { /* message may be too old to edit */ });
+
+        // Send new message with link that unlocks bonus words in the webapp
+        const unlockUrl = `${WEBAPP_URL}?unlock_bonus=1`;
+        bot.sendMessage(chatId, `🎁 *Вы открыли новую подборку из ${BONUS_WORDS_COUNT} слов!*\n\n4 бонусных паззла добавлены ко всем уровням сложности. Открой игру и попробуй!`, {
             parse_mode: 'Markdown',
             reply_markup: {
                 inline_keyboard: [
-                    [{ text: '🎮 Играть с новыми словами', web_app: { url: WEBAPP_URL } }]
+                    [{ text: '🎮 Играть с новыми словами', web_app: { url: unlockUrl } }]
                 ]
             }
         });

@@ -77,19 +77,32 @@ function tgListenSafeArea() {
 function tgHaptic(type, value) {
     if (!TG || !TG.HapticFeedback) return false;
     try {
+        const hf = TG.HapticFeedback;
         switch (type) {
             case 'impact':
-                TG.HapticFeedback.impactOccurred(value || 'light');
-                return true;
+                if (typeof hf.impactOccurred === 'function') {
+                    hf.impactOccurred(value || 'light');
+                    return true;
+                }
+                return false;
             case 'notification':
-                TG.HapticFeedback.notificationOccurred(value || 'success');
-                return true;
+                if (typeof hf.notificationOccurred === 'function') {
+                    hf.notificationOccurred(value || 'success');
+                    return true;
+                }
+                return false;
             case 'selection':
-                TG.HapticFeedback.selectionChanged();
-                return true;
+                if (typeof hf.selectionChanged === 'function') {
+                    hf.selectionChanged();
+                    return true;
+                }
+                return false;
             default:
-                TG.HapticFeedback.impactOccurred('light');
-                return true;
+                if (typeof hf.impactOccurred === 'function') {
+                    hf.impactOccurred('light');
+                    return true;
+                }
+                return false;
         }
     } catch (e) {
         return false;

@@ -51,7 +51,41 @@ const BONUS_WORD_PUZZLES = [
 
 ];
 
-// Добавляем бонусные слова к основному массиву
-if (typeof WORD_PUZZLES !== 'undefined') {
-  WORD_PUZZLES.push(...BONUS_WORD_PUZZLES);
+/**
+ * Append bonus puzzles to WORD_PUZZLES if not already present.
+ * Called when bonusWordsUnlocked flag is set in save data.
+ */
+function appendBonusWords() {
+    if (typeof WORD_PUZZLES === 'undefined' || !Array.isArray(WORD_PUZZLES)) return false;
+    let added = 0;
+    BONUS_WORD_PUZZLES.forEach(bp => {
+        const alreadyExists = WORD_PUZZLES.some(p =>
+            p.difficulty === bp.difficulty &&
+            p.categories.length === bp.categories.length &&
+            p.categories[0] && bp.categories[0] &&
+            p.categories[0].theme === bp.categories[0].theme
+        );
+        if (!alreadyExists) {
+            WORD_PUZZLES.push(bp);
+            added++;
+        }
+    });
+    return added > 0;
+}
+
+/**
+ * Unlock bonus words: set save flag + append to WORD_PUZZLES.
+ * Returns true if newly unlocked, false if already was.
+ */
+function unlockBonusWords() {
+    if (typeof save !== 'undefined' && save.bonusWordsUnlocked) {
+        appendBonusWords(); // ensure appended even if flag already set
+        return false;
+    }
+    appendBonusWords();
+    if (typeof save !== 'undefined') {
+        save.bonusWordsUnlocked = true;
+        if (typeof writeSave === 'function') writeSave(save);
+    }
+    return true;
 }

@@ -27,25 +27,32 @@ function playTone(freq, dur, type = 'sine', vol = 0.12) {
     } catch (e) { /* silent fallback */ }
 }
 
+function sfxHaptic(type, value, fallbackMs) {
+    if (typeof tgHaptic === 'function' && typeof isTelegram !== 'undefined' && isTelegram) {
+        if (tgHaptic(type, value)) return;
+    }
+    try { if (navigator.vibrate) navigator.vibrate(fallbackMs || 10); } catch (e) { /* silent */ }
+}
+
 const SFX = {
     select() {
         playTone(600, 0.08, 'sine', 0.06);
-        if (typeof tgHaptic === 'function' && isTelegram) tgHaptic('selection');
+        sfxHaptic('selection', null, 5);
     },
     deselect() {
         playTone(400, 0.06, 'sine', 0.04);
-        if (typeof tgHaptic === 'function' && isTelegram) tgHaptic('selection');
+        sfxHaptic('selection', null, 5);
     },
     correct() {
         playTone(523, 0.12);
         setTimeout(() => playTone(659, 0.12), 80);
         setTimeout(() => playTone(784, 0.15), 160);
-        if (typeof tgHaptic === 'function' && isTelegram) tgHaptic('notification', 'success');
+        sfxHaptic('notification', 'success', 20);
     },
     wrong() {
         playTone(300, 0.15, 'square', 0.08);
         setTimeout(() => playTone(250, 0.2, 'square', 0.08), 100);
-        if (typeof tgHaptic === 'function' && isTelegram) tgHaptic('notification', 'error');
+        sfxHaptic('notification', 'error', 30);
     },
     combo(n) {
         for (let i = 0; i < n; i++) {
@@ -56,57 +63,59 @@ const SFX = {
         [523, 587, 659, 784, 1047].forEach((f, i) =>
             setTimeout(() => playTone(f, 0.15, 'sine', 0.1), i * 80)
         );
-        if (typeof tgHaptic === 'function' && isTelegram) tgHaptic('notification', 'success');
+        sfxHaptic('notification', 'success', 20);
     },
     lose() {
         [400, 350, 300, 250].forEach((f, i) =>
             setTimeout(() => playTone(f, 0.15, 'square', 0.06), i * 100)
         );
-        if (typeof tgHaptic === 'function' && isTelegram) tgHaptic('notification', 'warning');
+        sfxHaptic('notification', 'warning', 30);
     },
     coin() {
         playTone(1200, 0.08, 'sine', 0.08);
         setTimeout(() => playTone(1600, 0.1, 'sine', 0.08), 60);
-        if (typeof tgHaptic === 'function' && isTelegram) tgHaptic('impact', 'light');
+        sfxHaptic('impact', 'light', 10);
     },
     hint() {
         playTone(880, 0.1, 'triangle', 0.08);
-        if (typeof tgHaptic === 'function' && isTelegram) tgHaptic('impact', 'soft');
+        sfxHaptic('impact', 'soft', 10);
     },
     levelUp() {
         [523, 659, 784, 1047].forEach((f, i) =>
             setTimeout(() => playTone(f, 0.12, 'sine', 0.12), i * 100)
         );
-        if (typeof tgHaptic === 'function' && isTelegram) tgHaptic('impact', 'heavy');
+        sfxHaptic('impact', 'heavy', 30);
     },
     ach() {
         playTone(1047, 0.15, 'sine', 0.1);
         setTimeout(() => playTone(1318, 0.2, 'sine', 0.1), 120);
-        if (typeof tgHaptic === 'function' && isTelegram) tgHaptic('impact', 'rigid');
+        sfxHaptic('impact', 'rigid', 20);
     },
 };
 
 function haptic(pattern) {
     // Use Telegram WebApp haptics if available
     if (typeof tgHaptic === 'function' && typeof isTelegram !== 'undefined' && isTelegram) {
+        let ok = false;
         if (Array.isArray(pattern)) {
-            // Complex pattern → medium impact
-            tgHaptic('impact', 'medium');
+            ok = tgHaptic('impact', 'medium');
         } else if (pattern >= 20) {
-            tgHaptic('impact', 'medium');
+            ok = tgHaptic('impact', 'medium');
         } else if (pattern >= 10) {
-            tgHaptic('impact', 'light');
+            ok = tgHaptic('impact', 'light');
         } else {
-            tgHaptic('selection');
+            ok = tgHaptic('selection');
         }
-        return;
+        if (ok) return; // Only return if Telegram haptics actually worked
     }
-    // Fallback to navigator.vibrate
+    // Fallback to navigator.vibrate (browsers, or Telegram without HapticFeedback)
     try {
-        if (Array.isArray(pattern)) {
-            navigator.vibrate(pattern);
-        } else {
-            navigator.vibrate(pattern || 10);
+        if (navigator.vibrate) {
+            if (Array.isArray(pattern)) {
+                navigator.vibrate(pattern);
+            } else {
+                navigator.vibrate(pattern || 10);
+            }
         }
     } catch (e) { /* silent */ }
 }

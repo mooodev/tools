@@ -1582,6 +1582,29 @@ body {
 .dp-arrow { font-size: 14px; color: var(--text-dim); flex-shrink: 0; }
 .dp-stars { font-size: 16px; color: var(--gold); flex-shrink: 0; letter-spacing: 1px; }
 
+/* Bonus words gift button */
+.bonus-gift-btn {
+    width: 100%;
+    padding: 14px 16px;
+    border-radius: var(--radius);
+    border: 1.5px solid var(--gold);
+    background: rgba(249,223,109,0.08);
+    color: var(--text);
+    font: 600 14px/1 'Inter', sans-serif;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.bonus-gift-btn:hover { box-shadow: 0 0 20px rgba(249,223,109,0.2); }
+.bonus-gift-btn:active { transform: scale(0.97); }
+.bonus-gift-icon { font-size: 28px; flex-shrink: 0; width: 32px; text-align: center; }
+.bonus-gift-info { flex: 1; text-align: left; }
+.bonus-gift-title { font-size: 14px; font-weight: 800; margin-bottom: 2px; }
+.bonus-gift-desc { font-size: 11px; color: var(--text-dim); font-weight: 500; }
+.bonus-gift-arrow { font-size: 14px; color: var(--text-dim); flex-shrink: 0; }
+
 /* ==============================
    ORIENTATION LOCK (portrait only)
    ============================== */

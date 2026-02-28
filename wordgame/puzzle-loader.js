@@ -165,22 +165,12 @@ async function loadPuzzlesFromGitHub() {
         }
     });
 
-    // Re-append bonus puzzles — the GitHub fetch replaces WORD_PUZZLES,
-    // which loses the bonus words that wordsunlocked.js appended at load time.
-    if (typeof BONUS_WORD_PUZZLES !== 'undefined' && Array.isArray(WORD_PUZZLES)) {
-        // Avoid duplicates: only add bonus puzzles that aren't already present
-        BONUS_WORD_PUZZLES.forEach(bp => {
-            const alreadyExists = WORD_PUZZLES.some(p =>
-                p.difficulty === bp.difficulty &&
-                p.categories.length === bp.categories.length &&
-                p.categories[0] && bp.categories[0] &&
-                p.categories[0].theme === bp.categories[0].theme
-            );
-            if (!alreadyExists) {
-                WORD_PUZZLES.push(bp);
-            }
-        });
-        console.log(`[puzzle-loader] Re-appended ${BONUS_WORD_PUZZLES.length} bonus puzzles`);
+    // Re-append bonus puzzles if unlocked — the GitHub fetch replaces WORD_PUZZLES,
+    // which loses any bonus words that were appended at load time.
+    if (typeof save !== 'undefined' && save.bonusWordsUnlocked &&
+        typeof appendBonusWords === 'function') {
+        appendBonusWords();
+        console.log(`[puzzle-loader] Re-appended bonus puzzles (unlocked)`);
     }
 
     const loaded = results.filter(r => r.status === 'fulfilled' && r.value).length;

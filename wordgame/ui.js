@@ -55,6 +55,7 @@ function refreshHome() {
 
     renderHomeDailyPuzzle();
     renderHomeWeekly();
+    renderBonusWordsButton();
 
     const grid = $('diff-grid');
     grid.innerHTML = '';
@@ -465,6 +466,42 @@ function showToast(icon, text) {
 }
 
 // =============================================
+// BONUS WORDS GIFT BUTTON
+// =============================================
+function renderBonusWordsButton() {
+    const el = $('bonus-words-section');
+    if (!el) return;
+
+    if (save.bonusWordsUnlocked) {
+        // Already unlocked — hide the section entirely
+        el.innerHTML = '';
+        return;
+    }
+
+    el.innerHTML = `<div class="mode-section">
+        <button class="bonus-gift-btn" id="bonus-gift-btn" onclick="handleUnlockBonusWords()">
+            <span class="bonus-gift-icon">🎁</span>
+            <div class="bonus-gift-info">
+                <div class="bonus-gift-title">Открыть доп. слова</div>
+                <div class="bonus-gift-desc">+4 бонусных паззла всех уровней</div>
+            </div>
+            <span class="bonus-gift-arrow">&#9654;</span>
+        </button>
+    </div>`;
+}
+
+function handleUnlockBonusWords() {
+    if (save.bonusWordsUnlocked) return;
+    if (typeof unlockBonusWords === 'function') {
+        unlockBonusWords();
+    }
+    SFX.ach();
+    haptic(20);
+    showToast('🎁', 'Добавлено 4 бонусных паззла!');
+    refreshHome();
+}
+
+// =============================================
 // EVENT LISTENERS
 // =============================================
 function initEventListeners() {
@@ -521,6 +558,18 @@ function initEventListeners() {
 // =============================================
 function handleUrlParams() {
     const params = new URLSearchParams(window.location.search);
+
+    // Handle bonus words unlock from Telegram bot button
+    if (params.get('unlock_bonus') === '1' && typeof unlockBonusWords === 'function') {
+        const wasNew = unlockBonusWords();
+        if (wasNew) {
+            refreshHome();
+            showToast('🎁', 'Добавлено 4 бонусных паззла!');
+            SFX.ach();
+            haptic(20);
+        }
+    }
+
     const mode = params.get('mode');
     if (mode === 'daily' && typeof launchDailyPuzzle === 'function') {
         launchDailyPuzzle();
@@ -536,6 +585,18 @@ function initApp() {
     // Initialize Telegram WebApp features (fullscreen, haptics, back button)
     if (typeof initTelegram === 'function') {
         initTelegram();
+    }
+
+    // Load bonus words if previously unlocked
+    if (save.bonusWordsUnlocked && typeof appendBonusWords === 'function') {
+        appendBonusWords();
+    }
+
+    // Handle Telegram startapp parameter (deep link from bot)
+    if (typeof TG !== 'undefined' && TG && TG.initDataUnsafe && TG.initDataUnsafe.start_param === 'unlock_bonus') {
+        if (typeof unlockBonusWords === 'function') {
+            unlockBonusWords();
+        }
     }
 
     checkDailyReset();
