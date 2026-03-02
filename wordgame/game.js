@@ -27,6 +27,8 @@ let timerInterval = null;
 let noHintWins = 0;
 let removedWords = [];    // words temporarily removed by hint
 let explainMode = false;  // true when waiting for word click to explain
+let reviewTimer = null;   // timer for 10-second category review after win
+let reviewClickHandler = null; // click handler to skip review
 
 // =============================================
 // UTILITIES
@@ -272,7 +274,7 @@ function handleCorrectGuess(categoryTheme) {
         stopTimer();
         renderBoard();
         updateBtns();
-        setTimeout(() => endRound(true), 2000);
+        startWinReview();
         return;
     }
 
@@ -293,7 +295,7 @@ function handleCorrectGuess(categoryTheme) {
             renderBoard();
             updateBtns();
             if (combo >= 2) { showCombo(combo); SFX.combo(combo); }
-            setTimeout(() => endRound(true), 2000);
+            startWinReview();
         }, 400);
         return;
     }
@@ -320,8 +322,17 @@ function handleWrongGuess() {
         stopTimer();
         showMsg('Нет попыток!', 'error');
         setTimeout(() => {
-            revealRemaining(firstSelectedCategory);
-            setTimeout(() => endRound(false), 3500);
+            // Show locked category instead of free reveal
+            if (firstSelectedCategory) {
+                const catData = puzzle.categories.find(c => c.theme === firstSelectedCategory);
+                if (catData && !solvedCats.find(sc => sc.theme === firstSelectedCategory)) {
+                    _lockedCategory = catData;
+                    selected = [];
+                    activeWords = [];
+                    renderBoardWithLockedCategory(catData);
+                }
+            }
+            setTimeout(() => endRound(false), 5000);
         }, 700);
     } else if (hasThree) {
         showMsg('Одно слово лишнее!', 'warn');
@@ -347,6 +358,68 @@ function revealRemaining(onlyCategory) {
     activeWords = [];
     renderBoard();
 }
+
+// =============================================
+// WIN REVIEW — 10-second category review before result
+// =============================================
+function startWinReview() {
+    showMsg('Просмотри категории (нажми чтобы продолжить)', 'ok');
+    showReviewCountdown(10);
+
+    reviewTimer = setTimeout(() => {
+        cleanupWinReview();
+        endRound(true);
+    }, 10000);
+
+    reviewClickHandler = function () {
+        cleanupWinReview();
+        endRound(true);
+    };
+
+    // Use a slight delay so the final card animation doesn't trigger skip
+    setTimeout(() => {
+        document.getElementById('game-screen').addEventListener('click', reviewClickHandler);
+    }, 500);
+}
+
+function cleanupWinReview() {
+    clearTimeout(reviewTimer);
+    reviewTimer = null;
+    hideReviewCountdown();
+    if (reviewClickHandler) {
+        document.getElementById('game-screen').removeEventListener('click', reviewClickHandler);
+        reviewClickHandler = null;
+    }
+}
+
+// =============================================
+// LOCKED CATEGORY ON LOSS — pay coins to reveal
+// =============================================
+const REVEAL_CATEGORY_COST = 15;
+
+function revealLockedCategory() {
+    if (save.coins < REVEAL_CATEGORY_COST) {
+        showMsg('Недостаточно монет!', 'error');
+        return;
+    }
+    save.coins -= REVEAL_CATEGORY_COST;
+    save.hintsUsed++;
+    writeSave(save);
+    SFX.hint();
+    haptic(15);
+
+    // Reveal the locked category (stored in _lockedCategory)
+    if (_lockedCategory) {
+        if (!solvedCats.find(sc => sc.theme === _lockedCategory.theme)) {
+            solvedCats.push(_lockedCategory);
+        }
+        _lockedCategory = null;
+        renderBoard();
+        updateBtns();
+    }
+}
+
+let _lockedCategory = null;
 
 // =============================================
 // END ROUND — SCORING & ACHIEVEMENTS
@@ -478,6 +551,19 @@ function endRound(won) {
         coinsGain
     });
 
+    // Calculate puzzle progress info
+    let puzzleProgress = null;
+    let difficultyCompleted = false;
+    if (!isEndless && won) {
+        const puzzlesForDiff = WORD_PUZZLES.filter(p => p.difficulty === difficulty);
+        const totalForDiff = puzzlesForDiff.length;
+        const completedForDiff = puzzlesForDiff.filter((_, i) =>
+            save.completedPuzzles[`${difficulty}_${i}`] !== undefined
+        ).length;
+        puzzleProgress = { current: completedForDiff, total: totalForDiff };
+        difficultyCompleted = completedForDiff >= totalForDiff && totalForDiff > 0;
+    }
+
     // Delegate to UI
-    showResultScreen(won, stars, xpGain, coinsGain, elapsed, leveledUp, newLevel, newAchs, dailyResult);
+    showResultScreen(won, stars, xpGain, coinsGain, elapsed, leveledUp, newLevel, newAchs, dailyResult, puzzleProgress, difficultyCompleted);
 }

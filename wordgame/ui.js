@@ -205,6 +205,70 @@ function animateHintRemove(idx, callback) {
 }
 
 // =============================================
+// LOCKED CATEGORY (loss) — pay coins to reveal
+// =============================================
+function renderBoardWithLockedCategory(lockedCat) {
+    const sa = $('solved-area');
+    sa.innerHTML = '';
+
+    // Render already solved categories
+    solvedCats.forEach(cat => {
+        const row = document.createElement('div');
+        row.className = 'solved-row';
+        row.style.backgroundColor = cat.color;
+        row.innerHTML = `<div class="solved-theme">${cat.theme}</div><div class="solved-words">${cat.words.join(', ')}</div>`;
+        sa.appendChild(row);
+    });
+
+    // Render locked category
+    const lockedRow = document.createElement('div');
+    lockedRow.className = 'solved-row locked-category';
+    lockedRow.innerHTML = `
+        <div class="locked-category-icon">&#128274;</div>
+        <div class="locked-category-text">Показать категорию</div>
+        <div class="locked-category-cost">${typeof REVEAL_CATEGORY_COST !== 'undefined' ? REVEAL_CATEGORY_COST : 15} &#9679;</div>`;
+    lockedRow.onclick = () => {
+        if (typeof revealLockedCategory === 'function') revealLockedCategory();
+    };
+    sa.appendChild(lockedRow);
+
+    // Clear grid
+    $('grid').innerHTML = '';
+}
+
+// =============================================
+// REVIEW COUNTDOWN (win — 10 second review)
+// =============================================
+function showReviewCountdown(seconds) {
+    let remaining = seconds;
+    const el = document.createElement('div');
+    el.id = 'review-countdown';
+    el.className = 'review-countdown';
+    el.textContent = `${remaining}`;
+    document.getElementById('game-screen').appendChild(el);
+
+    const interval = setInterval(() => {
+        remaining--;
+        if (remaining <= 0) {
+            clearInterval(interval);
+            return;
+        }
+        const countEl = document.getElementById('review-countdown');
+        if (countEl) countEl.textContent = `${remaining}`;
+    }, 1000);
+
+    el._interval = interval;
+}
+
+function hideReviewCountdown() {
+    const el = document.getElementById('review-countdown');
+    if (el) {
+        clearInterval(el._interval);
+        el.remove();
+    }
+}
+
+// =============================================
 // GAME ANIMATIONS
 // =============================================
 function shakeSelected() {
@@ -239,10 +303,16 @@ function showCombo(n) {
 // =============================================
 // RESULT SCREEN
 // =============================================
-function showResultScreen(won, stars, xpGain, coinsGain, elapsed, leveledUp, newLevel, newAchs, dailyResult) {
+function showResultScreen(won, stars, xpGain, coinsGain, elapsed, leveledUp, newLevel, newAchs, dailyResult, puzzleProgress, difficultyCompleted) {
     $('res-icon').textContent = won ? '🎉' : '😔';
     $('res-title').textContent = won ? 'Победа!' : 'Не повезло';
-    $('res-sub').textContent = won ? 'Все связи найдены!' : 'Попробуй ещё раз!';
+
+    // Show puzzle progress (X/N) for wins
+    if (won && puzzleProgress) {
+        $('res-sub').innerHTML = `Все связи найдены!<br><span class="res-progress">${DIFF_META[difficulty].label}: ${puzzleProgress.current}/${puzzleProgress.total}</span>`;
+    } else {
+        $('res-sub').textContent = won ? 'Все связи найдены!' : 'Попробуй ещё раз!';
+    }
 
     // Stars
     const starsEl = $('res-stars');
@@ -341,6 +411,19 @@ function showResultScreen(won, stars, xpGain, coinsGain, elapsed, leveledUp, new
     const resDuel = $('res-duel');
     if (resDuel) resDuel.innerHTML = '';
 
+    // Difficulty completion congratulations
+    const diffCompleteEl = $('res-diff-complete');
+    if (diffCompleteEl) diffCompleteEl.innerHTML = '';
+    if (won && difficultyCompleted && diffCompleteEl) {
+        const meta = DIFF_META[difficulty];
+        diffCompleteEl.innerHTML = `
+            <div class="diff-complete-banner">
+                <div class="diff-complete-icon">&#127881;</div>
+                <div class="diff-complete-title">Поздравляем!</div>
+                <div class="diff-complete-desc">Ты прошёл все паззлы уровня «${meta.label}»!</div>
+            </div>`;
+    }
+
     // Action buttons
     const actEl = $('res-actions');
     actEl.innerHTML = '';
@@ -348,16 +431,30 @@ function showResultScreen(won, stars, xpGain, coinsGain, elapsed, leveledUp, new
         actEl.innerHTML += `<button class="pill-btn primary" onclick="showDuelDiffPicker()">Ещё дуэль</button>`;
     } else if (isEndless) {
         actEl.innerHTML += `<button class="pill-btn primary" onclick="launchEndless()">Следующий раунд</button>`;
+    } else if (won && difficultyCompleted) {
+        // All puzzles of this difficulty completed — only show menu button
+        actEl.innerHTML += `<button class="pill-btn primary" onclick="refreshHome();showScreen('start-screen')">В меню</button>`;
     } else {
         actEl.innerHTML += `<button class="pill-btn primary" onclick="launchGame('${difficulty}')">Играть ещё</button>`;
+        actEl.innerHTML += `<button class="pill-btn" onclick="refreshHome();showScreen('start-screen')">В меню</button>`;
     }
-    actEl.innerHTML += `<button class="pill-btn" onclick="refreshHome();showScreen('start-screen')">В меню</button>`;
 
     showScreen('result-screen');
 
     if (won) {
         SFX.win();
         launchConfetti();
+        // Auto-redirect to main menu after 5s if difficulty completed
+        if (difficultyCompleted) {
+            setTimeout(() => {
+                // Only redirect if still on result screen
+                if (document.getElementById('result-screen').classList.contains('active')) {
+                    refreshHome();
+                    showScreen('start-screen');
+                    showToast('&#127881;', `Все паззлы «${DIFF_META[difficulty].label}» пройдены!`);
+                }
+            }, 6000);
+        }
     } else {
         SFX.lose();
     }
@@ -506,6 +603,8 @@ function initEventListeners() {
     $('submit-btn').onclick = checkSubmission;
     $('game-back').onclick = () => {
         stopTimer();
+        // Cleanup win review if active
+        if (typeof cleanupWinReview === 'function') cleanupWinReview();
         if (typeof isDuel !== 'undefined' && isDuel) {
             isDuel = false;
             if (typeof hideDuelOverlay === 'function') hideDuelOverlay();
@@ -591,6 +690,14 @@ function initApp() {
     checkDailyReset();
     initEventListeners();
     refreshHome();
+
+    // Verify bonus words unlock with server (async)
+    if (typeof verifyBonusUnlockFromServer === 'function') {
+        verifyBonusUnlockFromServer().then(verified => {
+            syncBonusWords();
+            refreshHome();
+        });
+    }
 
     // Load fresh puzzles from GitHub, then refresh UI
     if (typeof initPuzzleLoader === 'function') {

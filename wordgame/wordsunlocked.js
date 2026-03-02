@@ -19,24 +19,6 @@ const BONUS_WORD_PUZZLES = [
   {
     difficulty: "easy",
     categories: [
-      { theme: "ГРИБЫ", words: ["ЛИСИЧКА", "ПОДБЕРЁЗОВИК", "ШАМПИНЬОН", "ОПЁНОК"], color: "#f9df6d" },
-      { theme: "МОРСКИЕ ЖИВОТНЫЕ", words: ["ДЕЛЬФИН", "АКУЛА", "ОСЬМИНОГ", "МЕДУЗА"], color: "#a0c35a" },
-      { theme: "КРУПЫ", words: ["РИС", "ГРЕЧКА", "ПШЕНО", "ОВСЯНКА"], color: "#b0c4ef" },
-      { theme: "ГОЛОВНЫЕ УБОРЫ", words: ["КЕПКА", "ПАНАМА", "БЕРЕТ", "ШЛЯПА"], color: "#ba81c5" }
-    ]
-  },
-  {
-    difficulty: "easy",
-    categories: [
-      { theme: "СПЕЦИИ", words: ["СОЛЬ", "ПЕРЕЦ", "КОРИЦА", "ВАНИЛЬ"], color: "#f9df6d" },
-      { theme: "ВОДНЫЙ ТРАНСПОРТ", words: ["ЛОДКА", "ЯХТА", "КАТЕР", "ПАРОМ"], color: "#a0c35a" },
-      { theme: "КАНЦЕЛЯРИЯ", words: ["РУЧКА", "КАРАНДАШ", "ЛАСТИК", "ЛИНЕЙКА"], color: "#b0c4ef" },
-      { theme: "КОМНАТЫ В ДОМЕ", words: ["КУХНЯ", "СПАЛЬНЯ", "ВАННАЯ", "ГОСТИНАЯ"], color: "#ba81c5" }
-    ]
-  },
-  {
-    difficulty: "easy",
-    categories: [
       { theme: "ДИКИЕ ЖИВОТНЫЕ", words: ["ВОЛК", "МЕДВЕДЬ", "ЛИСА", "ЗАЯЦ"], color: "#f9df6d" },
       { theme: "ЭЛЕКТРОНИКА", words: ["ТЕЛЕФОН", "ПЛАНШЕТ", "НОУТБУК", "ТЕЛЕВИЗОР"], color: "#a0c35a" },
       { theme: "ВЫПЕЧКА", words: ["ХЛЕБ", "БУЛКА", "ПИРОГ", "БАТОН"], color: "#b0c4ef" },
@@ -64,28 +46,10 @@ const BONUS_WORD_PUZZLES = [
   {
     difficulty: "easy",
     categories: [
-      { theme: "ДРАГОЦЕННОСТИ", words: ["КОЛЬЦО", "СЕРЬГИ", "БРАСЛЕТ", "ОЖЕРЕЛЬЕ"], color: "#f9df6d" },
-      { theme: "ПУСТЫННЫЕ ЖИВОТНЫЕ", words: ["ВЕРБЛЮД", "СКОРПИОН", "ВАРАН", "СУРИКАТ"], color: "#a0c35a" },
-      { theme: "МУЗЫКАЛЬНЫЕ ЖАНРЫ", words: ["ПОП", "РОК", "ДЖАЗ", "КЛАССИКА"], color: "#b0c4ef" },
-      { theme: "ВИДЫ СУМОК", words: ["РЮКЗАК", "ПОРТФЕЛЬ", "ЧЕМОДАН", "ПАКЕТ"], color: "#ba81c5" }
-    ]
-  },
-  {
-    difficulty: "easy",
-    categories: [
       { theme: "ОВОЩИ НА ГРЯДКЕ", words: ["КАБАЧОК", "ТЫКВА", "БАКЛАЖАН", "РЕДИС"], color: "#f9df6d" },
       { theme: "ЗООПАРК", words: ["ЖИРАФ", "СЛОН", "ЗЕБРА", "НОСОРОГ"], color: "#a0c35a" },
       { theme: "КНИЖНЫЕ ЖАНРЫ", words: ["СКАЗКА", "РОМАН", "ПОВЕСТЬ", "РАССКАЗ"], color: "#b0c4ef" },
       { theme: "КУХОННАЯ УТВАРЬ", words: ["СКОВОРОДА", "КАСТРЮЛЯ", "ДУРШЛАГ", "СКАЛКА"], color: "#ba81c5" }
-    ]
-  },
-  {
-    difficulty: "easy",
-    categories: [
-      { theme: "ЗЕРНОВЫЕ", words: ["ПШЕНИЦА", "РОЖЬ", "ЯЧМЕНЬ", "КУКУРУЗА"], color: "#f9df6d" },
-      { theme: "ТКАНИ", words: ["ХЛОПОК", "ШЁЛК", "БАРХАТ", "ДЖИНСА"], color: "#a0c35a" },
-      { theme: "ПРИРОДНЫЕ ЯВЛЕНИЯ", words: ["РАДУГА", "МОЛНИЯ", "ТУМАН", "РОСА"], color: "#b0c4ef" },
-      { theme: "ДЕТСКИЕ ИГРУШКИ", words: ["КУКЛА", "МЯЧИК", "ПИРАМИДКА", "ЮЛА"], color: "#ba81c5" }
     ]
   },
   {
@@ -98,15 +62,6 @@ const BONUS_WORD_PUZZLES = [
     ]
   },
   // MEDIUM
-  {
-    difficulty: "medium",
-    categories: [
-      { theme: "ВИДЫ МОРОЖЕНОГО", words: ["ПЛОМБИР", "СОРБЕТ", "КРЕМ-БРЮЛЕ", "ДЖЕЛАТО"], color: "#f9df6d" },
-      { theme: "ВИДЫ ФОТОГРАФИИ", words: ["ПОРТРЕТ", "ПЕЙЗАЖ", "МАКРО", "РЕПОРТАЖ"], color: "#a0c35a" },
-      { theme: "ВИДЫ ОБЛАКОВ", words: ["КУМУЛЮС", "ЦИРРУС", "СТРАТУС", "НИМБУС"], color: "#b0c4ef" },
-      { theme: "ВИДЫ КАШИ", words: ["МАННАЯ", "РИСОВАЯ", "ГРЕЧНЕВАЯ", "ОВСЯНАЯ"], color: "#ba81c5" }
-    ]
-  },
  // --- Новые medium паззлы ---
   {
     difficulty: "medium",
@@ -401,6 +356,7 @@ function removeBonusWords() {
 
 /**
  * Unlock bonus words: set save flag + append to WORD_PUZZLES.
+ * Also registers the unlock on the server.
  * Returns true if newly unlocked, false if already was.
  */
 function unlockBonusWords() {
@@ -412,6 +368,73 @@ function unlockBonusWords() {
     if (typeof save !== 'undefined') {
         save.bonusWordsUnlocked = true;
         if (typeof writeSave === 'function') writeSave(save);
+        // Register unlock on server
+        registerBonusUnlockOnServer();
     }
     return true;
+}
+
+/**
+ * Register the bonus words unlock on the server for this user.
+ */
+function registerBonusUnlockOnServer() {
+    const userId = getBonusUserId();
+    if (!userId) return;
+    fetch('/api/bonus-unlock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, telegramId: getTelegramUserId() })
+    }).catch(() => {}); // ignore network errors
+}
+
+/**
+ * Verify with the server if this user has actually unlocked bonus words.
+ * If the server says no, remove bonus words and reset the local flag.
+ * Returns a Promise.
+ */
+function verifyBonusUnlockFromServer() {
+    const userId = getBonusUserId();
+    if (!userId) return Promise.resolve(false);
+
+    return fetch(`/api/bonus-unlock/${encodeURIComponent(userId)}`)
+        .then(r => r.json())
+        .then(data => {
+            if (!data.unlocked) {
+                // Server says NOT unlocked — remove local state
+                if (typeof save !== 'undefined' && save.bonusWordsUnlocked) {
+                    save.bonusWordsUnlocked = false;
+                    if (typeof writeSave === 'function') writeSave(save);
+                    if (typeof removeBonusWords === 'function') removeBonusWords();
+                }
+                return false;
+            }
+            return true;
+        })
+        .catch(() => {
+            // Network error — trust local state
+            return typeof save !== 'undefined' && save.bonusWordsUnlocked;
+        });
+}
+
+/**
+ * Get a stable user ID for bonus tracking.
+ * Prefers Telegram user ID, falls back to playerId from save.
+ */
+function getBonusUserId() {
+    const tgId = getTelegramUserId();
+    if (tgId) return String(tgId);
+    if (typeof save !== 'undefined' && save.playerId) return save.playerId;
+    return null;
+}
+
+/**
+ * Get Telegram user ID if available.
+ */
+function getTelegramUserId() {
+    try {
+        if (typeof TG !== 'undefined' && TG && TG.initDataUnsafe && TG.initDataUnsafe.user) {
+            return TG.initDataUnsafe.user.id;
+        }
+    } catch (e) {}
+    return null;
 }

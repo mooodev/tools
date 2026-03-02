@@ -19,6 +19,7 @@ const io = new Server(server, { cors: { origin: '*' } });
 
 const PORT = process.env.PORT || 3000;
 const DATA_FILE = path.join(__dirname, 'data', 'leaderboard.json');
+const BONUS_UNLOCKS_FILE = path.join(__dirname, 'data', 'bonus_unlocks.json');
 
 // =============================================
 // MIDDLEWARE
@@ -119,6 +120,56 @@ app.get('/api/player/:id', (req, res) => {
     const rank = allPlayers.findIndex(p => p.id === req.params.id) + 1;
 
     res.json({ ...player, rank });
+});
+
+// =============================================
+// BONUS WORDS UNLOCK TRACKING
+// =============================================
+function loadBonusUnlocks() {
+    try {
+        ensureDataDir();
+        if (fs.existsSync(BONUS_UNLOCKS_FILE)) {
+            return JSON.parse(fs.readFileSync(BONUS_UNLOCKS_FILE, 'utf8'));
+        }
+    } catch (e) {
+        console.error('Error loading bonus unlocks:', e.message);
+    }
+    return { users: {} };
+}
+
+function saveBonusUnlocks(data) {
+    try {
+        ensureDataDir();
+        fs.writeFileSync(BONUS_UNLOCKS_FILE, JSON.stringify(data, null, 2));
+    } catch (e) {
+        console.error('Error saving bonus unlocks:', e.message);
+    }
+}
+
+let bonusUnlocksData = loadBonusUnlocks();
+
+// Register a bonus words unlock for a user
+app.post('/api/bonus-unlock', (req, res) => {
+    const { userId, telegramId } = req.body;
+    const id = telegramId || userId;
+    if (!id) {
+        return res.status(400).json({ error: 'userId or telegramId required' });
+    }
+
+    bonusUnlocksData.users[id] = {
+        unlockedAt: new Date().toISOString(),
+        telegramId: telegramId || null,
+        userId: userId || null
+    };
+
+    saveBonusUnlocks(bonusUnlocksData);
+    res.json({ ok: true, unlocked: true });
+});
+
+// Check if a user has unlocked bonus words
+app.get('/api/bonus-unlock/:id', (req, res) => {
+    const unlocked = !!bonusUnlocksData.users[req.params.id];
+    res.json({ unlocked });
 });
 
 // =============================================
