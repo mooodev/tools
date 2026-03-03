@@ -28,8 +28,6 @@ let noHintWins = 0;
 let removedWords = [];    // words temporarily removed by hint
 let explainMode = false;  // true when waiting for word click to explain
 let removeMode = false;   // true when waiting for word click to remove
-let reviewTimer = null;   // timer for 10-second category review after win
-let reviewClickHandler = null; // click handler to skip review
 
 // =============================================
 // UTILITIES
@@ -354,7 +352,10 @@ function handleWrongGuess() {
                     renderBoardWithLockedCategory(catData);
                 }
             }
-            setTimeout(() => endRound(false), 5000);
+            showNextButton(() => {
+                hideNextButton();
+                endRound(false);
+            });
         }, 700);
     } else if (hasThree) {
         showMsg('Одно слово лишнее!', 'warn');
@@ -382,36 +383,18 @@ function revealRemaining(onlyCategory) {
 }
 
 // =============================================
-// WIN REVIEW — 10-second category review before result
+// WIN REVIEW — review categories, then press "Далее"
 // =============================================
 function startWinReview() {
-    showMsg('Просмотри категории (нажми чтобы продолжить)', 'ok');
-    showReviewCountdown(10);
-
-    reviewTimer = setTimeout(() => {
+    showMsg('Просмотри категории', 'ok');
+    showNextButton(() => {
         cleanupWinReview();
         endRound(true);
-    }, 10000);
-
-    reviewClickHandler = function () {
-        cleanupWinReview();
-        endRound(true);
-    };
-
-    // Use a slight delay so the final card animation doesn't trigger skip
-    setTimeout(() => {
-        document.getElementById('game-screen').addEventListener('click', reviewClickHandler);
-    }, 500);
+    });
 }
 
 function cleanupWinReview() {
-    clearTimeout(reviewTimer);
-    reviewTimer = null;
-    hideReviewCountdown();
-    if (reviewClickHandler) {
-        document.getElementById('game-screen').removeEventListener('click', reviewClickHandler);
-        reviewClickHandler = null;
-    }
+    hideNextButton();
 }
 
 // =============================================
