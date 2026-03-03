@@ -146,8 +146,6 @@ function saveBonusUnlocks(data) {
     }
 }
 
-let bonusUnlocksData = loadBonusUnlocks();
-
 // Register a bonus words unlock for a user
 app.post('/api/bonus-unlock', (req, res) => {
     const { userId, telegramId } = req.body;
@@ -156,19 +154,21 @@ app.post('/api/bonus-unlock', (req, res) => {
         return res.status(400).json({ error: 'userId or telegramId required' });
     }
 
-    bonusUnlocksData.users[id] = {
+    const data = loadBonusUnlocks();
+    data.users[id] = {
         unlockedAt: new Date().toISOString(),
         telegramId: telegramId || null,
         userId: userId || null
     };
 
-    saveBonusUnlocks(bonusUnlocksData);
+    saveBonusUnlocks(data);
     res.json({ ok: true, unlocked: true });
 });
 
 // Check if a user has unlocked bonus words
 app.get('/api/bonus-unlock/:id', (req, res) => {
-    const unlocked = !!bonusUnlocksData.users[req.params.id];
+    const data = loadBonusUnlocks();
+    const unlocked = !!data.users[req.params.id];
     res.json({ unlocked });
 });
 

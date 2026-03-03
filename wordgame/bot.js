@@ -17,6 +17,7 @@ const path = require('path');
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const WEBAPP_URL = process.env.WEBAPP_URL || 'https://your-domain.com';
 const SUBSCRIBERS_FILE = path.join(__dirname, 'data', 'subscribers.json');
+const BONUS_UNLOCKS_FILE = path.join(__dirname, 'data', 'bonus_unlocks.json');
 
 if (!BOT_TOKEN) {
     console.error('BOT_TOKEN environment variable is required!');
@@ -57,6 +58,35 @@ function saveSubscribers(data) {
 
 let subscribers = loadSubscribers();
 
+// =============================================
+// BONUS UNLOCKS (single source of truth: bonus_unlocks.json)
+// =============================================
+function loadBonusUnlocks() {
+    try {
+        ensureDataDir();
+        if (fs.existsSync(BONUS_UNLOCKS_FILE)) {
+            return JSON.parse(fs.readFileSync(BONUS_UNLOCKS_FILE, 'utf8'));
+        }
+    } catch (e) {
+        console.error('Error loading bonus unlocks:', e.message);
+    }
+    return { users: {} };
+}
+
+function saveBonusUnlocks(data) {
+    try {
+        ensureDataDir();
+        fs.writeFileSync(BONUS_UNLOCKS_FILE, JSON.stringify(data, null, 2));
+    } catch (e) {
+        console.error('Error saving bonus unlocks:', e.message);
+    }
+}
+
+function isBonusUnlocked(chatId) {
+    const data = loadBonusUnlocks();
+    return !!data.users[String(chatId)];
+}
+
 function addSubscriber(chatId) {
     if (!subscribers.chatIds.includes(chatId)) {
         subscribers.chatIds.push(chatId);
@@ -88,8 +118,7 @@ bot.onText(/\/start/, (msg) => {
     const chatId = msg.chat.id;
     addSubscriber(chatId);
 
-    const settings = subscribers.settings[chatId] || {};
-    const bonusUnlocked = settings.bonusWordsUnlocked || false;
+    const bonusUnlocked = isBonusUnlocked(chatId);
 
     const welcomeText = `Привет! Я бот игры *В тему!* — словесная головоломка!
 
@@ -224,12 +253,14 @@ bot.on('callback_query', (query) => {
     }
 
     if (query.data === 'unlock_bonus_words') {
-        // Mark as unlocked for this user
-        if (!subscribers.settings[chatId]) {
-            subscribers.settings[chatId] = { daily: true, weekly: true };
-        }
-        subscribers.settings[chatId].bonusWordsUnlocked = true;
-        saveSubscribers(subscribers);
+        // Mark as unlocked in bonus_unlocks.json (single source of truth)
+        const bonusData = loadBonusUnlocks();
+        bonusData.users[String(chatId)] = {
+            unlockedAt: new Date().toISOString(),
+            telegramId: String(chatId),
+            userId: null
+        };
+        saveBonusUnlocks(bonusData);
 
         bot.answerCallbackQuery(query.id, {
             text: `🎁 Вы открыли новую подборку из ${BONUS_WORDS_COUNT} слов!`,
