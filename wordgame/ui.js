@@ -246,35 +246,21 @@ function renderBoardWithLockedCategory(lockedCat) {
 }
 
 // =============================================
-// REVIEW COUNTDOWN (win — 10 second review)
+// "ДАЛЕЕ" BUTTON (replaces auto-advance)
 // =============================================
-function showReviewCountdown(seconds) {
-    let remaining = seconds;
-    const el = document.createElement('div');
-    el.id = 'review-countdown';
-    el.className = 'review-countdown';
-    el.textContent = `${remaining}`;
-    document.getElementById('game-screen').appendChild(el);
-
-    const interval = setInterval(() => {
-        remaining--;
-        if (remaining <= 0) {
-            clearInterval(interval);
-            return;
-        }
-        const countEl = document.getElementById('review-countdown');
-        if (countEl) countEl.textContent = `${remaining}`;
-    }, 1000);
-
-    el._interval = interval;
+function showNextButton(callback) {
+    hideNextButton();
+    const btn = document.createElement('button');
+    btn.id = 'next-btn';
+    btn.className = 'pill-btn primary next-btn';
+    btn.textContent = 'Далее';
+    btn.onclick = callback;
+    document.querySelector('#game-screen .bottom-area').appendChild(btn);
 }
 
-function hideReviewCountdown() {
-    const el = document.getElementById('review-countdown');
-    if (el) {
-        clearInterval(el._interval);
-        el.remove();
-    }
+function hideNextButton() {
+    const el = document.getElementById('next-btn');
+    if (el) el.remove();
 }
 
 // =============================================
@@ -453,17 +439,6 @@ function showResultScreen(won, stars, xpGain, coinsGain, elapsed, leveledUp, new
     if (won) {
         SFX.win();
         launchConfetti();
-        // Auto-redirect to main menu after 5s if difficulty completed
-        if (difficultyCompleted) {
-            setTimeout(() => {
-                // Only redirect if still on result screen
-                if (document.getElementById('result-screen').classList.contains('active')) {
-                    refreshHome();
-                    showScreen('start-screen');
-                    showToast('&#127881;', `Все паззлы «${DIFF_META[difficulty].label}» пройдены!`);
-                }
-            }, 6000);
-        }
     } else {
         SFX.lose();
     }
