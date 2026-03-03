@@ -106,6 +106,32 @@ function setupGameScreen() {
 }
 
 // =============================================
+// CARD FONTS (random per round)
+// =============================================
+const CARD_FONTS = ['', 'font-unbounded', 'font-nunito', 'font-comfortaa'];
+let _cardFontMap = {};
+
+function assignCardFonts(words) {
+    _cardFontMap = {};
+    words.forEach(item => {
+        _cardFontMap[item.word] = CARD_FONTS[Math.floor(Math.random() * CARD_FONTS.length)];
+    });
+}
+
+// =============================================
+// FONT SCALING (fit word inside card)
+// =============================================
+function calcCardFontSize(word) {
+    const len = word.length;
+    if (len <= 4)  return 13;
+    if (len <= 6)  return 12;
+    if (len <= 8)  return 11;
+    if (len <= 10) return 9.5;
+    if (len <= 13) return 8;
+    return 7;
+}
+
+// =============================================
 // BOARD RENDERING
 // =============================================
 function renderBoard(animate = false) {
@@ -120,12 +146,23 @@ function renderBoard(animate = false) {
         sa.appendChild(row);
     });
 
+    // Assign random fonts once per round (keep stable during re-renders)
+    if (!Object.keys(_cardFontMap).length && activeWords.length) {
+        assignCardFonts(activeWords);
+    }
+
     // Active words grid
     const g = $('grid');
     g.innerHTML = '';
     activeWords.forEach((item, i) => {
         const card = document.createElement('div');
         card.className = 'card';
+        // Random font class
+        const fontClass = _cardFontMap[item.word] || '';
+        if (fontClass) card.classList.add(fontClass);
+        // Font scaling based on word length
+        card.style.fontSize = calcCardFontSize(item.word) + 'px';
+
         if (selected.includes(item)) card.classList.add('selected');
         if (explainMode) card.classList.add('explain-target');
         if (removeMode) card.classList.add('remove-target');
