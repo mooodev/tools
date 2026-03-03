@@ -27,6 +27,7 @@ let timerInterval = null;
 let noHintWins = 0;
 let removedWords = [];    // words temporarily removed by hint
 let explainMode = false;  // true when waiting for word click to explain
+let removeMode = false;   // true when waiting for word click to remove
 let reviewTimer = null;   // timer for 10-second category review after win
 let reviewClickHandler = null; // click handler to skip review
 
@@ -117,6 +118,7 @@ function initRound() {
     hintsUsedThisRound = 0;
     removedWords = [];
     explainMode = false;
+    removeMode = false;
 
     // UI setup delegated to ui.js
     setupGameScreen();
@@ -144,6 +146,32 @@ function toggleSelect(item) {
         return;
     }
 
+    // Remove mode: remove a random word NOT in the clicked word's category
+    if (removeMode) {
+        removeMode = false;
+        const selectedCat = item.category;
+        const candidates = activeWords.filter(w => w.category !== selectedCat);
+        if (candidates.length === 0) {
+            renderBoard();
+            updateBtns();
+            showMsg('Нет слов для удаления!', 'warn');
+            return;
+        }
+        const victim = candidates[Math.floor(Math.random() * candidates.length)];
+        const victimIdx = activeWords.indexOf(victim);
+        renderBoard();
+        updateBtns();
+        animateHintRemove(victimIdx, () => {
+            activeWords.splice(activeWords.indexOf(victim), 1);
+            selected = selected.filter(s => s !== victim);
+            removedWords.push(victim);
+            renderBoard(false);
+            updateBtns();
+        });
+        showMsg('Лишнее слово убрано!', 'ok');
+        return;
+    }
+
     const idx = selected.indexOf(item);
     if (idx > -1) {
         selected.splice(idx, 1);
@@ -163,6 +191,7 @@ function toggleSelect(item) {
 // =============================================
 function useHintExplain() {
     if (save.coins < HINT_REVEAL_COST || gameOver || activeWords.length === 0) return;
+    removeMode = false; // cancel remove mode if active
     save.coins -= HINT_REVEAL_COST;
     save.hintsUsed++;
     hintsUsedThisRound++;
@@ -198,17 +227,8 @@ function returnRemovedWords() {
 }
 
 function useHintRemove() {
-    // Must have exactly one word selected
-    if (selected.length !== 1) {
-        showMsg('Выберите одно слово!', 'warn');
-        return;
-    }
     if (save.coins < HINT_REMOVE_COST || gameOver || activeWords.length <= 4) return;
-
-    // Find words NOT in the selected word's category
-    const selectedCat = selected[0].category;
-    const candidates = activeWords.filter(w => w.category !== selectedCat);
-    if (candidates.length === 0) return;
+    explainMode = false; // cancel explain mode if active
 
     save.coins -= HINT_REMOVE_COST;
     save.hintsUsed++;
@@ -217,17 +237,19 @@ function useHintRemove() {
     SFX.hint();
     haptic(15);
 
-    const victim = candidates[Math.floor(Math.random() * candidates.length)];
-    const victimIdx = activeWords.indexOf(victim);
+    removeMode = true;
+    renderBoard();
+    updateBtns();
+    showMsg('Нажмите на слово, чтобы убрать лишнее из другой категории', 'ok');
+}
 
-    animateHintRemove(victimIdx, () => {
-        activeWords.splice(activeWords.indexOf(victim), 1);
-        selected = selected.filter(s => s !== victim);
-        removedWords.push(victim);
-        renderBoard(false);
+function cancelRemoveMode() {
+    if (removeMode) {
+        removeMode = false;
+        renderBoard();
         updateBtns();
-    });
-    showMsg('Лишнее слово убрано!', 'ok');
+        hideMsg();
+    }
 }
 
 // =============================================
