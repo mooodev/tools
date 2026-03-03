@@ -670,16 +670,8 @@ function initEventListeners() {
 function handleUrlParams() {
     const params = new URLSearchParams(window.location.search);
 
-    // Handle bonus words unlock from Telegram bot button
-    if (params.get('unlock_bonus') === '1' && typeof unlockBonusWords === 'function') {
-        const wasNew = unlockBonusWords();
-        if (wasNew) {
-            refreshHome();
-            showToast('🎁', 'Добавлено 4 бонусных паззла!');
-            SFX.ach();
-            haptic(20);
-        }
-    }
+    // Bonus unlock is now handled early in initApp()
+    // (before async verify/puzzle-loader to avoid race conditions)
 
     const mode = params.get('mode');
     if (mode === 'daily' && typeof launchDailyPuzzle === 'function') {
@@ -698,22 +690,41 @@ function initApp() {
         initTelegram();
     }
 
-    // Sync bonus words: append if unlocked, remove stale ones if not
-    syncBonusWords();
+    // ===== Handle bonus words unlock FIRST (before async verify/loader) =====
+    let bonusJustUnlocked = false;
 
-    // Handle Telegram startapp parameter (deep link from bot)
+    // Check Telegram startapp parameter (deep link from bot)
     if (typeof TG !== 'undefined' && TG && TG.initDataUnsafe && TG.initDataUnsafe.start_param === 'unlock_bonus') {
         if (typeof unlockBonusWords === 'function') {
-            unlockBonusWords();
+            bonusJustUnlocked = unlockBonusWords();
         }
     }
+
+    // Check URL params (webapp opened with ?unlock_bonus=1)
+    const _urlParams = new URLSearchParams(window.location.search);
+    if (_urlParams.get('unlock_bonus') === '1' && typeof unlockBonusWords === 'function') {
+        const wasNew = unlockBonusWords();
+        bonusJustUnlocked = bonusJustUnlocked || wasNew;
+    }
+
+    // Sync bonus words: append if unlocked, remove stale ones if not
+    syncBonusWords();
 
     checkDailyReset();
     initEventListeners();
     refreshHome();
 
+    // Show toast for new bonus unlock
+    if (bonusJustUnlocked) {
+        const count = typeof BONUS_WORD_PUZZLES !== 'undefined' ? BONUS_WORD_PUZZLES.length : 0;
+        showToast('🎁', `Добавлено ${count} бонусных паззлов!`);
+        if (typeof SFX !== 'undefined') SFX.ach();
+        haptic(20);
+    }
+
     // Verify bonus words unlock with server (async)
-    if (typeof verifyBonusUnlockFromServer === 'function') {
+    // Skip if just unlocked to avoid race condition
+    if (!bonusJustUnlocked && typeof verifyBonusUnlockFromServer === 'function') {
         verifyBonusUnlockFromServer().then(verified => {
             syncBonusWords();
             refreshHome();
