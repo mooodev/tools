@@ -396,24 +396,33 @@ function verifyBonusUnlockFromServer() {
     const userId = getBonusUserId();
     if (!userId) return Promise.resolve(false);
 
-    return fetch(`/api/bonus-unlock/${encodeURIComponent(userId)}`)
-        .then(r => r.json())
-        .then(data => {
-            if (!data.unlocked) {
-                // Server says NOT unlocked — remove local state
-                if (typeof save !== 'undefined' && save.bonusWordsUnlocked) {
-                    save.bonusWordsUnlocked = false;
-                    if (typeof writeSave === 'function') writeSave(save);
-                    if (typeof removeBonusWords === 'function') removeBonusWords();
-                }
-                return false;
-            }
-            return true;
-        })
-        .catch(() => {
-            // Network error — trust local state
-            return typeof save !== 'undefined' && save.bonusWordsUnlocked;
-        });
+    // Try both raw TG ID and prefixed playerId to handle format mismatch
+    const tgId = getTelegramUserId();
+    const idsToCheck = [userId];
+    if (tgId && String(tgId) !== userId) idsToCheck.push(String(tgId));
+
+    return Promise.any(
+        idsToCheck.map(id =>
+            fetch(`/api/bonus-unlock/${encodeURIComponent(id)}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.unlocked) return true;
+                    throw new Error('not unlocked');
+                })
+        )
+    ).then(() => {
+        // Server confirms unlock — ensure local state matches
+        if (typeof save !== 'undefined' && !save.bonusWordsUnlocked) {
+            save.bonusWordsUnlocked = true;
+            if (typeof writeSave === 'function') writeSave(save);
+            if (typeof appendBonusWords === 'function') appendBonusWords();
+        }
+        return true;
+    }).catch(() => {
+        // Server says NOT unlocked or network error — trust local state
+        // (don't remove local bonus to avoid race conditions)
+        return typeof save !== 'undefined' && save.bonusWordsUnlocked;
+    });
 }
 
 /**
