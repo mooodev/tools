@@ -128,6 +128,7 @@ function renderBoard(animate = false) {
         card.className = 'card';
         if (selected.includes(item)) card.classList.add('selected');
         if (explainMode) card.classList.add('explain-target');
+        if (removeMode) card.classList.add('remove-target');
         if (animate) {
             card.classList.add('pop-in');
             card.style.animationDelay = `${i * 25}ms`;
@@ -154,7 +155,7 @@ function updateBtns() {
     $('submit-btn').disabled = selected.length !== 4 || gameOver;
     $('shuffle-btn').disabled = gameOver;
     $('hint-explain').disabled = gameOver || save.coins < HINT_REVEAL_COST || activeWords.length === 0;
-    $('hint-remove').disabled = gameOver || save.coins < HINT_REMOVE_COST || activeWords.length <= 4 || selected.length !== 1;
+    $('hint-remove').disabled = gameOver || save.coins < HINT_REMOVE_COST || activeWords.length <= 4;
     $('game-coins-val').textContent = save.coins;
 
     // Visual feedback for explain mode
@@ -163,6 +164,14 @@ function updateBtns() {
         explainBtn.classList.add('hint-active');
     } else {
         explainBtn.classList.remove('hint-active');
+    }
+
+    // Visual feedback for remove mode
+    const removeBtn = $('hint-remove');
+    if (removeMode) {
+        removeBtn.classList.add('hint-active');
+    } else {
+        removeBtn.classList.remove('hint-active');
     }
 }
 

@@ -435,6 +435,14 @@ body {
 .card.explain-target:hover {
     box-shadow: 0 0 12px rgba(251,191,36,0.3);
 }
+/* Remove mode */
+.card.remove-target {
+    border-color: var(--error, #f87171);
+    cursor: pointer;
+}
+.card.remove-target:hover {
+    box-shadow: 0 0 12px rgba(248,113,113,0.3);
+}
 .hint-btn.hint-active {
     border-color: var(--warning);
     background: rgba(251,191,36,0.15);
