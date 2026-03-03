@@ -117,6 +117,7 @@ function initRound() {
     removedWords = [];
     explainMode = false;
     removeMode = false;
+    _cardFontMap = {};
 
     // UI setup delegated to ui.js
     setupGameScreen();
