@@ -1,0 +1,161 @@
+/* === Left Panel === */
+#left-panel {
+    width: var(--panel-width-left);
+    min-width: 200px;
+    max-width: 500px;
+    background: var(--bg-panel);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    flex-shrink: 0;
+}
+
+/* === Tileset Manager === */
+#tileset-manager {
+    flex-shrink: 0;
+}
+
+#tileset-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px;
+    padding: 4px 8px;
+}
+
+.tileset-tab {
+    padding: 3px 10px;
+    font-size: 11px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    position: relative;
+}
+
+.tileset-tab.active {
+    background: var(--accent-dim);
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.tileset-tab .remove-tileset {
+    display: none;
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--danger);
+    color: #fff;
+    font-size: 9px;
+    line-height: 14px;
+    text-align: center;
+    cursor: pointer;
+    border: none;
+    padding: 0;
+}
+
+.tileset-tab:hover .remove-tileset {
+    display: block;
+}
+
+/* === Animation Panel === */
+#animation-panel {
+    flex-shrink: 0;
+    border-top: 1px solid var(--border);
+}
+
+#animation-frames-list {
+    display: flex;
+    gap: 4px;
+    padding: 4px 8px;
+    flex-wrap: wrap;
+}
+
+.anim-frame-thumb {
+    width: 40px;
+    height: 40px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    cursor: pointer;
+    object-fit: cover;
+    opacity: 0.6;
+    transition: opacity 0.15s, border-color 0.15s;
+}
+
+.anim-frame-thumb.active {
+    border-color: var(--accent);
+    opacity: 1;
+}
+
+.anim-frame-thumb:hover {
+    opacity: 1;
+}
+
+#animation-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 8px 6px;
+}
+
+#animation-controls label {
+    font-size: 11px;
+}
+
+#animation-controls input[type="number"] {
+    width: 55px;
+}
+
+/* === Palette Container === */
+#palette-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    border-top: 1px solid var(--border);
+}
+
+#palette-info {
+    padding: 4px 8px;
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+#selected-tile-info {
+    color: var(--accent);
+}
+
+#palette-wrapper {
+    flex: 1;
+    overflow: auto;
+    position: relative;
+    margin: 0 4px 4px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: repeating-conic-gradient(#2a2a3e 0% 25%, #22223a 0% 50%) 50% / 16px 16px;
+}
+
+#palette-canvas {
+    display: block;
+    image-rendering: pixelated;
+}
+
+#palette-selection-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+}
+
+#palette-options {
+    padding: 4px 8px 6px;
+    flex-shrink: 0;
+}
+
+#palette-options label {
+    font-size: 11px;
+}
