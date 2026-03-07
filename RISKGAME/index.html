@@ -327,9 +327,9 @@
         const LAND_ELEVATION = 0.15;
         const WATER_DEPTH = -0.04;
 
-        const TEX_LAND  = 'https://raw.githubusercontent.com/mooodev/tools/refs/heads/main/images/vtemumenu.jpg';
-        const TEX_WATER = 'https://raw.githubusercontent.com/mooodev/tools/refs/heads/main/images/vtemumenu2.jpg';
-        const TEX_DEPTH = 'https://raw.githubusercontent.com/mooodev/tools/refs/heads/main/images/vtemumenu3.jpg';
+        const TEX_LAND  = 'https://raw.githubusercontent.com/mooodev/tools/refs/heads/main/images/ground.jpg';
+        const TEX_WATER = 'https://raw.githubusercontent.com/mooodev/tools/refs/heads/main/images/water.jpg';
+        const TEX_DEPTH = 'https://raw.githubusercontent.com/mooodev/tools/refs/heads/main/images/waterDepth.jpg';
 
         const PLAYER_COLORS = [
             { name: 'Red Empire',    color: '#ff4444', vec: new THREE.Color(1.0, 0.27, 0.27) },
@@ -835,7 +835,7 @@
             selectedTile: -1,
             targetTile: -1,
             reinforcements: 0,
-            autoRotate: true
+            autoRotate: false
         };
 
         function getPlayerTerritoryCount(player) {
