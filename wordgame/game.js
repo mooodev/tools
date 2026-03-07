@@ -526,11 +526,7 @@ function endRound(won) {
         }
     }
 
-    // Handle daily/weekly puzzle completion
-    if (won && typeof isDailyPuzzleMode !== 'undefined' && isDailyPuzzleMode) {
-        completeDailyPuzzle(stars);
-        isDailyPuzzleMode = false;
-    }
+    // Handle weekly puzzle completion
     if (won && typeof isWeeklyPuzzleMode !== 'undefined' && isWeeklyPuzzleMode) {
         completeWeeklyPuzzle(stars);
         isWeeklyPuzzleMode = false;

@@ -56,7 +56,6 @@ function refreshHome() {
     $('home-xp-label').textContent = `${save.xp} / ${need} XP`;
     $('home-xp-fill').style.width = Math.min(100, (save.xp / need) * 100) + '%';
 
-    renderHomeDailyPuzzle();
     renderHomeWeekly();
     renderBonusWordsButton();
 
@@ -132,6 +131,35 @@ function calcCardFontSize(word) {
 }
 
 // =============================================
+// WORD HYPHENATION (split long words for tiles)
+// =============================================
+const MAX_WORD_DISPLAY_LEN = 12;
+
+function hyphenateWord(word) {
+    // Don't hyphenate short words or words with spaces (multi-word entries)
+    if (word.length <= MAX_WORD_DISPLAY_LEN || word.includes(' ')) return word;
+
+    // Split at roughly the midpoint, preferring to break after a vowel
+    const vowels = 'АЕЁИОУЫЭЮЯаеёиоуыэюя';
+    const mid = Math.ceil(word.length / 2);
+    let breakAt = mid;
+
+    // Search for a vowel near the midpoint to break after
+    for (let offset = 0; offset <= 3; offset++) {
+        if (mid + offset < word.length && vowels.includes(word[mid + offset])) {
+            breakAt = mid + offset + 1;
+            break;
+        }
+        if (mid - offset > 1 && vowels.includes(word[mid - offset])) {
+            breakAt = mid - offset + 1;
+            break;
+        }
+    }
+
+    return word.slice(0, breakAt) + '-\n' + word.slice(breakAt);
+}
+
+// =============================================
 // BOARD RENDERING
 // =============================================
 function renderBoard(animate = false) {
@@ -170,7 +198,14 @@ function renderBoard(animate = false) {
             card.classList.add('pop-in');
             card.style.animationDelay = `${i * 25}ms`;
         }
-        card.textContent = item.word;
+        const displayWord = hyphenateWord(item.word);
+        if (displayWord.includes('\n')) {
+            // Multi-line: use innerHTML with <br> for line break
+            card.innerHTML = displayWord.replace('\n', '<br>');
+            card.style.lineHeight = '1.1';
+        } else {
+            card.textContent = displayWord;
+        }
         card.dataset.idx = i;
         card.onclick = () => toggleSelect(item);
         g.appendChild(card);
@@ -630,7 +665,6 @@ function initEventListeners() {
             isDuel = false;
             if (typeof hideDuelOverlay === 'function') hideDuelOverlay();
         }
-        if (typeof isDailyPuzzleMode !== 'undefined') isDailyPuzzleMode = false;
         if (typeof isWeeklyPuzzleMode !== 'undefined') isWeeklyPuzzleMode = false;
         refreshHome();
         showScreen('start-screen');
@@ -674,9 +708,7 @@ function handleUrlParams() {
     // (before async verify/puzzle-loader to avoid race conditions)
 
     const mode = params.get('mode');
-    if (mode === 'daily' && typeof launchDailyPuzzle === 'function') {
-        launchDailyPuzzle();
-    } else if (mode === 'weekly' && typeof launchWeeklyPuzzle === 'function') {
+    if (mode === 'weekly' && typeof launchWeeklyPuzzle === 'function') {
         launchWeeklyPuzzle();
     }
 }
