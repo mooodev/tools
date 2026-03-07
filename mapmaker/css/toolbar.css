@@ -1,0 +1,47 @@
+/* === Tool Options Bar === */
+#tool-options-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: var(--tooloptions-height);
+    padding: 0 8px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+}
+
+.tool-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.tool-btn {
+    padding: 4px 10px;
+    font-size: 12px;
+    border-radius: var(--radius);
+    transition: all 0.15s;
+}
+
+.tool-btn.active {
+    background: var(--accent-dim);
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.tool-btn:hover:not(.active) {
+    background: var(--bg-hover);
+}
+
+/* Zoom */
+#zoom-slider {
+    vertical-align: middle;
+}
+
+#zoom-label {
+    display: inline-block;
+    width: 35px;
+    text-align: right;
+    font-size: 11px;
+    color: var(--text-muted);
+}

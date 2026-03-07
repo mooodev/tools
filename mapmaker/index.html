@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MapMaker - Tilemap Editor</title>
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/palette.css">
+    <link rel="stylesheet" href="css/canvas.css">
+    <link rel="stylesheet" href="css/toolbar.css">
+    <link rel="stylesheet" href="css/modals.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Top Toolbar -->
+        <header id="top-bar">
+            <div class="top-bar-left">
+                <span class="logo">MapMaker</span>
+                <button id="btn-new-map" title="New Map">New</button>
+                <button id="btn-save" title="Save Project (Ctrl+S)">Save</button>
+                <button id="btn-load" title="Load Project">Load</button>
+                <button id="btn-undo" title="Undo (Ctrl+Z)">Undo</button>
+                <button id="btn-redo" title="Redo (Ctrl+Y)">Redo</button>
+            </div>
+            <div class="top-bar-center">
+                <span id="map-info">No Map</span>
+            </div>
+            <div class="top-bar-right">
+                <button id="btn-export-png" title="Export as PNG">Export PNG</button>
+                <button id="btn-export-json" title="Export as JSON">Export JSON</button>
+                <button id="btn-import-json" title="Import JSON map">Import JSON</button>
+            </div>
+        </header>
+
+        <div id="main-layout">
+            <!-- Left Panel: Tileset Palette -->
+            <aside id="left-panel">
+                <div id="tileset-manager">
+                    <h3>Tilesets
+                        <button id="btn-add-tileset" title="Upload tileset image(s)">+ Add</button>
+                    </h3>
+                    <div id="tileset-tabs"></div>
+                    <input type="file" id="tileset-file-input" accept="image/*" multiple hidden>
+                </div>
+
+                <div id="animation-panel">
+                    <h3>Animation Frames</h3>
+                    <p class="hint">Upload multiple tileset images with same layout to create animated tiles.</p>
+                    <div id="animation-frames-list"></div>
+                    <div id="animation-controls">
+                        <label>Speed (ms): <input type="number" id="anim-speed" value="500" min="50" step="50"></label>
+                        <button id="btn-toggle-anim">Play</button>
+                    </div>
+                </div>
+
+                <div id="palette-container">
+                    <h3>Tile Palette</h3>
+                    <div id="palette-info">
+                        <span id="selected-tile-info">No tile selected</span>
+                    </div>
+                    <div id="palette-wrapper">
+                        <canvas id="palette-canvas"></canvas>
+                        <canvas id="palette-selection-overlay"></canvas>
+                    </div>
+                    <div id="palette-options">
+                        <label><input type="checkbox" id="autotile-toggle"> Autotile Mode</label>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Resize handle -->
+            <div id="panel-resize-handle" class="resize-handle"></div>
+
+            <!-- Center: Map Canvas -->
+            <main id="center-panel">
+                <div id="tool-options-bar">
+                    <div class="tool-group">
+                        <button class="tool-btn active" data-tool="draw" title="Draw (B)">&#9998; Draw</button>
+                        <button class="tool-btn" data-tool="erase" title="Erase (E)">&#9003; Erase</button>
+                        <button class="tool-btn" data-tool="fill" title="Fill (G)">&#9827; Fill</button>
+                        <button class="tool-btn" data-tool="rect" title="Rectangle (R)">&#9634; Rect</button>
+                        <button class="tool-btn" data-tool="line" title="Line (L)">&#9585; Line</button>
+                        <button class="tool-btn" data-tool="eyedropper" title="Eyedropper (I)">&#128065; Pick</button>
+                    </div>
+                    <div class="tool-group">
+                        <label>Zoom:
+                            <input type="range" id="zoom-slider" min="0.25" max="4" step="0.25" value="1">
+                            <span id="zoom-label">100%</span>
+                        </label>
+                        <label><input type="checkbox" id="show-grid" checked> Grid</label>
+                    </div>
+                </div>
+                <div id="canvas-viewport">
+                    <div id="canvas-scroll-container">
+                        <canvas id="map-canvas"></canvas>
+                        <canvas id="grid-overlay"></canvas>
+                        <canvas id="cursor-overlay"></canvas>
+                    </div>
+                </div>
+                <div id="status-bar">
+                    <span id="cursor-pos">X: 0, Y: 0</span>
+                    <span id="tile-pos">Tile: 0, 0</span>
+                    <span id="selection-size"></span>
+                </div>
+            </main>
+
+            <!-- Right Panel: Layers & Properties -->
+            <aside id="right-panel">
+                <div id="layer-panel">
+                    <h3>Layers
+                        <button id="btn-add-layer" title="Add Layer">+</button>
+                    </h3>
+                    <ul id="layer-list"></ul>
+                </div>
+
+                <div id="map-properties">
+                    <h3>Map Properties</h3>
+                    <label>Width (tiles): <input type="number" id="map-width" value="20" min="1" max="256"></label>
+                    <label>Height (tiles): <input type="number" id="map-height" value="15" min="1" max="256"></label>
+                    <label>Tile Size: <input type="number" id="tile-size" value="32" min="8" max="128" step="8"></label>
+                    <button id="btn-resize-map">Apply</button>
+                </div>
+
+                <div id="minimap-panel">
+                    <h3>Minimap</h3>
+                    <canvas id="minimap-canvas"></canvas>
+                </div>
+            </aside>
+        </div>
+    </div>
+
+    <!-- New Map Modal -->
+    <div id="modal-new-map" class="modal hidden">
+        <div class="modal-content">
+            <h2>New Map</h2>
+            <label>Width (tiles): <input type="number" id="new-map-width" value="20" min="1" max="256"></label>
+            <label>Height (tiles): <input type="number" id="new-map-height" value="15" min="1" max="256"></label>
+            <label>Tile Size (px): <input type="number" id="new-tile-size" value="32" min="8" max="128" step="8"></label>
+            <div class="modal-actions">
+                <button id="btn-create-map" class="primary">Create</button>
+                <button class="btn-cancel">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hidden file inputs -->
+    <input type="file" id="load-project-input" accept=".mapmaker,.json" hidden>
+    <input type="file" id="import-json-input" accept=".json" hidden>
+
+    <!-- Scripts - Core -->
+    <script src="js/core/Tile.js"></script>
+    <script src="js/core/Layer.js"></script>
+    <script src="js/core/TileMap.js"></script>
+    <script src="js/core/AnimationManager.js"></script>
+
+    <!-- Scripts - Autotile -->
+    <script src="js/autotile/AutoTiler.js"></script>
+
+    <!-- Scripts - Tools -->
+    <script src="js/tools/BaseTool.js"></script>
+    <script src="js/tools/DrawTool.js"></script>
+    <script src="js/tools/EraseTool.js"></script>
+    <script src="js/tools/FillTool.js"></script>
+    <script src="js/tools/RectTool.js"></script>
+    <script src="js/tools/LineTool.js"></script>
+    <script src="js/tools/EyedropperTool.js"></script>
+
+    <!-- Scripts - Utils -->
+    <script src="js/utils/History.js"></script>
+    <script src="js/utils/Export.js"></script>
+
+    <!-- Scripts - UI -->
+    <script src="js/ui/TilesetManager.js"></script>
+    <script src="js/ui/Palette.js"></script>
+    <script src="js/ui/MapCanvas.js"></script>
+    <script src="js/ui/LayerPanel.js"></script>
+    <script src="js/ui/Toolbar.js"></script>
+    <script src="js/ui/Minimap.js"></script>
+
+    <!-- Scripts - App -->
+    <script src="js/app.js"></script>
+</body>
+</html>
