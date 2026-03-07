@@ -171,6 +171,11 @@ class MapCanvas {
             this.gridCtx.clearRect(0, 0, pw, ph);
         }
 
+        // Mob markers
+        if (this.app.mobManager && this.app.mobManager.mobs.length > 0) {
+            this.app.mobManager.renderOnCanvas(this.ctx, zoom, map.tileSize);
+        }
+
         // Cursor
         this._renderCursor();
 

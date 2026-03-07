@@ -170,6 +170,116 @@
     width: calc(100% - 16px);
 }
 
+/* === Mob Panel === */
+#mob-panel {
+    border-top: 1px solid var(--border);
+}
+
+#mob-list {
+    list-style: none;
+    padding: 4px;
+    max-height: 150px;
+    overflow-y: auto;
+}
+
+.mob-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 6px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-size: 11px;
+    transition: background 0.1s;
+}
+
+.mob-item:hover {
+    background: var(--bg-hover);
+}
+
+.mob-item.active {
+    background: var(--accent-dim);
+    border: 1px solid var(--accent);
+}
+
+.mob-item-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-primary);
+}
+
+.mob-edit-btn {
+    padding: 1px 5px !important;
+    font-size: 10px !important;
+    opacity: 0.5;
+}
+
+.mob-item:hover .mob-edit-btn {
+    opacity: 1;
+}
+
+/* === Autotile Config Panel === */
+#autotile-config-panel {
+    border-top: 1px solid var(--border);
+}
+
+#autotile-defs-list {
+    padding: 4px;
+    max-height: 120px;
+    overflow-y: auto;
+}
+
+.atd-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 6px;
+    font-size: 10px;
+    color: var(--text-secondary);
+    border-radius: var(--radius);
+}
+
+.atd-item:hover {
+    background: var(--bg-hover);
+}
+
+.atd-info {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.atd-del-btn {
+    padding: 0 4px !important;
+    font-size: 10px !important;
+    color: var(--danger) !important;
+    background: none !important;
+    border: none !important;
+    opacity: 0.5;
+    cursor: pointer;
+}
+
+.atd-del-btn:hover {
+    opacity: 1 !important;
+}
+
+/* === Modal Wide === */
+.modal-wide {
+    min-width: 320px;
+    max-width: 450px;
+}
+
+.modal-wide label {
+    margin-bottom: 6px;
+}
+
+.modal-textarea-group {
+    margin-top: 8px;
+}
+
 /* === Minimap === */
 #minimap-panel {
     border-top: 1px solid var(--border);

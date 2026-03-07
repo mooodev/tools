@@ -60,11 +60,14 @@ class ExportUtils {
     /**
      * Export map data as JSON.
      */
-    static exportJSON(tileMap, tilesetMgr) {
+    static exportJSON(tileMap, tilesetMgr, mobManager, autotileConfig) {
         const data = {
             version: 1,
             map: tileMap.toJSON(),
-            tilesets: tilesetMgr.toJSON()
+            tilesets: tilesetMgr.toJSON(),
+            mobs: mobManager ? mobManager.toJSON() : [],
+            autotileDefs: autotileConfig ? autotileConfig.toJSON() : {},
+            playerStart: { x: 2, y: 2 }
         };
         const json = JSON.stringify(data, null, 2);
         const blob = new Blob([json], { type: 'application/json' });
@@ -97,7 +100,7 @@ class ExportUtils {
     /**
      * Save full project (map + tileset images as base64).
      */
-    static saveProject(tileMap, tilesetMgr, animMgr) {
+    static saveProject(tileMap, tilesetMgr, animMgr, mobManager, autotileConfig) {
         const tilesetData = tilesetMgr.tilesets.map((ts, idx) => {
             const frames = [];
             const frameCount = animMgr.getFrameCount(idx);
@@ -118,7 +121,10 @@ class ExportUtils {
             version: 1,
             map: tileMap.toJSON(),
             tilesets: tilesetData,
-            animSpeed: animMgr.speed
+            animSpeed: animMgr.speed,
+            mobs: mobManager ? mobManager.toJSON() : [],
+            autotileDefs: autotileConfig ? autotileConfig.toJSON() : {},
+            playerStart: { x: 2, y: 2 }
         };
 
         const json = JSON.stringify(project);
