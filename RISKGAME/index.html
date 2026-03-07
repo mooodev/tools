@@ -1,0 +1,1318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RISK Globe - Conquer the World</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { overflow: hidden; background: #050510; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #e0e0e0; }
+        canvas { display: block; }
+
+        /* Top Bar */
+        #top-bar {
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 48px;
+            background: linear-gradient(180deg, rgba(15,15,30,0.95), rgba(10,10,25,0.85));
+            border-bottom: 1px solid rgba(100,140,255,0.2);
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            z-index: 100;
+            gap: 20px;
+        }
+        #top-bar .logo {
+            font-size: 18px;
+            font-weight: 700;
+            letter-spacing: 3px;
+            color: #7cacff;
+            text-transform: uppercase;
+        }
+        #top-bar .turn-info {
+            font-size: 13px;
+            color: #aaa;
+        }
+        #top-bar .turn-info .player-name {
+            font-weight: 700;
+            padding: 2px 10px;
+            border-radius: 4px;
+            margin: 0 4px;
+        }
+        #top-bar .phase-info {
+            font-size: 12px;
+            color: #888;
+            border: 1px solid #444;
+            padding: 3px 10px;
+            border-radius: 12px;
+        }
+        .spacer { flex: 1; }
+        #top-bar button {
+            background: rgba(100,140,255,0.15);
+            border: 1px solid rgba(100,140,255,0.3);
+            color: #8ab4ff;
+            padding: 6px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+        #top-bar button:hover {
+            background: rgba(100,140,255,0.3);
+            color: #fff;
+        }
+        #top-bar button:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+
+        /* Side Panel */
+        #side-panel {
+            position: absolute;
+            top: 58px;
+            right: 10px;
+            width: 260px;
+            background: rgba(12,12,28,0.92);
+            border: 1px solid rgba(100,140,255,0.15);
+            border-radius: 10px;
+            padding: 14px;
+            z-index: 100;
+            max-height: calc(100vh - 80px);
+            overflow-y: auto;
+        }
+        #side-panel h3 {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: #6a8ccc;
+            margin-bottom: 8px;
+            border-bottom: 1px solid rgba(100,140,255,0.1);
+            padding-bottom: 5px;
+        }
+        .player-card {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 8px;
+            margin-bottom: 4px;
+            border-radius: 6px;
+            font-size: 13px;
+            transition: background 0.2s;
+        }
+        .player-card.active {
+            background: rgba(255,255,255,0.06);
+        }
+        .player-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .player-card .stats {
+            margin-left: auto;
+            font-size: 11px;
+            color: #888;
+        }
+
+        /* Bottom Controls */
+        #bottom-bar {
+            position: absolute;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 8px;
+            z-index: 100;
+        }
+        #bottom-bar button {
+            background: rgba(12,12,28,0.9);
+            border: 1px solid rgba(100,140,255,0.25);
+            color: #8ab4ff;
+            padding: 8px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+            min-width: 100px;
+        }
+        #bottom-bar button:hover {
+            background: rgba(100,140,255,0.2);
+            color: #fff;
+            border-color: rgba(100,140,255,0.5);
+        }
+        #bottom-bar button.primary {
+            background: rgba(80,130,255,0.3);
+            border-color: rgba(100,140,255,0.5);
+            color: #fff;
+        }
+
+        /* Tile Info Tooltip */
+        #tile-info {
+            position: absolute;
+            bottom: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(12,12,28,0.95);
+            border: 1px solid rgba(100,140,255,0.2);
+            border-radius: 8px;
+            padding: 10px 16px;
+            z-index: 100;
+            font-size: 13px;
+            display: none;
+            text-align: center;
+            min-width: 200px;
+        }
+        #tile-info .tile-name { font-weight: 600; font-size: 14px; margin-bottom: 4px; }
+        #tile-info .tile-detail { color: #999; font-size: 12px; }
+
+        /* Battle Log */
+        #battle-log {
+            position: absolute;
+            top: 58px;
+            left: 10px;
+            width: 240px;
+            background: rgba(12,12,28,0.92);
+            border: 1px solid rgba(100,140,255,0.15);
+            border-radius: 10px;
+            padding: 14px;
+            z-index: 100;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        #battle-log h3 {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: #6a8ccc;
+            margin-bottom: 8px;
+            border-bottom: 1px solid rgba(100,140,255,0.1);
+            padding-bottom: 5px;
+        }
+        .log-entry {
+            font-size: 11px;
+            color: #999;
+            padding: 3px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.03);
+        }
+        .log-entry.combat { color: #ff8888; }
+        .log-entry.reinforce { color: #88ff88; }
+        .log-entry.capture { color: #ffcc44; }
+
+        /* Controls Help */
+        #controls-help {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(12,12,28,0.85);
+            border: 1px solid rgba(100,140,255,0.1);
+            border-radius: 8px;
+            padding: 10px 14px;
+            font-size: 11px;
+            color: #666;
+            z-index: 100;
+            line-height: 1.7;
+        }
+        .key {
+            display: inline-block;
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 3px;
+            padding: 0 5px;
+            font-size: 10px;
+            color: #aaa;
+            margin-right: 2px;
+        }
+
+        /* Phase overlay */
+        #phase-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 28px;
+            font-weight: 700;
+            color: #fff;
+            text-transform: uppercase;
+            letter-spacing: 4px;
+            text-shadow: 0 0 30px rgba(100,140,255,0.6);
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.4s;
+            z-index: 200;
+        }
+
+        /* scrollbar */
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(100,140,255,0.2); border-radius: 2px; }
+    </style>
+</head>
+<body>
+    <!-- Top Bar -->
+    <div id="top-bar">
+        <div class="logo">Risk Globe</div>
+        <div class="turn-info">
+            Turn <span id="turn-num">1</span> &mdash;
+            <span id="current-player" class="player-name">Player 1</span>
+        </div>
+        <div class="phase-info" id="phase-label">Deploy Phase</div>
+        <div class="spacer"></div>
+        <button id="btn-next-phase">Next Phase</button>
+        <button id="btn-end-turn">End Turn</button>
+        <button id="btn-auto-rotate" title="Toggle auto-rotation">Spin</button>
+    </div>
+
+    <!-- Side Panel -->
+    <div id="side-panel">
+        <h3>Players</h3>
+        <div id="player-list"></div>
+        <h3 style="margin-top:12px;">Selected Territory</h3>
+        <div id="territory-detail" style="font-size:12px;color:#888;">Click a land tile</div>
+        <h3 style="margin-top:12px;">Reinforcements</h3>
+        <div id="reinforce-info" style="font-size:12px;color:#888;">-</div>
+    </div>
+
+    <!-- Battle Log -->
+    <div id="battle-log">
+        <h3>Battle Log</h3>
+        <div id="log-entries">
+            <div class="log-entry">Game started. Conquer the globe!</div>
+        </div>
+    </div>
+
+    <!-- Tile Info -->
+    <div id="tile-info">
+        <div class="tile-name" id="info-name">-</div>
+        <div class="tile-detail" id="info-detail">-</div>
+    </div>
+
+    <!-- Bottom Controls -->
+    <div id="bottom-bar">
+        <button id="btn-deploy" class="primary">Deploy</button>
+        <button id="btn-attack">Attack</button>
+        <button id="btn-fortify">Fortify</button>
+    </div>
+
+    <!-- Controls Help -->
+    <div id="controls-help">
+        <span class="key">LMB</span> Select tile &nbsp;
+        <span class="key">RMB</span> Target tile<br>
+        <span class="key">Drag</span> Rotate &nbsp;
+        <span class="key">Scroll</span> Zoom<br>
+        <span class="key">R</span> Reset camera &nbsp;
+        <span class="key">Space</span> Next phase
+    </div>
+
+    <!-- Phase Overlay -->
+    <div id="phase-overlay"></div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // ============================================================
+        //  CONFIGURATION
+        // ============================================================
+        const GLOBE_RADIUS = 5;
+        const SUBDIVISIONS = 5;  // icosahedron subdivisions
+        const LAND_ELEVATION = 0.15;
+        const WATER_DEPTH = -0.04;
+
+        const TEX_LAND  = 'https://raw.githubusercontent.com/mooodev/tools/refs/heads/main/images/vtemumenu.jpg';
+        const TEX_WATER = 'https://raw.githubusercontent.com/mooodev/tools/refs/heads/main/images/vtemumenu2.jpg';
+        const TEX_DEPTH = 'https://raw.githubusercontent.com/mooodev/tools/refs/heads/main/images/vtemumenu3.jpg';
+
+        const PLAYER_COLORS = [
+            { name: 'Red Empire',    color: '#ff4444', vec: new THREE.Color(1.0, 0.27, 0.27) },
+            { name: 'Blue Legion',   color: '#4488ff', vec: new THREE.Color(0.27, 0.53, 1.0) },
+            { name: 'Green Horde',   color: '#44cc44', vec: new THREE.Color(0.27, 0.8, 0.27) },
+            { name: 'Gold Dynasty',  color: '#ccaa22', vec: new THREE.Color(0.8, 0.67, 0.13) },
+        ];
+        const NUM_PLAYERS = 4;
+
+        // ============================================================
+        //  THREE.JS SETUP
+        // ============================================================
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x050510);
+
+        // Starfield
+        const starGeo = new THREE.BufferGeometry();
+        const starVerts = [];
+        for (let i = 0; i < 3000; i++) {
+            const r = 80 + Math.random() * 120;
+            const theta = Math.random() * Math.PI * 2;
+            const phi = Math.acos(2 * Math.random() - 1);
+            starVerts.push(r * Math.sin(phi) * Math.cos(theta), r * Math.cos(phi), r * Math.sin(phi) * Math.sin(theta));
+        }
+        starGeo.setAttribute('position', new THREE.Float32BufferAttribute(starVerts, 3));
+        scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.3, transparent: true, opacity: 0.6 })));
+
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 500);
+        camera.position.set(0, 4, 12);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.2;
+        document.body.appendChild(renderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.08;
+        controls.minDistance = 7;
+        controls.maxDistance = 25;
+        controls.rotateSpeed = 0.6;
+        controls.zoomSpeed = 0.8;
+        controls.enablePan = false;
+
+        // --- Lighting ---
+        // Key light (sun)
+        const sunLight = new THREE.DirectionalLight(0xffeedd, 2.0);
+        sunLight.position.set(10, 8, 12);
+        scene.add(sunLight);
+
+        // Fill light
+        const fillLight = new THREE.DirectionalLight(0x8899cc, 0.5);
+        fillLight.position.set(-8, -4, -6);
+        scene.add(fillLight);
+
+        // Rim light
+        const rimLight = new THREE.DirectionalLight(0x446688, 0.3);
+        rimLight.position.set(0, -10, 0);
+        scene.add(rimLight);
+
+        // Ambient
+        const ambientLight = new THREE.AmbientLight(0x223344, 0.6);
+        scene.add(ambientLight);
+
+        // Hemisphere light for natural sky/ground colors
+        const hemiLight = new THREE.HemisphereLight(0x6688cc, 0x332211, 0.4);
+        scene.add(hemiLight);
+
+        // Atmosphere glow
+        const glowGeo = new THREE.SphereGeometry(GLOBE_RADIUS * 1.08, 64, 64);
+        const glowMat = new THREE.ShaderMaterial({
+            uniforms: {
+                glowColor: { value: new THREE.Color(0x3366cc) },
+                viewVector: { value: camera.position }
+            },
+            vertexShader: `
+                varying float intensity;
+                uniform vec3 viewVector;
+                void main() {
+                    vec3 vNormal = normalize(normalMatrix * normal);
+                    vec3 vView = normalize(normalMatrix * viewVector);
+                    intensity = pow(0.7 - dot(vNormal, vView), 3.0);
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `,
+            fragmentShader: `
+                uniform vec3 glowColor;
+                varying float intensity;
+                void main() {
+                    gl_FragColor = vec4(glowColor, intensity * 0.4);
+                }
+            `,
+            side: THREE.BackSide,
+            blending: THREE.AdditiveBlending,
+            transparent: true
+        });
+        const glowMesh = new THREE.Mesh(glowGeo, glowMat);
+        scene.add(glowMesh);
+
+        // --- Textures ---
+        const texLoader = new THREE.TextureLoader();
+        const landTex  = texLoader.load(TEX_LAND);
+        const waterTex = texLoader.load(TEX_WATER);
+        const depthTex = texLoader.load(TEX_DEPTH);
+        [landTex, waterTex, depthTex].forEach(t => { t.wrapS = t.wrapT = THREE.RepeatWrapping; });
+
+        // ============================================================
+        //  BUILD GLOBE GEOMETRY
+        // ============================================================
+        let baseGeo = new THREE.IcosahedronGeometry(GLOBE_RADIUS, SUBDIVISIONS);
+        baseGeo = baseGeo.toNonIndexed();
+
+        const posAttr = baseGeo.attributes.position;
+        const vertCount = posAttr.count;
+        const faceCount = vertCount / 3;
+
+        // Compute face centers for terrain generation
+        const faceCenters = [];
+        for (let f = 0; f < faceCount; f++) {
+            const i = f * 3;
+            const cx = (posAttr.getX(i) + posAttr.getX(i+1) + posAttr.getX(i+2)) / 3;
+            const cy = (posAttr.getY(i) + posAttr.getY(i+1) + posAttr.getY(i+2)) / 3;
+            const cz = (posAttr.getZ(i) + posAttr.getZ(i+1) + posAttr.getZ(i+2)) / 3;
+            faceCenters.push(new THREE.Vector3(cx, cy, cz));
+        }
+
+        // --- Procedural continent generation using simplex-like noise ---
+        // Simple multi-octave noise using sin-based hash
+        function hash(x, y, z) {
+            let n = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453;
+            return n - Math.floor(n);
+        }
+
+        function smoothNoise(x, y, z) {
+            const ix = Math.floor(x), iy = Math.floor(y), iz = Math.floor(z);
+            const fx = x - ix, fy = y - iy, fz = z - iz;
+            const sx = fx * fx * (3 - 2 * fx);
+            const sy = fy * fy * (3 - 2 * fy);
+            const sz = fz * fz * (3 - 2 * fz);
+
+            const n000 = hash(ix, iy, iz);
+            const n100 = hash(ix+1, iy, iz);
+            const n010 = hash(ix, iy+1, iz);
+            const n110 = hash(ix+1, iy+1, iz);
+            const n001 = hash(ix, iy, iz+1);
+            const n101 = hash(ix+1, iy, iz+1);
+            const n011 = hash(ix, iy+1, iz+1);
+            const n111 = hash(ix+1, iy+1, iz+1);
+
+            const n00 = n000 * (1-sx) + n100 * sx;
+            const n10 = n010 * (1-sx) + n110 * sx;
+            const n01 = n001 * (1-sx) + n101 * sx;
+            const n11 = n011 * (1-sx) + n111 * sx;
+
+            const n0 = n00 * (1-sy) + n10 * sy;
+            const n1 = n01 * (1-sy) + n11 * sy;
+
+            return n0 * (1-sz) + n1 * sz;
+        }
+
+        function fbm(x, y, z, octaves = 5) {
+            let val = 0, amp = 0.5, freq = 1.0;
+            for (let i = 0; i < octaves; i++) {
+                val += amp * smoothNoise(x * freq, y * freq, z * freq);
+                amp *= 0.5;
+                freq *= 2.0;
+            }
+            return val;
+        }
+
+        // Generate terrain types: 0 = water, 1 = land
+        const tileTypes = new Float32Array(vertCount);
+        const tileOwner = new Float32Array(vertCount);  // player index (0-3), -1 = unowned
+        const tileArmies = new Float32Array(vertCount); // armies on this face
+
+        const LAND_THRESHOLD = 0.46; // ~40% land
+        const territoryData = []; // per-face game data
+
+        for (let f = 0; f < faceCount; f++) {
+            const c = faceCenters[f];
+            const n = c.clone().normalize();
+            const noiseVal = fbm(n.x * 2.5, n.y * 2.5, n.z * 2.5, 5);
+            const isLand = noiseVal > LAND_THRESHOLD ? 1.0 : 0.0;
+
+            for (let v = 0; v < 3; v++) {
+                tileTypes[f * 3 + v] = isLand;
+                tileOwner[f * 3 + v] = -1;
+                tileArmies[f * 3 + v] = 0;
+            }
+
+            territoryData.push({
+                index: f,
+                isLand: isLand > 0.5,
+                owner: -1,    // player index
+                armies: 0,
+                center: faceCenters[f].clone(),
+                neighbors: []
+            });
+        }
+
+        // Build adjacency — faces sharing an edge are neighbors
+        function vertKey(x, y, z) {
+            return `${x.toFixed(4)},${y.toFixed(4)},${z.toFixed(4)}`;
+        }
+
+        const edgeToFaces = {};
+        for (let f = 0; f < faceCount; f++) {
+            const base = f * 3;
+            const verts = [];
+            for (let v = 0; v < 3; v++) {
+                verts.push(vertKey(posAttr.getX(base + v), posAttr.getY(base + v), posAttr.getZ(base + v)));
+            }
+            // Each face has 3 edges
+            for (let e = 0; e < 3; e++) {
+                const a = verts[e], b = verts[(e + 1) % 3];
+                const key = a < b ? `${a}|${b}` : `${b}|${a}`;
+                if (!edgeToFaces[key]) edgeToFaces[key] = [];
+                edgeToFaces[key].push(f);
+            }
+        }
+        for (const faces of Object.values(edgeToFaces)) {
+            if (faces.length === 2) {
+                territoryData[faces[0]].neighbors.push(faces[1]);
+                territoryData[faces[1]].neighbors.push(faces[0]);
+            }
+        }
+
+        // --- Assign continents by flood-fill land regions ---
+        const continentId = new Int32Array(faceCount).fill(-1);
+        let nextContinent = 0;
+        const continents = []; // array of arrays of face indices
+
+        for (let f = 0; f < faceCount; f++) {
+            if (!territoryData[f].isLand || continentId[f] >= 0) continue;
+            const id = nextContinent++;
+            const region = [];
+            const stack = [f];
+            while (stack.length > 0) {
+                const cur = stack.pop();
+                if (continentId[cur] >= 0) continue;
+                if (!territoryData[cur].isLand) continue;
+                continentId[cur] = id;
+                region.push(cur);
+                for (const nb of territoryData[cur].neighbors) {
+                    if (continentId[nb] < 0 && territoryData[nb].isLand) stack.push(nb);
+                }
+            }
+            continents.push(region);
+        }
+
+        // --- Distribute land tiles among players ---
+        // Sort continents by size (large first), assign round-robin
+        const landFaces = territoryData.filter(t => t.isLand);
+
+        // Shuffle land tiles
+        function shuffle(arr) {
+            for (let i = arr.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [arr[i], arr[j]] = [arr[j], arr[i]];
+            }
+            return arr;
+        }
+        shuffle(landFaces);
+
+        // Assign tiles round-robin
+        landFaces.forEach((tile, i) => {
+            const player = i % NUM_PLAYERS;
+            tile.owner = player;
+            tile.armies = 1;
+            for (let v = 0; v < 3; v++) {
+                tileOwner[tile.index * 3 + v] = player;
+                tileArmies[tile.index * 3 + v] = 1;
+            }
+        });
+
+        // --- Set up geometry attributes ---
+        const uvs = new Float32Array(vertCount * 2);
+        for (let f = 0; f < faceCount; f++) {
+            const i = f * 3;
+            uvs.set([0.5, 1, 0, 0, 1, 0], i * 2);
+        }
+
+        // Displace vertices for elevation
+        const displacedPositions = new Float32Array(posAttr.array.length);
+        for (let f = 0; f < faceCount; f++) {
+            const isLand = territoryData[f].isLand;
+            for (let v = 0; v < 3; v++) {
+                const idx = f * 3 + v;
+                const x = posAttr.getX(idx);
+                const y = posAttr.getY(idx);
+                const z = posAttr.getZ(idx);
+                const len = Math.sqrt(x*x + y*y + z*z);
+                const nx = x/len, ny = y/len, nz = z/len;
+                const disp = isLand ? LAND_ELEVATION : WATER_DEPTH;
+                displacedPositions[idx * 3]     = x + nx * disp;
+                displacedPositions[idx * 3 + 1] = y + ny * disp;
+                displacedPositions[idx * 3 + 2] = z + nz * disp;
+            }
+        }
+
+        baseGeo.setAttribute('position', new THREE.BufferAttribute(displacedPositions, 3));
+        baseGeo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+        baseGeo.setAttribute('tileType', new THREE.BufferAttribute(tileTypes, 1));
+        baseGeo.setAttribute('tileOwnerAttr', new THREE.BufferAttribute(tileOwner, 1));
+        baseGeo.computeVertexNormals();
+
+        // ============================================================
+        //  GLOBE SHADER
+        // ============================================================
+        const globeVertexShader = `
+            attribute float tileType;
+            attribute float tileOwnerAttr;
+            varying float vType;
+            varying float vOwner;
+            varying vec2 vUv;
+            varying vec3 vNormal;
+            varying vec3 vWorldPos;
+            varying vec3 vViewDir;
+
+            void main() {
+                vType = tileType;
+                vOwner = tileOwnerAttr;
+                vUv = uv;
+
+                vec4 worldPos = modelMatrix * vec4(position, 1.0);
+                vWorldPos = worldPos.xyz;
+                vNormal = normalize((modelMatrix * vec4(normal, 0.0)).xyz);
+                vViewDir = normalize(cameraPosition - worldPos.xyz);
+
+                gl_Position = projectionMatrix * viewMatrix * worldPos;
+            }
+        `;
+
+        const globeFragmentShader = `
+            uniform sampler2D landTex;
+            uniform sampler2D waterTex;
+            uniform vec3 sunDir;
+            uniform float time;
+            uniform vec3 playerColors[4];
+            uniform float highlightFace;
+            uniform float selectedFace;
+            uniform float targetFace;
+
+            varying float vType;
+            varying float vOwner;
+            varying vec2 vUv;
+            varying vec3 vNormal;
+            varying vec3 vWorldPos;
+            varying vec3 vViewDir;
+
+            void main() {
+                vec3 N = normalize(vNormal);
+                vec3 L = normalize(sunDir);
+                vec3 V = normalize(vViewDir);
+                vec3 H = normalize(L + V);
+
+                // Base color
+                vec4 landColor = texture2D(landTex, vUv);
+                vec4 waterColor = texture2D(waterTex, vUv);
+                float isLand = step(0.5, vType);
+                vec3 baseColor = mix(waterColor.rgb, landColor.rgb, isLand);
+
+                // Tint owned land with player color
+                if (isLand > 0.5 && vOwner >= 0.0 && vOwner < 4.0) {
+                    int idx = int(vOwner + 0.5);
+                    vec3 pColor;
+                    if (idx == 0) pColor = playerColors[0];
+                    else if (idx == 1) pColor = playerColors[1];
+                    else if (idx == 2) pColor = playerColors[2];
+                    else pColor = playerColors[3];
+                    baseColor = mix(baseColor, pColor, 0.45);
+                }
+
+                // Diffuse lighting
+                float NdotL = max(dot(N, L), 0.0);
+                float diffuse = NdotL * 0.8;
+
+                // Specular (Blinn-Phong)
+                float NdotH = max(dot(N, H), 0.0);
+                float specular = pow(NdotH, 40.0) * 0.3;
+                if (isLand > 0.5) specular *= 0.2; // less shiny land
+
+                // Water shimmer
+                if (isLand < 0.5) {
+                    float shimmer = sin(vWorldPos.x * 8.0 + time * 1.5) * sin(vWorldPos.z * 8.0 + time * 1.2) * 0.04;
+                    baseColor += vec3(shimmer * 0.5, shimmer * 0.6, shimmer);
+                    specular *= 1.5;
+                }
+
+                // Ambient
+                float ambient = 0.25;
+
+                // Fresnel rim
+                float fresnel = pow(1.0 - max(dot(N, V), 0.0), 3.0) * 0.15;
+
+                vec3 finalColor = baseColor * (ambient + diffuse) + vec3(specular) + vec3(fresnel * 0.3, fresnel * 0.4, fresnel * 0.6);
+
+                // Highlight / selection overlays
+                float faceDist = length(vWorldPos);
+
+                gl_FragColor = vec4(finalColor, 1.0);
+            }
+        `;
+
+        const globeMaterial = new THREE.ShaderMaterial({
+            uniforms: {
+                landTex: { value: landTex },
+                waterTex: { value: waterTex },
+                sunDir: { value: new THREE.Vector3(10, 8, 12).normalize() },
+                time: { value: 0 },
+                playerColors: { value: PLAYER_COLORS.map(p => p.vec) },
+                highlightFace: { value: -1 },
+                selectedFace: { value: -1 },
+                targetFace: { value: -1 }
+            },
+            vertexShader: globeVertexShader,
+            fragmentShader: globeFragmentShader
+        });
+
+        const globe = new THREE.Mesh(baseGeo, globeMaterial);
+        scene.add(globe);
+
+        // ============================================================
+        //  ARMY MARKERS (sprites on owned tiles)
+        // ============================================================
+        const armyMarkers = new THREE.Group();
+        scene.add(armyMarkers);
+
+        // Selection ring
+        const selectRingGeo = new THREE.RingGeometry(0.25, 0.35, 16);
+        const selectRingMat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, transparent: true, opacity: 0.7 });
+        const selectRing = new THREE.Mesh(selectRingGeo, selectRingMat);
+        selectRing.visible = false;
+        scene.add(selectRing);
+
+        const targetRingMat = new THREE.MeshBasicMaterial({ color: 0xff4444, side: THREE.DoubleSide, transparent: true, opacity: 0.6 });
+        const targetRing = new THREE.Mesh(selectRingGeo.clone(), targetRingMat);
+        targetRing.visible = false;
+        scene.add(targetRing);
+
+        function createArmyLabel(text, color) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 64;
+            canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+
+            // Circle background
+            ctx.beginPath();
+            ctx.arc(32, 32, 24, 0, Math.PI * 2);
+            ctx.fillStyle = color;
+            ctx.fill();
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // Number
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 28px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(text, 32, 33);
+
+            const tex = new THREE.CanvasTexture(canvas);
+            const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false });
+            const sprite = new THREE.Sprite(mat);
+            sprite.scale.set(0.5, 0.5, 1);
+            return sprite;
+        }
+
+        function updateArmyMarkers() {
+            // Remove old markers
+            while (armyMarkers.children.length > 0) {
+                const child = armyMarkers.children[0];
+                child.material.map.dispose();
+                child.material.dispose();
+                armyMarkers.remove(child);
+            }
+
+            for (const tile of territoryData) {
+                if (!tile.isLand || tile.owner < 0) continue;
+                const c = tile.center.clone().normalize().multiplyScalar(GLOBE_RADIUS + LAND_ELEVATION + 0.35);
+                // Apply globe rotation
+                c.applyQuaternion(globe.quaternion);
+
+                const label = createArmyLabel(String(tile.armies), PLAYER_COLORS[tile.owner].color);
+                label.position.copy(c);
+                label.userData = { faceIndex: tile.index };
+                armyMarkers.add(label);
+            }
+        }
+        updateArmyMarkers();
+
+        // ============================================================
+        //  GAME STATE
+        // ============================================================
+        const PHASES = ['deploy', 'attack', 'fortify'];
+        const gameState = {
+            turn: 1,
+            currentPlayer: 0,
+            phase: 0,  // index into PHASES
+            selectedTile: -1,
+            targetTile: -1,
+            reinforcements: 0,
+            autoRotate: true
+        };
+
+        function getPlayerTerritoryCount(player) {
+            return territoryData.filter(t => t.isLand && t.owner === player).length;
+        }
+
+        function calcReinforcements(player) {
+            const territories = getPlayerTerritoryCount(player);
+            return Math.max(3, Math.floor(territories / 3));
+        }
+
+        function addLog(msg, type = '') {
+            const div = document.createElement('div');
+            div.className = 'log-entry' + (type ? ' ' + type : '');
+            div.textContent = msg;
+            const entries = document.getElementById('log-entries');
+            entries.insertBefore(div, entries.firstChild);
+            if (entries.children.length > 50) entries.removeChild(entries.lastChild);
+        }
+
+        function showPhaseOverlay(text) {
+            const overlay = document.getElementById('phase-overlay');
+            overlay.textContent = text;
+            overlay.style.opacity = '1';
+            setTimeout(() => overlay.style.opacity = '0', 1200);
+        }
+
+        // ============================================================
+        //  UI UPDATE
+        // ============================================================
+        function updateUI() {
+            const player = PLAYER_COLORS[gameState.currentPlayer];
+            document.getElementById('turn-num').textContent = gameState.turn;
+            const pName = document.getElementById('current-player');
+            pName.textContent = player.name;
+            pName.style.background = player.color;
+            pName.style.color = '#fff';
+
+            const phaseName = PHASES[gameState.phase];
+            document.getElementById('phase-label').textContent = phaseName.charAt(0).toUpperCase() + phaseName.slice(1) + ' Phase';
+
+            // Phase buttons
+            document.getElementById('btn-deploy').classList.toggle('primary', gameState.phase === 0);
+            document.getElementById('btn-attack').classList.toggle('primary', gameState.phase === 1);
+            document.getElementById('btn-fortify').classList.toggle('primary', gameState.phase === 2);
+
+            // Player list
+            const list = document.getElementById('player-list');
+            list.innerHTML = '';
+            for (let i = 0; i < NUM_PLAYERS; i++) {
+                const p = PLAYER_COLORS[i];
+                const card = document.createElement('div');
+                card.className = 'player-card' + (i === gameState.currentPlayer ? ' active' : '');
+                const count = getPlayerTerritoryCount(i);
+                const totalArmies = territoryData.filter(t => t.owner === i).reduce((s, t) => s + t.armies, 0);
+                card.innerHTML = `<div class="player-dot" style="background:${p.color}"></div>
+                    <span>${p.name}</span>
+                    <span class="stats">${count} tiles / ${totalArmies} armies</span>`;
+                list.appendChild(card);
+            }
+
+            // Reinforcements
+            document.getElementById('reinforce-info').textContent =
+                gameState.phase === 0 ? `${gameState.reinforcements} units to deploy` : '-';
+
+            // Territory detail
+            const detail = document.getElementById('territory-detail');
+            if (gameState.selectedTile >= 0) {
+                const tile = territoryData[gameState.selectedTile];
+                if (tile.isLand) {
+                    const ownerName = tile.owner >= 0 ? PLAYER_COLORS[tile.owner].name : 'Neutral';
+                    detail.innerHTML = `<b>Territory #${tile.index}</b><br>
+                        Owner: <span style="color:${tile.owner >= 0 ? PLAYER_COLORS[tile.owner].color : '#888'}">${ownerName}</span><br>
+                        Armies: ${tile.armies}<br>
+                        Neighbors: ${tile.neighbors.filter(n => territoryData[n].isLand).length} land`;
+                } else {
+                    detail.innerHTML = 'Ocean tile';
+                }
+            } else {
+                detail.innerHTML = 'Click a land tile';
+            }
+        }
+
+        function startTurn() {
+            gameState.phase = 0;
+            gameState.selectedTile = -1;
+            gameState.targetTile = -1;
+            gameState.reinforcements = calcReinforcements(gameState.currentPlayer);
+            selectRing.visible = false;
+            targetRing.visible = false;
+            showPhaseOverlay(`${PLAYER_COLORS[gameState.currentPlayer].name} — Deploy`);
+            addLog(`--- Turn ${gameState.turn}: ${PLAYER_COLORS[gameState.currentPlayer].name} ---`);
+            addLog(`+${gameState.reinforcements} reinforcements`, 'reinforce');
+            updateUI();
+            updateTileColors();
+            updateArmyMarkers();
+        }
+
+        function nextPhase() {
+            gameState.phase++;
+            gameState.selectedTile = -1;
+            gameState.targetTile = -1;
+            selectRing.visible = false;
+            targetRing.visible = false;
+            if (gameState.phase >= PHASES.length) {
+                endTurn();
+                return;
+            }
+            showPhaseOverlay(PHASES[gameState.phase].charAt(0).toUpperCase() + PHASES[gameState.phase].slice(1));
+            updateUI();
+        }
+
+        function endTurn() {
+            gameState.currentPlayer = (gameState.currentPlayer + 1) % NUM_PLAYERS;
+            if (gameState.currentPlayer === 0) gameState.turn++;
+
+            // Check win condition
+            const alive = new Set();
+            for (const t of territoryData) {
+                if (t.isLand && t.owner >= 0) alive.add(t.owner);
+            }
+            if (alive.size === 1) {
+                const winner = PLAYER_COLORS[[...alive][0]].name;
+                addLog(`${winner} has conquered the globe!`, 'capture');
+                showPhaseOverlay(`${winner} WINS!`);
+                return;
+            }
+
+            startTurn();
+        }
+
+        function updateTileColors() {
+            const ownerAttr = baseGeo.attributes.tileOwnerAttr;
+            for (const tile of territoryData) {
+                for (let v = 0; v < 3; v++) {
+                    ownerAttr.setX(tile.index * 3 + v, tile.owner);
+                }
+            }
+            ownerAttr.needsUpdate = true;
+        }
+
+        function positionRingOnFace(ring, faceIdx) {
+            const tile = territoryData[faceIdx];
+            const pos = tile.center.clone().normalize().multiplyScalar(GLOBE_RADIUS + LAND_ELEVATION + 0.02);
+            ring.position.copy(pos);
+            ring.lookAt(new THREE.Vector3(0, 0, 0));
+        }
+
+        // ============================================================
+        //  GAME ACTIONS
+        // ============================================================
+        function deployArmy(faceIdx) {
+            const tile = territoryData[faceIdx];
+            if (!tile.isLand) return;
+            if (tile.owner !== gameState.currentPlayer) return;
+            if (gameState.reinforcements <= 0) return;
+
+            tile.armies++;
+            gameState.reinforcements--;
+            addLog(`Deployed 1 army to territory #${faceIdx}`, 'reinforce');
+            updateUI();
+            updateArmyMarkers();
+        }
+
+        function attackTerritory() {
+            const src = gameState.selectedTile;
+            const tgt = gameState.targetTile;
+            if (src < 0 || tgt < 0) return;
+
+            const srcTile = territoryData[src];
+            const tgtTile = territoryData[tgt];
+
+            if (srcTile.owner !== gameState.currentPlayer) return;
+            if (tgtTile.owner === gameState.currentPlayer) return;
+            if (srcTile.armies <= 1) { addLog('Need 2+ armies to attack!'); return; }
+            if (!srcTile.neighbors.includes(tgt)) { addLog('Not adjacent!'); return; }
+
+            // Simple combat: each side rolls, compare highest
+            const atkDice = Math.min(srcTile.armies - 1, 3);
+            const defDice = Math.min(tgtTile.armies, 2);
+
+            const atkRolls = Array.from({ length: atkDice }, () => Math.floor(Math.random() * 6) + 1).sort((a, b) => b - a);
+            const defRolls = Array.from({ length: defDice }, () => Math.floor(Math.random() * 6) + 1).sort((a, b) => b - a);
+
+            let atkLoss = 0, defLoss = 0;
+            const comparisons = Math.min(atkRolls.length, defRolls.length);
+            for (let i = 0; i < comparisons; i++) {
+                if (atkRolls[i] > defRolls[i]) {
+                    defLoss++;
+                } else {
+                    atkLoss++;
+                }
+            }
+
+            srcTile.armies -= atkLoss;
+            tgtTile.armies -= defLoss;
+
+            addLog(`Attack! [${atkRolls}] vs [${defRolls}] — Atk lost ${atkLoss}, Def lost ${defLoss}`, 'combat');
+
+            // Capture territory
+            if (tgtTile.armies <= 0) {
+                const oldOwner = tgtTile.owner >= 0 ? PLAYER_COLORS[tgtTile.owner].name : 'Neutral';
+                const movingArmies = Math.min(srcTile.armies - 1, atkDice);
+                tgtTile.owner = gameState.currentPlayer;
+                tgtTile.armies = movingArmies;
+                srcTile.armies -= movingArmies;
+                addLog(`Captured territory #${tgt} from ${oldOwner}!`, 'capture');
+            }
+
+            updateTileColors();
+            updateUI();
+            updateArmyMarkers();
+        }
+
+        function fortifyMove() {
+            const src = gameState.selectedTile;
+            const tgt = gameState.targetTile;
+            if (src < 0 || tgt < 0) return;
+
+            const srcTile = territoryData[src];
+            const tgtTile = territoryData[tgt];
+
+            if (srcTile.owner !== gameState.currentPlayer) return;
+            if (tgtTile.owner !== gameState.currentPlayer) return;
+            if (srcTile.armies <= 1) return;
+            if (!srcTile.neighbors.includes(tgt)) { addLog('Not adjacent for fortify!'); return; }
+
+            const moveCount = Math.max(1, srcTile.armies - 1);
+            srcTile.armies -= moveCount;
+            tgtTile.armies += moveCount;
+            addLog(`Fortified: moved ${moveCount} armies #${src} → #${tgt}`, 'reinforce');
+
+            gameState.selectedTile = -1;
+            gameState.targetTile = -1;
+            selectRing.visible = false;
+            targetRing.visible = false;
+            updateUI();
+            updateArmyMarkers();
+        }
+
+        // ============================================================
+        //  INPUT HANDLING
+        // ============================================================
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        let mouseDownPos = new THREE.Vector2();
+        let isDrag = false;
+
+        renderer.domElement.addEventListener('mousedown', (e) => {
+            mouseDownPos.set(e.clientX, e.clientY);
+            isDrag = false;
+        });
+
+        renderer.domElement.addEventListener('mousemove', (e) => {
+            const dx = e.clientX - mouseDownPos.x;
+            const dy = e.clientY - mouseDownPos.y;
+            if (Math.abs(dx) + Math.abs(dy) > 5) isDrag = true;
+
+            // Hover info
+            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObject(globe);
+            const tileInfo = document.getElementById('tile-info');
+
+            if (intersects.length > 0) {
+                const fi = intersects[0].faceIndex;
+                const tile = territoryData[fi];
+                const infoName = document.getElementById('info-name');
+                const infoDetail = document.getElementById('info-detail');
+
+                if (tile.isLand) {
+                    const ownerName = tile.owner >= 0 ? PLAYER_COLORS[tile.owner].name : 'Neutral';
+                    infoName.textContent = `Territory #${fi}`;
+                    infoName.style.color = tile.owner >= 0 ? PLAYER_COLORS[tile.owner].color : '#aaa';
+                    infoDetail.textContent = `${ownerName} · ${tile.armies} armies`;
+                } else {
+                    infoName.textContent = 'Ocean';
+                    infoName.style.color = '#4488cc';
+                    infoDetail.textContent = 'Not claimable';
+                }
+                tileInfo.style.display = 'block';
+            } else {
+                tileInfo.style.display = 'none';
+            }
+        });
+
+        renderer.domElement.addEventListener('mouseup', (e) => {
+            if (isDrag) return;
+
+            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObject(globe);
+
+            if (intersects.length === 0) return;
+            const fi = intersects[0].faceIndex;
+            const tile = territoryData[fi];
+            if (!tile.isLand) return;
+
+            const phase = PHASES[gameState.phase];
+
+            if (phase === 'deploy') {
+                // Left click = deploy
+                if (e.button === 0) {
+                    gameState.selectedTile = fi;
+                    positionRingOnFace(selectRing, fi);
+                    selectRing.visible = true;
+                    deployArmy(fi);
+                    if (gameState.reinforcements <= 0) {
+                        addLog('All reinforcements deployed. Moving to Attack phase.');
+                        nextPhase();
+                    }
+                }
+            } else if (phase === 'attack') {
+                if (e.button === 0) {
+                    if (tile.owner === gameState.currentPlayer) {
+                        // Select source
+                        gameState.selectedTile = fi;
+                        gameState.targetTile = -1;
+                        positionRingOnFace(selectRing, fi);
+                        selectRing.visible = true;
+                        targetRing.visible = false;
+                        updateUI();
+                    } else if (gameState.selectedTile >= 0) {
+                        // Select target & attack
+                        gameState.targetTile = fi;
+                        positionRingOnFace(targetRing, fi);
+                        targetRing.visible = true;
+                        updateUI();
+                        attackTerritory();
+                    }
+                }
+            } else if (phase === 'fortify') {
+                if (e.button === 0) {
+                    if (gameState.selectedTile < 0) {
+                        // Select source
+                        if (tile.owner === gameState.currentPlayer) {
+                            gameState.selectedTile = fi;
+                            positionRingOnFace(selectRing, fi);
+                            selectRing.visible = true;
+                            updateUI();
+                        }
+                    } else {
+                        // Select target
+                        if (tile.owner === gameState.currentPlayer) {
+                            gameState.targetTile = fi;
+                            positionRingOnFace(targetRing, fi);
+                            targetRing.visible = true;
+                            fortifyMove();
+                        }
+                    }
+                }
+            }
+        });
+
+        // Right-click for target selection
+        renderer.domElement.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObject(globe);
+
+            if (intersects.length === 0) return;
+            const fi = intersects[0].faceIndex;
+            const tile = territoryData[fi];
+            if (!tile.isLand) return;
+
+            const phase = PHASES[gameState.phase];
+
+            if (phase === 'attack' && gameState.selectedTile >= 0) {
+                gameState.targetTile = fi;
+                positionRingOnFace(targetRing, fi);
+                targetRing.visible = true;
+                updateUI();
+                attackTerritory();
+            } else if (phase === 'fortify' && gameState.selectedTile >= 0) {
+                gameState.targetTile = fi;
+                positionRingOnFace(targetRing, fi);
+                targetRing.visible = true;
+                fortifyMove();
+            }
+        });
+
+        // Keyboard shortcuts
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') { e.preventDefault(); nextPhase(); }
+            if (e.code === 'KeyR') {
+                camera.position.set(0, 4, 12);
+                controls.target.set(0, 0, 0);
+            }
+        });
+
+        // Button handlers
+        document.getElementById('btn-next-phase').addEventListener('click', nextPhase);
+        document.getElementById('btn-end-turn').addEventListener('click', endTurn);
+        document.getElementById('btn-deploy').addEventListener('click', () => { if (gameState.phase !== 0) return; });
+        document.getElementById('btn-attack').addEventListener('click', () => {
+            if (gameState.phase === 0 && gameState.reinforcements <= 0) nextPhase();
+        });
+        document.getElementById('btn-fortify').addEventListener('click', () => {
+            if (gameState.phase === 1) nextPhase();
+        });
+        document.getElementById('btn-auto-rotate').addEventListener('click', () => {
+            gameState.autoRotate = !gameState.autoRotate;
+            document.getElementById('btn-auto-rotate').style.opacity = gameState.autoRotate ? '1' : '0.5';
+        });
+
+        // Resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // ============================================================
+        //  ANIMATION LOOP
+        // ============================================================
+        const clock = new THREE.Clock();
+        let markerUpdateTimer = 0;
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const dt = clock.getDelta();
+            const t = clock.getElapsedTime();
+
+            controls.update();
+
+            // Auto-rotate
+            if (gameState.autoRotate) {
+                globe.rotation.y += 0.0015;
+            }
+
+            // Update shader time
+            globeMaterial.uniforms.time.value = t;
+
+            // Update glow
+            glowMat.uniforms.viewVector.value.copy(camera.position);
+            glowMesh.rotation.copy(globe.rotation);
+
+            // Update army markers periodically (not every frame for performance)
+            markerUpdateTimer += dt;
+            if (markerUpdateTimer > 0.5) {
+                markerUpdateTimer = 0;
+                updateArmyMarkers();
+            }
+
+            // Pulse selection ring
+            if (selectRing.visible) {
+                selectRing.material.opacity = 0.5 + Math.sin(t * 4) * 0.3;
+                selectRing.rotation.copy(globe.rotation);
+                if (gameState.selectedTile >= 0) {
+                    const c = territoryData[gameState.selectedTile].center.clone()
+                        .normalize().multiplyScalar(GLOBE_RADIUS + LAND_ELEVATION + 0.03);
+                    c.applyEuler(globe.rotation);
+                    selectRing.position.copy(c);
+                    selectRing.lookAt(0, 0, 0);
+                }
+            }
+            if (targetRing.visible) {
+                targetRing.material.opacity = 0.4 + Math.sin(t * 6) * 0.3;
+                if (gameState.targetTile >= 0) {
+                    const c = territoryData[gameState.targetTile].center.clone()
+                        .normalize().multiplyScalar(GLOBE_RADIUS + LAND_ELEVATION + 0.03);
+                    c.applyEuler(globe.rotation);
+                    targetRing.position.copy(c);
+                    targetRing.lookAt(0, 0, 0);
+                }
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        // --- Start Game ---
+        startTurn();
+        animate();
+    </script>
+</body>
+</html>
