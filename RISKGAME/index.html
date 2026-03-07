@@ -582,11 +582,7 @@
             continents.push(region);
         }
 
-        // --- Distribute land tiles among players ---
-        // Sort continents by size (large first), assign round-robin
-        const landFaces = territoryData.filter(t => t.isLand);
-
-        // Shuffle land tiles
+        // --- Shuffle utility ---
         function shuffle(arr) {
             for (let i = arr.length - 1; i > 0; i--) {
                 const j = Math.floor(Math.random() * (i + 1));
@@ -594,16 +590,113 @@
             }
             return arr;
         }
-        shuffle(landFaces);
 
-        // Assign tiles round-robin
-        landFaces.forEach((tile, i) => {
+        // --- Group adjacent land faces into multi-face territories (1-5 faces each) ---
+        const faceToTerritory = new Int32Array(faceCount).fill(-1);
+        const territories = [];
+
+        // Collect and shuffle land face indices for random grouping
+        const landFaceIndices = [];
+        for (let f = 0; f < faceCount; f++) {
+            if (territoryData[f].isLand) landFaceIndices.push(f);
+        }
+        shuffle(landFaceIndices);
+
+        for (const startFace of landFaceIndices) {
+            if (faceToTerritory[startFace] >= 0) continue;
+
+            // Random territory size: weighted toward 2-4, with some 1s and 5s
+            const r = Math.random();
+            let territorySize;
+            if (r < 0.15) territorySize = 1;       // 15% single triangles
+            else if (r < 0.40) territorySize = 2;   // 25% pairs
+            else if (r < 0.65) territorySize = 3;   // 25% triples
+            else if (r < 0.85) territorySize = 4;   // 20% quads
+            else territorySize = 5;                  // 15% large territories
+
+            const faces = [startFace];
+            faceToTerritory[startFace] = territories.length;
+
+            // BFS to grab adjacent unassigned land faces
+            const candidates = [...territoryData[startFace].neighbors];
+            while (faces.length < territorySize && candidates.length > 0) {
+                const idx = Math.floor(Math.random() * candidates.length);
+                const candidate = candidates[idx];
+                candidates.splice(idx, 1);
+
+                if (faceToTerritory[candidate] >= 0 || !territoryData[candidate].isLand) continue;
+
+                faces.push(candidate);
+                faceToTerritory[candidate] = territories.length;
+
+                // Add new neighbors as candidates
+                for (const nb of territoryData[candidate].neighbors) {
+                    if (faceToTerritory[nb] < 0 && territoryData[nb].isLand && !candidates.includes(nb)) {
+                        candidates.push(nb);
+                    }
+                }
+            }
+
+            // Compute center as average of face centers
+            const center = new THREE.Vector3();
+            for (const f of faces) {
+                center.add(faceCenters[f]);
+            }
+            center.divideScalar(faces.length);
+
+            territories.push({
+                id: territories.length,
+                faces: faces,
+                isLand: true,
+                owner: -1,
+                armies: 0,
+                center: center,
+                neighbors: []  // computed below
+            });
+        }
+
+        // Add water faces as individual non-playable entries
+        for (let f = 0; f < faceCount; f++) {
+            if (faceToTerritory[f] >= 0) continue;
+            faceToTerritory[f] = territories.length;
+            territories.push({
+                id: territories.length,
+                faces: [f],
+                isLand: false,
+                owner: -1,
+                armies: 0,
+                center: faceCenters[f].clone(),
+                neighbors: []
+            });
+        }
+
+        // Build territory-level adjacency (neighboring territories, not faces)
+        for (let f = 0; f < faceCount; f++) {
+            const tId = faceToTerritory[f];
+            for (const nb of territoryData[f].neighbors) {
+                const nbTId = faceToTerritory[nb];
+                if (nbTId !== tId && !territories[tId].neighbors.includes(nbTId)) {
+                    territories[tId].neighbors.push(nbTId);
+                }
+            }
+        }
+
+        // --- Distribute territories among players ---
+        const landTerritories = territories.filter(t => t.isLand);
+        shuffle(landTerritories);
+
+        // Assign territories round-robin
+        landTerritories.forEach((territory, i) => {
             const player = i % NUM_PLAYERS;
-            tile.owner = player;
-            tile.armies = 1;
-            for (let v = 0; v < 3; v++) {
-                tileOwner[tile.index * 3 + v] = player;
-                tileArmies[tile.index * 3 + v] = 1;
+            territory.owner = player;
+            territory.armies = 1;
+            // Set per-face attributes for all faces in this territory
+            for (const f of territory.faces) {
+                territoryData[f].owner = player;
+                for (let v = 0; v < 3; v++) {
+                    tileOwner[f * 3 + v] = player;
+                    tileArmies[f * 3 + v] = 1;
+                }
             }
         });
 
@@ -632,10 +725,77 @@
             }
         }
 
+        // Territory ID attribute for border rendering
+        const tileTerritory = new Float32Array(vertCount);
+        for (let f = 0; f < faceCount; f++) {
+            const tId = faceToTerritory[f];
+            for (let v = 0; v < 3; v++) {
+                tileTerritory[f * 3 + v] = tId;
+            }
+        }
+
+        // Barycentric coordinates for wireframe/border rendering
+        const barycentricCoords = new Float32Array(vertCount * 3);
+        for (let f = 0; f < faceCount; f++) {
+            const base = f * 3;
+            // vertex 0: (1,0,0), vertex 1: (0,1,0), vertex 2: (0,0,1)
+            barycentricCoords[(base + 0) * 3] = 1; barycentricCoords[(base + 0) * 3 + 1] = 0; barycentricCoords[(base + 0) * 3 + 2] = 0;
+            barycentricCoords[(base + 1) * 3] = 0; barycentricCoords[(base + 1) * 3 + 1] = 1; barycentricCoords[(base + 1) * 3 + 2] = 0;
+            barycentricCoords[(base + 2) * 3] = 0; barycentricCoords[(base + 2) * 3 + 1] = 0; barycentricCoords[(base + 2) * 3 + 2] = 1;
+        }
+
+        // Determine which edges of each face are territory borders (neighbor has different territory)
+        // Edge 0: vertex 0-1, Edge 1: vertex 1-2, Edge 2: vertex 2-0
+        // For barycentric: edge opposite to vertex i is where bary[i] = 0
+        // Edge 0 (v0-v1): bary.z = 0, Edge 1 (v1-v2): bary.x = 0, Edge 2 (v2-v0): bary.y = 0
+        const edgeBorder = new Float32Array(vertCount * 3); // per-vertex vec3: which edges are borders
+        for (let f = 0; f < faceCount; f++) {
+            const base = f * 3;
+            const verts = [];
+            for (let v = 0; v < 3; v++) {
+                verts.push(vertKey(posAttr.getX(base + v), posAttr.getY(base + v), posAttr.getZ(base + v)));
+            }
+
+            const myTerritory = faceToTerritory[f];
+            // Check each edge: does it border a face with a different territory?
+            const borders = [0, 0, 0]; // edge0 (v0-v1), edge1 (v1-v2), edge2 (v2-v0)
+            for (let e = 0; e < 3; e++) {
+                const a = verts[e], b = verts[(e + 1) % 3];
+                const key = a < b ? `${a}|${b}` : `${b}|${a}`;
+                const sharedFaces = edgeToFaces[key];
+                if (sharedFaces) {
+                    const otherFace = sharedFaces.find(ff => ff !== f);
+                    if (otherFace !== undefined) {
+                        const otherTerritory = faceToTerritory[otherFace];
+                        if (otherTerritory !== myTerritory) {
+                            borders[e] = 1;
+                        }
+                    } else {
+                        borders[e] = 1; // boundary edge
+                    }
+                } else {
+                    borders[e] = 1;
+                }
+            }
+
+            // Map edges to barycentric:
+            // edge0 (v0-v1) → bary.z = 0 → borders[0] controls z component
+            // edge1 (v1-v2) → bary.x = 0 → borders[1] controls x component
+            // edge2 (v2-v0) → bary.y = 0 → borders[2] controls y component
+            for (let v = 0; v < 3; v++) {
+                edgeBorder[(base + v) * 3 + 0] = borders[1]; // x: is edge1 a border?
+                edgeBorder[(base + v) * 3 + 1] = borders[2]; // y: is edge2 a border?
+                edgeBorder[(base + v) * 3 + 2] = borders[0]; // z: is edge0 a border?
+            }
+        }
+
         baseGeo.setAttribute('position', new THREE.BufferAttribute(displacedPositions, 3));
         baseGeo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
         baseGeo.setAttribute('tileType', new THREE.BufferAttribute(tileTypes, 1));
         baseGeo.setAttribute('tileOwnerAttr', new THREE.BufferAttribute(tileOwner, 1));
+        baseGeo.setAttribute('tileTerritoryAttr', new THREE.BufferAttribute(tileTerritory, 1));
+        baseGeo.setAttribute('aBarycentric', new THREE.BufferAttribute(barycentricCoords, 3));
+        baseGeo.setAttribute('aEdgeBorder', new THREE.BufferAttribute(edgeBorder, 3));
         baseGeo.computeVertexNormals();
 
         // ============================================================
@@ -644,17 +804,26 @@
         const globeVertexShader = `
             attribute float tileType;
             attribute float tileOwnerAttr;
+            attribute float tileTerritoryAttr;
+            attribute vec3 aBarycentric;
+            attribute vec3 aEdgeBorder;
             varying float vType;
             varying float vOwner;
+            varying float vTerritory;
             varying vec2 vUv;
             varying vec3 vNormal;
             varying vec3 vWorldPos;
             varying vec3 vViewDir;
+            varying vec3 vBarycentric;
+            varying vec3 vEdgeBorder;
 
             void main() {
                 vType = tileType;
                 vOwner = tileOwnerAttr;
+                vTerritory = tileTerritoryAttr;
                 vUv = uv;
+                vBarycentric = aBarycentric;
+                vEdgeBorder = aEdgeBorder;
 
                 vec4 worldPos = modelMatrix * vec4(position, 1.0);
                 vWorldPos = worldPos.xyz;
@@ -677,10 +846,13 @@
 
             varying float vType;
             varying float vOwner;
+            varying float vTerritory;
             varying vec2 vUv;
             varying vec3 vNormal;
             varying vec3 vWorldPos;
             varying vec3 vViewDir;
+            varying vec3 vBarycentric;
+            varying vec3 vEdgeBorder;
 
             void main() {
                 vec3 N = normalize(vNormal);
@@ -703,6 +875,30 @@
                     else if (idx == 2) pColor = playerColors[2];
                     else pColor = playerColors[3];
                     baseColor = mix(baseColor, pColor, 0.45);
+                }
+
+                // Territory border effect on land tiles
+                if (isLand > 0.5) {
+                    // Check proximity to each edge using barycentric coordinates
+                    // Only draw border if that edge is a territory boundary
+                    float borderWidth = 0.06;
+                    float borderStrength = 0.0;
+
+                    // Edge where bary.x = 0 (edge1: v1-v2)
+                    if (vEdgeBorder.x > 0.5 && vBarycentric.x < borderWidth) {
+                        borderStrength = max(borderStrength, 1.0 - vBarycentric.x / borderWidth);
+                    }
+                    // Edge where bary.y = 0 (edge2: v2-v0)
+                    if (vEdgeBorder.y > 0.5 && vBarycentric.y < borderWidth) {
+                        borderStrength = max(borderStrength, 1.0 - vBarycentric.y / borderWidth);
+                    }
+                    // Edge where bary.z = 0 (edge0: v0-v1)
+                    if (vEdgeBorder.z > 0.5 && vBarycentric.z < borderWidth) {
+                        borderStrength = max(borderStrength, 1.0 - vBarycentric.z / borderWidth);
+                    }
+
+                    // Darken borders between different territories
+                    baseColor = mix(baseColor, vec3(0.02, 0.02, 0.05), borderStrength * 0.7);
                 }
 
                 // Diffuse lighting
@@ -728,9 +924,6 @@
                 float fresnel = pow(1.0 - max(dot(N, V), 0.0), 3.0) * 0.15;
 
                 vec3 finalColor = baseColor * (ambient + diffuse) + vec3(specular) + vec3(fresnel * 0.3, fresnel * 0.4, fresnel * 0.6);
-
-                // Highlight / selection overlays
-                float faceDist = length(vWorldPos);
 
                 gl_FragColor = vec4(finalColor, 1.0);
             }
@@ -810,15 +1003,15 @@
                 armyMarkers.remove(child);
             }
 
-            for (const tile of territoryData) {
-                if (!tile.isLand || tile.owner < 0) continue;
-                const c = tile.center.clone().normalize().multiplyScalar(GLOBE_RADIUS + LAND_ELEVATION + 0.35);
+            for (const territory of territories) {
+                if (!territory.isLand || territory.owner < 0) continue;
+                const c = territory.center.clone().normalize().multiplyScalar(GLOBE_RADIUS + LAND_ELEVATION + 0.35);
                 // Apply globe rotation
                 c.applyQuaternion(globe.quaternion);
 
-                const label = createArmyLabel(String(tile.armies), PLAYER_COLORS[tile.owner].color);
+                const label = createArmyLabel(String(territory.armies), PLAYER_COLORS[territory.owner].color);
                 label.position.copy(c);
-                label.userData = { faceIndex: tile.index };
+                label.userData = { territoryId: territory.id };
                 armyMarkers.add(label);
             }
         }
@@ -839,7 +1032,7 @@
         };
 
         function getPlayerTerritoryCount(player) {
-            return territoryData.filter(t => t.isLand && t.owner === player).length;
+            return territories.filter(t => t.isLand && t.owner === player).length;
         }
 
         function calcReinforcements(player) {
@@ -890,7 +1083,7 @@
                 const card = document.createElement('div');
                 card.className = 'player-card' + (i === gameState.currentPlayer ? ' active' : '');
                 const count = getPlayerTerritoryCount(i);
-                const totalArmies = territoryData.filter(t => t.owner === i).reduce((s, t) => s + t.armies, 0);
+                const totalArmies = territories.filter(t => t.owner === i).reduce((s, t) => s + t.armies, 0);
                 card.innerHTML = `<div class="player-dot" style="background:${p.color}"></div>
                     <span>${p.name}</span>
                     <span class="stats">${count} tiles / ${totalArmies} armies</span>`;
@@ -904,13 +1097,13 @@
             // Territory detail
             const detail = document.getElementById('territory-detail');
             if (gameState.selectedTile >= 0) {
-                const tile = territoryData[gameState.selectedTile];
-                if (tile.isLand) {
-                    const ownerName = tile.owner >= 0 ? PLAYER_COLORS[tile.owner].name : 'Neutral';
-                    detail.innerHTML = `<b>Territory #${tile.index}</b><br>
-                        Owner: <span style="color:${tile.owner >= 0 ? PLAYER_COLORS[tile.owner].color : '#888'}">${ownerName}</span><br>
-                        Armies: ${tile.armies}<br>
-                        Neighbors: ${tile.neighbors.filter(n => territoryData[n].isLand).length} land`;
+                const territory = territories[gameState.selectedTile];
+                if (territory.isLand) {
+                    const ownerName = territory.owner >= 0 ? PLAYER_COLORS[territory.owner].name : 'Neutral';
+                    detail.innerHTML = `<b>Territory #${territory.id}</b> (${territory.faces.length} tile${territory.faces.length > 1 ? 's' : ''})<br>
+                        Owner: <span style="color:${territory.owner >= 0 ? PLAYER_COLORS[territory.owner].color : '#888'}">${ownerName}</span><br>
+                        Armies: ${territory.armies}<br>
+                        Neighbors: ${territory.neighbors.filter(n => territories[n].isLand).length} land`;
                 } else {
                     detail.innerHTML = 'Ocean tile';
                 }
@@ -954,7 +1147,7 @@
 
             // Check win condition
             const alive = new Set();
-            for (const t of territoryData) {
+            for (const t of territories) {
                 if (t.isLand && t.owner >= 0) alive.add(t.owner);
             }
             if (alive.size === 1) {
@@ -969,33 +1162,38 @@
 
         function updateTileColors() {
             const ownerAttr = baseGeo.attributes.tileOwnerAttr;
-            for (const tile of territoryData) {
-                for (let v = 0; v < 3; v++) {
-                    ownerAttr.setX(tile.index * 3 + v, tile.owner);
+            for (const territory of territories) {
+                for (const f of territory.faces) {
+                    for (let v = 0; v < 3; v++) {
+                        ownerAttr.setX(f * 3 + v, territory.owner);
+                    }
                 }
             }
             ownerAttr.needsUpdate = true;
         }
 
-        function positionRingOnFace(ring, faceIdx) {
-            const tile = territoryData[faceIdx];
-            const pos = tile.center.clone().normalize().multiplyScalar(GLOBE_RADIUS + LAND_ELEVATION + 0.02);
+        function positionRingOnTerritory(ring, territoryIdx) {
+            const territory = territories[territoryIdx];
+            const pos = territory.center.clone().normalize().multiplyScalar(GLOBE_RADIUS + LAND_ELEVATION + 0.02);
             ring.position.copy(pos);
             ring.lookAt(new THREE.Vector3(0, 0, 0));
+            // Scale ring based on territory size
+            const scale = 0.8 + territory.faces.length * 0.25;
+            ring.scale.set(scale, scale, scale);
         }
 
         // ============================================================
         //  GAME ACTIONS
         // ============================================================
-        function deployArmy(faceIdx) {
-            const tile = territoryData[faceIdx];
-            if (!tile.isLand) return;
-            if (tile.owner !== gameState.currentPlayer) return;
+        function deployArmy(territoryIdx) {
+            const territory = territories[territoryIdx];
+            if (!territory.isLand) return;
+            if (territory.owner !== gameState.currentPlayer) return;
             if (gameState.reinforcements <= 0) return;
 
-            tile.armies++;
+            territory.armies++;
             gameState.reinforcements--;
-            addLog(`Deployed 1 army to territory #${faceIdx}`, 'reinforce');
+            addLog(`Deployed 1 army to territory #${territoryIdx}`, 'reinforce');
             updateUI();
             updateArmyMarkers();
         }
@@ -1005,17 +1203,17 @@
             const tgt = gameState.targetTile;
             if (src < 0 || tgt < 0) return;
 
-            const srcTile = territoryData[src];
-            const tgtTile = territoryData[tgt];
+            const srcTerritory = territories[src];
+            const tgtTerritory = territories[tgt];
 
-            if (srcTile.owner !== gameState.currentPlayer) return;
-            if (tgtTile.owner === gameState.currentPlayer) return;
-            if (srcTile.armies <= 1) { addLog('Need 2+ armies to attack!'); return; }
-            if (!srcTile.neighbors.includes(tgt)) { addLog('Not adjacent!'); return; }
+            if (srcTerritory.owner !== gameState.currentPlayer) return;
+            if (tgtTerritory.owner === gameState.currentPlayer) return;
+            if (srcTerritory.armies <= 1) { addLog('Need 2+ armies to attack!'); return; }
+            if (!srcTerritory.neighbors.includes(tgt)) { addLog('Not adjacent!'); return; }
 
             // Simple combat: each side rolls, compare highest
-            const atkDice = Math.min(srcTile.armies - 1, 3);
-            const defDice = Math.min(tgtTile.armies, 2);
+            const atkDice = Math.min(srcTerritory.armies - 1, 3);
+            const defDice = Math.min(tgtTerritory.armies, 2);
 
             const atkRolls = Array.from({ length: atkDice }, () => Math.floor(Math.random() * 6) + 1).sort((a, b) => b - a);
             const defRolls = Array.from({ length: defDice }, () => Math.floor(Math.random() * 6) + 1).sort((a, b) => b - a);
@@ -1030,18 +1228,18 @@
                 }
             }
 
-            srcTile.armies -= atkLoss;
-            tgtTile.armies -= defLoss;
+            srcTerritory.armies -= atkLoss;
+            tgtTerritory.armies -= defLoss;
 
             addLog(`Attack! [${atkRolls}] vs [${defRolls}] — Atk lost ${atkLoss}, Def lost ${defLoss}`, 'combat');
 
             // Capture territory
-            if (tgtTile.armies <= 0) {
-                const oldOwner = tgtTile.owner >= 0 ? PLAYER_COLORS[tgtTile.owner].name : 'Neutral';
-                const movingArmies = Math.min(srcTile.armies - 1, atkDice);
-                tgtTile.owner = gameState.currentPlayer;
-                tgtTile.armies = movingArmies;
-                srcTile.armies -= movingArmies;
+            if (tgtTerritory.armies <= 0) {
+                const oldOwner = tgtTerritory.owner >= 0 ? PLAYER_COLORS[tgtTerritory.owner].name : 'Neutral';
+                const movingArmies = Math.min(srcTerritory.armies - 1, atkDice);
+                tgtTerritory.owner = gameState.currentPlayer;
+                tgtTerritory.armies = movingArmies;
+                srcTerritory.armies -= movingArmies;
                 addLog(`Captured territory #${tgt} from ${oldOwner}!`, 'capture');
             }
 
@@ -1055,17 +1253,17 @@
             const tgt = gameState.targetTile;
             if (src < 0 || tgt < 0) return;
 
-            const srcTile = territoryData[src];
-            const tgtTile = territoryData[tgt];
+            const srcTerritory = territories[src];
+            const tgtTerritory = territories[tgt];
 
-            if (srcTile.owner !== gameState.currentPlayer) return;
-            if (tgtTile.owner !== gameState.currentPlayer) return;
-            if (srcTile.armies <= 1) return;
-            if (!srcTile.neighbors.includes(tgt)) { addLog('Not adjacent for fortify!'); return; }
+            if (srcTerritory.owner !== gameState.currentPlayer) return;
+            if (tgtTerritory.owner !== gameState.currentPlayer) return;
+            if (srcTerritory.armies <= 1) return;
+            if (!srcTerritory.neighbors.includes(tgt)) { addLog('Not adjacent for fortify!'); return; }
 
-            const moveCount = Math.max(1, srcTile.armies - 1);
-            srcTile.armies -= moveCount;
-            tgtTile.armies += moveCount;
+            const moveCount = Math.max(1, srcTerritory.armies - 1);
+            srcTerritory.armies -= moveCount;
+            tgtTerritory.armies += moveCount;
             addLog(`Fortified: moved ${moveCount} armies #${src} → #${tgt}`, 'reinforce');
 
             gameState.selectedTile = -1;
@@ -1103,15 +1301,16 @@
 
             if (intersects.length > 0) {
                 const fi = intersects[0].faceIndex;
-                const tile = territoryData[fi];
+                const tIdx = faceToTerritory[fi];
+                const territory = territories[tIdx];
                 const infoName = document.getElementById('info-name');
                 const infoDetail = document.getElementById('info-detail');
 
-                if (tile.isLand) {
-                    const ownerName = tile.owner >= 0 ? PLAYER_COLORS[tile.owner].name : 'Neutral';
-                    infoName.textContent = `Territory #${fi}`;
-                    infoName.style.color = tile.owner >= 0 ? PLAYER_COLORS[tile.owner].color : '#aaa';
-                    infoDetail.textContent = `${ownerName} · ${tile.armies} armies`;
+                if (territory.isLand) {
+                    const ownerName = territory.owner >= 0 ? PLAYER_COLORS[territory.owner].name : 'Neutral';
+                    infoName.textContent = `Territory #${tIdx} (${territory.faces.length} tile${territory.faces.length > 1 ? 's' : ''})`;
+                    infoName.style.color = territory.owner >= 0 ? PLAYER_COLORS[territory.owner].color : '#aaa';
+                    infoDetail.textContent = `${ownerName} · ${territory.armies} armies`;
                 } else {
                     infoName.textContent = 'Ocean';
                     infoName.style.color = '#4488cc';
@@ -1133,18 +1332,19 @@
 
             if (intersects.length === 0) return;
             const fi = intersects[0].faceIndex;
-            const tile = territoryData[fi];
-            if (!tile.isLand) return;
+            const tIdx = faceToTerritory[fi];
+            const territory = territories[tIdx];
+            if (!territory.isLand) return;
 
             const phase = PHASES[gameState.phase];
 
             if (phase === 'deploy') {
                 // Left click = deploy
                 if (e.button === 0) {
-                    gameState.selectedTile = fi;
-                    positionRingOnFace(selectRing, fi);
+                    gameState.selectedTile = tIdx;
+                    positionRingOnTerritory(selectRing, tIdx);
                     selectRing.visible = true;
-                    deployArmy(fi);
+                    deployArmy(tIdx);
                     if (gameState.reinforcements <= 0) {
                         addLog('All reinforcements deployed. Moving to Attack phase.');
                         nextPhase();
@@ -1152,18 +1352,18 @@
                 }
             } else if (phase === 'attack') {
                 if (e.button === 0) {
-                    if (tile.owner === gameState.currentPlayer) {
+                    if (territory.owner === gameState.currentPlayer) {
                         // Select source
-                        gameState.selectedTile = fi;
+                        gameState.selectedTile = tIdx;
                         gameState.targetTile = -1;
-                        positionRingOnFace(selectRing, fi);
+                        positionRingOnTerritory(selectRing, tIdx);
                         selectRing.visible = true;
                         targetRing.visible = false;
                         updateUI();
                     } else if (gameState.selectedTile >= 0) {
                         // Select target & attack
-                        gameState.targetTile = fi;
-                        positionRingOnFace(targetRing, fi);
+                        gameState.targetTile = tIdx;
+                        positionRingOnTerritory(targetRing, tIdx);
                         targetRing.visible = true;
                         updateUI();
                         attackTerritory();
@@ -1173,17 +1373,17 @@
                 if (e.button === 0) {
                     if (gameState.selectedTile < 0) {
                         // Select source
-                        if (tile.owner === gameState.currentPlayer) {
-                            gameState.selectedTile = fi;
-                            positionRingOnFace(selectRing, fi);
+                        if (territory.owner === gameState.currentPlayer) {
+                            gameState.selectedTile = tIdx;
+                            positionRingOnTerritory(selectRing, tIdx);
                             selectRing.visible = true;
                             updateUI();
                         }
                     } else {
                         // Select target
-                        if (tile.owner === gameState.currentPlayer) {
-                            gameState.targetTile = fi;
-                            positionRingOnFace(targetRing, fi);
+                        if (territory.owner === gameState.currentPlayer) {
+                            gameState.targetTile = tIdx;
+                            positionRingOnTerritory(targetRing, tIdx);
                             targetRing.visible = true;
                             fortifyMove();
                         }
@@ -1202,20 +1402,21 @@
 
             if (intersects.length === 0) return;
             const fi = intersects[0].faceIndex;
-            const tile = territoryData[fi];
-            if (!tile.isLand) return;
+            const tIdx = faceToTerritory[fi];
+            const territory = territories[tIdx];
+            if (!territory.isLand) return;
 
             const phase = PHASES[gameState.phase];
 
             if (phase === 'attack' && gameState.selectedTile >= 0) {
-                gameState.targetTile = fi;
-                positionRingOnFace(targetRing, fi);
+                gameState.targetTile = tIdx;
+                positionRingOnTerritory(targetRing, tIdx);
                 targetRing.visible = true;
                 updateUI();
                 attackTerritory();
             } else if (phase === 'fortify' && gameState.selectedTile >= 0) {
-                gameState.targetTile = fi;
-                positionRingOnFace(targetRing, fi);
+                gameState.targetTile = tIdx;
+                positionRingOnTerritory(targetRing, tIdx);
                 targetRing.visible = true;
                 fortifyMove();
             }
@@ -1289,7 +1490,7 @@
                 selectRing.material.opacity = 0.5 + Math.sin(t * 4) * 0.3;
                 selectRing.rotation.copy(globe.rotation);
                 if (gameState.selectedTile >= 0) {
-                    const c = territoryData[gameState.selectedTile].center.clone()
+                    const c = territories[gameState.selectedTile].center.clone()
                         .normalize().multiplyScalar(GLOBE_RADIUS + LAND_ELEVATION + 0.03);
                     c.applyEuler(globe.rotation);
                     selectRing.position.copy(c);
@@ -1299,7 +1500,7 @@
             if (targetRing.visible) {
                 targetRing.material.opacity = 0.4 + Math.sin(t * 6) * 0.3;
                 if (gameState.targetTile >= 0) {
-                    const c = territoryData[gameState.targetTile].center.clone()
+                    const c = territories[gameState.targetTile].center.clone()
                         .normalize().multiplyScalar(GLOBE_RADIUS + LAND_ELEVATION + 0.03);
                     c.applyEuler(globe.rotation);
                     targetRing.position.copy(c);
