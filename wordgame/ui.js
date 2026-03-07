@@ -474,6 +474,23 @@ function showResultScreen(won, stars, xpGain, coinsGain, elapsed, leveledUp, new
             </div>`;
     }
 
+    // Weekly speed rank (shown after weekly puzzle win)
+    if (won && save.weeklySpeedRank && save.weeklySpeedWeekId === (typeof getWeekId === 'function' ? getWeekId() : '')) {
+        const speedTime = save.weeklySpeedTime || 0;
+        const speedMin = Math.floor(speedTime / 60);
+        const speedSec = String(speedTime % 60).padStart(2, '0');
+        const rankMedal = save.weeklySpeedRank === 1 ? '&#129351;' : save.weeklySpeedRank === 2 ? '&#129352;' : save.weeklySpeedRank === 3 ? '&#129353;' : '';
+        const rankDisplay = rankMedal || save.weeklySpeedRank;
+        dailyEl.innerHTML += `
+            <div class="daily-unlock weekly-speed">
+                <span class="daily-unlock-icon">&#9889;</span>
+                <div class="daily-unlock-text">
+                    <div class="daily-unlock-name">Скорость: ${speedMin}:${speedSec}</div>
+                    <div class="daily-unlock-desc">${rankDisplay} место из ${save.weeklySpeedTotal} игроков</div>
+                </div>
+            </div>`;
+    }
+
     // Clear duel result (filled by duel.js if in duel mode)
     const resDuel = $('res-duel');
     if (resDuel) resDuel.innerHTML = '';

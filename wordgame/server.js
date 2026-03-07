@@ -20,6 +20,7 @@ const io = new Server(server, { cors: { origin: '*' } });
 const PORT = process.env.PORT || 3000;
 const DATA_FILE = path.join(__dirname, 'data', 'leaderboard.json');
 const BONUS_UNLOCKS_FILE = path.join(__dirname, 'data', 'bonus_unlocks.json');
+const WEEKLY_SPEED_FILE = path.join(__dirname, 'data', 'weekly_speed.json');
 
 // =============================================
 // MIDDLEWARE
@@ -120,6 +121,126 @@ app.get('/api/player/:id', (req, res) => {
     const rank = allPlayers.findIndex(p => p.id === req.params.id) + 1;
 
     res.json({ ...player, rank });
+});
+
+// =============================================
+// WEEKLY SPEED LEADERBOARD
+// =============================================
+function loadWeeklySpeed() {
+    try {
+        ensureDataDir();
+        if (fs.existsSync(WEEKLY_SPEED_FILE)) {
+            return JSON.parse(fs.readFileSync(WEEKLY_SPEED_FILE, 'utf8'));
+        }
+    } catch (e) {
+        console.error('Error loading weekly speed:', e.message);
+    }
+    return { weeks: {} };
+}
+
+function saveWeeklySpeed(data) {
+    try {
+        ensureDataDir();
+        fs.writeFileSync(WEEKLY_SPEED_FILE, JSON.stringify(data, null, 2));
+    } catch (e) {
+        console.error('Error saving weekly speed:', e.message);
+    }
+}
+
+let weeklySpeedData = loadWeeklySpeed();
+
+// Submit weekly puzzle completion time (only first completion counts)
+app.post('/api/weekly-speed', (req, res) => {
+    const { id, name, weekId, time } = req.body;
+
+    if (!id || !weekId || time === undefined) {
+        return res.status(400).json({ error: 'id, weekId, and time required' });
+    }
+
+    if (!weeklySpeedData.weeks[weekId]) {
+        weeklySpeedData.weeks[weekId] = {};
+    }
+
+    // Only first completion counts — do not overwrite
+    if (weeklySpeedData.weeks[weekId][id]) {
+        // Already submitted, return existing rank
+        const entries = Object.values(weeklySpeedData.weeks[weekId]);
+        entries.sort((a, b) => a.time - b.time);
+        const rank = entries.findIndex(e => e.id === id) + 1;
+        return res.json({ ok: true, alreadySubmitted: true, rank, total: entries.length });
+    }
+
+    weeklySpeedData.weeks[weekId][id] = {
+        id,
+        name: String(name || 'Игрок').slice(0, 20),
+        time: Number(time),
+        submittedAt: new Date().toISOString()
+    };
+
+    saveWeeklySpeed(weeklySpeedData);
+
+    // Calculate rank
+    const entries = Object.values(weeklySpeedData.weeks[weekId]);
+    entries.sort((a, b) => a.time - b.time);
+    const rank = entries.findIndex(e => e.id === id) + 1;
+
+    res.json({ ok: true, rank, total: entries.length });
+});
+
+// Get weekly speed leaderboard for a specific week
+app.get('/api/weekly-speed', (req, res) => {
+    const weekId = req.query.weekId;
+    const limit = Math.min(Number(req.query.limit) || 50, 100);
+
+    if (!weekId || !weeklySpeedData.weeks[weekId]) {
+        return res.json({ players: [], total: 0, weekId });
+    }
+
+    const entries = Object.values(weeklySpeedData.weeks[weekId]);
+    entries.sort((a, b) => a.time - b.time);
+
+    res.json({
+        players: entries.slice(0, limit),
+        total: entries.length,
+        weekId
+    });
+});
+
+// Get player's rank for previous week
+app.get('/api/weekly-speed/previous/:id', (req, res) => {
+    const playerId = req.params.id;
+
+    // Calculate previous week ID
+    const now = new Date();
+    const prevWeek = new Date(now);
+    prevWeek.setDate(prevWeek.getDate() - 7);
+    const day = prevWeek.getDay() || 7;
+    prevWeek.setDate(prevWeek.getDate() + 4 - day);
+    const year = prevWeek.getFullYear();
+    const jan1 = new Date(year, 0, 1);
+    const weekNum = Math.ceil(((prevWeek - jan1) / 86400000 + 1) / 7);
+    const prevWeekId = `${year}-W${String(weekNum).padStart(2, '0')}`;
+
+    if (!weeklySpeedData.weeks[prevWeekId]) {
+        return res.json({ found: false, weekId: prevWeekId });
+    }
+
+    const entries = Object.values(weeklySpeedData.weeks[prevWeekId]);
+    entries.sort((a, b) => a.time - b.time);
+    const idx = entries.findIndex(e => e.id === playerId);
+
+    if (idx === -1) {
+        return res.json({ found: false, weekId: prevWeekId, total: entries.length });
+    }
+
+    const entry = entries[idx];
+    res.json({
+        found: true,
+        rank: idx + 1,
+        total: entries.length,
+        time: entry.time,
+        weekId: prevWeekId
+    });
 });
 
 // =============================================

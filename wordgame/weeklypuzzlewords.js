@@ -207,14 +207,49 @@ function isWeeklyPuzzleCompleted() {
 }
 
 /**
- * Mark weekly puzzle as completed.
+ * Mark weekly puzzle as completed and submit speed to leaderboard.
  */
-function completeWeeklyPuzzle(stars) {
-    save.weeklyPuzzleWeekId = getWeekId();
+function completeWeeklyPuzzle(stars, elapsed) {
+    const weekId = getWeekId();
+    save.weeklyPuzzleWeekId = weekId;
     save.weeklyPuzzleCompleted = true;
     save.weeklyPuzzleStars = stars;
     save.weeklyPuzzlesTotal = (save.weeklyPuzzlesTotal || 0) + 1;
     writeSave(save);
+
+    // Submit speed to weekly leaderboard
+    if (elapsed !== undefined) {
+        submitWeeklySpeed(weekId, elapsed);
+    }
+}
+
+/**
+ * Submit weekly puzzle completion time to server.
+ * Returns a promise with { rank, total }.
+ */
+async function submitWeeklySpeed(weekId, time) {
+    const id = ensurePlayerId();
+    const name = getPlayerName();
+
+    try {
+        const res = await fetch('/api/weekly-speed', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id, name, weekId, time })
+        });
+        const data = await res.json();
+        if (data.rank) {
+            save.weeklySpeedRank = data.rank;
+            save.weeklySpeedTotal = data.total;
+            save.weeklySpeedTime = time;
+            save.weeklySpeedWeekId = weekId;
+            writeSave(save);
+        }
+        return data;
+    } catch (e) {
+        console.warn('Weekly speed submit failed:', e.message);
+        return null;
+    }
 }
 
 /**

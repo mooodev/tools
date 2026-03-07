@@ -528,7 +528,7 @@ function endRound(won) {
 
     // Handle weekly puzzle completion
     if (won && typeof isWeeklyPuzzleMode !== 'undefined' && isWeeklyPuzzleMode) {
-        completeWeeklyPuzzle(stars);
+        completeWeeklyPuzzle(stars, elapsed);
         isWeeklyPuzzleMode = false;
     }
 
