@@ -128,7 +128,6 @@ bot.onText(/\/start/, (msg) => {
 ⭐ *Звёзды* — получай за каждый решённый паззл. Чем меньше ошибок, тем больше звёзд!
 💰 *Монетки* — зарабатывай за игру и трать на подсказки.
 💡 *Подсказки* — помогут раскрыть одну из категорий, если застрял.
-📅 *Ежедневный паззл* — новый паззл каждый день.
 🏆 *Еженедельный паззл* — сложный челлендж на неделю.
 📚 *Архив паззлов* — все прошлые паззлы доступны в разделе «Профиль».
 🥇 *Лидерборд* — соревнуйся с другими игроками!
@@ -150,20 +149,6 @@ bot.onText(/\/start/, (msg) => {
         caption: welcomeText,
         parse_mode: 'Markdown',
         reply_markup: { inline_keyboard: keyboard }
-    });
-});
-
-bot.onText(/\/daily/, (msg) => {
-    const chatId = msg.chat.id;
-    addSubscriber(chatId);
-
-    bot.sendMessage(chatId, '📅 *Ежедневный паззл* ждёт тебя!\n\nНовый паззл каждый день. Найди связи между словами!', {
-        parse_mode: 'Markdown',
-        reply_markup: {
-            inline_keyboard: [
-                [{ text: '🎯 Открыть ежедневный паззл', web_app: { url: `${WEBAPP_URL}?mode=daily` } }]
-            ]
-        }
     });
 });
 
@@ -199,16 +184,14 @@ bot.onText(/\/notifications/, (msg) => {
     const chatId = msg.chat.id;
     addSubscriber(chatId);
 
-    const settings = subscribers.settings[chatId] || { daily: true, weekly: true };
-    const dailyStatus = settings.daily ? '✅' : '❌';
+    const settings = subscribers.settings[chatId] || { weekly: true };
     const weeklyStatus = settings.weekly ? '✅' : '❌';
 
-    bot.sendMessage(chatId, `⚙️ *Настройки уведомлений:*\n\n${dailyStatus} Ежедневные паззлы\n${weeklyStatus} Еженедельные паззлы`, {
+    bot.sendMessage(chatId, `⚙️ *Настройки уведомлений:*\n\n${weeklyStatus} Еженедельные паззлы`, {
         parse_mode: 'Markdown',
         reply_markup: {
             inline_keyboard: [
                 [
-                    { text: `${settings.daily ? '🔕' : '🔔'} Ежедневные`, callback_data: 'toggle_daily' },
                     { text: `${settings.weekly ? '🔕' : '🔔'} Еженедельные`, callback_data: 'toggle_weekly' }
                 ]
             ]
@@ -232,7 +215,6 @@ bot.onText(/\/help/, (msg) => {
 ⭐ *Звёзды* — получай за каждый решённый паззл. Чем меньше ошибок, тем больше звёзд!
 💰 *Монетки* — зарабатывай за игру и трать на подсказки.
 💡 *Подсказки* — помогут раскрыть одну из категорий, если застрял.
-📅 *Ежедневный паззл* — новый паззл каждый день.
 🏆 *Еженедельный паззл* — сложный челлендж на неделю.
 📚 *Архив паззлов* — все прошлые паззлы доступны в разделе «Профиль».
 🥇 *Лидерборд* — соревнуйся с другими игроками!`, {
@@ -284,26 +266,21 @@ bot.on('callback_query', (query) => {
         return;
     }
 
-    if (query.data === 'toggle_daily') {
-        subscribers.settings[chatId].daily = !subscribers.settings[chatId].daily;
-        saveSubscribers(subscribers);
-    } else if (query.data === 'toggle_weekly') {
+    if (query.data === 'toggle_weekly') {
         subscribers.settings[chatId].weekly = !subscribers.settings[chatId].weekly;
         saveSubscribers(subscribers);
     }
 
     const settings = subscribers.settings[chatId];
-    const dailyStatus = settings.daily ? '✅' : '❌';
     const weeklyStatus = settings.weekly ? '✅' : '❌';
 
-    bot.editMessageText(`⚙️ *Настройки уведомлений:*\n\n${dailyStatus} Ежедневные паззлы\n${weeklyStatus} Еженедельные паззлы`, {
+    bot.editMessageText(`⚙️ *Настройки уведомлений:*\n\n${weeklyStatus} Еженедельные паззлы`, {
         chat_id: chatId,
         message_id: query.message.message_id,
         parse_mode: 'Markdown',
         reply_markup: {
             inline_keyboard: [
                 [
-                    { text: `${settings.daily ? '🔕' : '🔔'} Ежедневные`, callback_data: 'toggle_daily' },
                     { text: `${settings.weekly ? '🔕' : '🔔'} Еженедельные`, callback_data: 'toggle_weekly' }
                 ]
             ]
@@ -316,38 +293,6 @@ bot.on('callback_query', (query) => {
 // =============================================
 // SCHEDULED NOTIFICATIONS
 // =============================================
-
-/**
- * Send daily puzzle notification to all subscribers.
- * Called every day at 09:00 Moscow time.
- */
-async function sendDailyNotification() {
-    const dailySubs = subscribers.chatIds.filter(id => {
-        const settings = subscribers.settings[id];
-        return !settings || settings.daily !== false;
-    });
-
-    console.log(`Sending daily notification to ${dailySubs.length} subscribers`);
-
-    for (const chatId of dailySubs) {
-        try {
-            await bot.sendMessage(chatId, '📅 *Новый ежедневный паззл!*\n\nСвежий паззл уже ждёт тебя. Найди все связи!', {
-                parse_mode: 'Markdown',
-                reply_markup: {
-                    inline_keyboard: [
-                        [{ text: '🎯 Играть', web_app: { url: `${WEBAPP_URL}?mode=daily` } }]
-                    ]
-                }
-            });
-        } catch (e) {
-            console.error(`Failed to send daily notification to ${chatId}:`, e.message);
-            // Remove blocked/deleted chats
-            if (e.response && e.response.statusCode === 403) {
-                removeSubscriber(chatId);
-            }
-        }
-    }
-}
 
 /**
  * Send weekly puzzle notification to all subscribers.
@@ -384,45 +329,38 @@ async function sendWeeklyNotification() {
 // SCHEDULER
 // =============================================
 function scheduleNotifications() {
-    // Calculate next target hour in Moscow time (UTC+3)
-    function getNextMoscowHour(targetHour) {
-        const now = new Date(); // Fresh timestamp each call
+    // Calculate next Monday at target hour in Moscow time (UTC+3)
+    function getNextMondayMoscow(targetHour) {
+        const now = new Date();
         const utcHour = targetHour - 3; // Moscow is UTC+3
         const next = new Date();
         next.setUTCHours(utcHour, 0, 0, 0);
-        if (next <= now) {
-            next.setUTCDate(next.getUTCDate() + 1);
+
+        // Find next Monday
+        const dayOfWeek = next.getUTCDay();
+        const daysUntilMonday = (1 - dayOfWeek + 7) % 7 || 7;
+        if (dayOfWeek === 1 && next > now) {
+            // It's Monday and the time hasn't passed yet
+        } else {
+            next.setUTCDate(next.getUTCDate() + (dayOfWeek === 1 && next <= now ? 7 : daysUntilMonday));
         }
         return next;
     }
 
-    // Daily notification at 09:00 Moscow
-    function scheduleDailyCheck() {
-        const nextDaily = getNextMoscowHour(9);
-        const delay = nextDaily.getTime() - Date.now();
+    // Weekly notification at 10:00 Moscow on Mondays
+    function scheduleWeeklyCheck() {
+        const nextWeekly = getNextMondayMoscow(10);
+        const delay = nextWeekly.getTime() - Date.now();
 
-        console.log(`Next daily notification in ${Math.round(delay / 60000)} minutes`);
+        console.log(`Next weekly notification in ${Math.round(delay / 60000)} minutes`);
 
         setTimeout(() => {
-            sendDailyNotification();
-
-            // Also check if it's Monday for weekly
-            const dayOfWeek = new Date().getUTCDay();
-            // Need to check Moscow day: if UTC hour < 3, Moscow day = UTC day
-            // For 06:00 UTC (09:00 Moscow), Moscow day = same as UTC day
-            if (dayOfWeek === 1) {
-                // Monday: schedule weekly for 10:00 Moscow (1 hour later)
-                setTimeout(() => {
-                    sendWeeklyNotification();
-                }, 60 * 60 * 1000);
-            }
-
-            // Schedule next day
-            scheduleDailyCheck();
+            sendWeeklyNotification();
+            scheduleWeeklyCheck();
         }, delay);
     }
 
-    scheduleDailyCheck();
+    scheduleWeeklyCheck();
 }
 
 // Start the scheduler
@@ -431,4 +369,4 @@ scheduleNotifications();
 // =============================================
 // EXPORT FOR SERVER INTEGRATION
 // =============================================
-module.exports = { bot, sendDailyNotification, sendWeeklyNotification };
+module.exports = { bot, sendWeeklyNotification };

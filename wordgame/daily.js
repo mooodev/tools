@@ -134,12 +134,6 @@ function checkDailyReset() {
         save.dailyGamesWon = 0;
     }
 
-    // Reset daily puzzle if new day
-    if (save.dailyPuzzleDate !== today) {
-        save.dailyPuzzleCompleted = false;
-        save.dailyPuzzleStars = 0;
-    }
-
     // Reset weekly challenge if new week
     const weekId = getWeekId();
     if (!save.weeklyChallenge || save.weeklyChallenge.weekId !== weekId) {
@@ -350,35 +344,6 @@ function renderHomeWeekly() {
 }
 
 // =============================================
-// RENDER DAILY PUZZLE ON HOME SCREEN
-// =============================================
-function renderHomeDailyPuzzle() {
-    const el = $('home-daily');
-    if (!el) return;
-
-    const completed = isDailyPuzzleCompleted();
-    const stars = save.dailyPuzzleStars || 0;
-
-    const starsHtml = completed
-        ? `<span class="dp-stars">${'&#9733;'.repeat(stars)}${'&#9734;'.repeat(3 - stars)}</span>`
-        : '';
-
-    const desc = completed
-        ? '&#10003; Пройден сегодня'
-        : 'Лёгкий паззл, новый каждый день';
-
-    el.innerHTML = `<button class="daily-puzzle-btn${completed ? ' completed' : ''}" onclick="launchDailyPuzzle()">
-        <span class="dp-icon">&#128197;</span>
-        <div class="dp-info">
-            <div class="dp-title">Паззл дня</div>
-            <div class="dp-desc">${desc}</div>
-        </div>
-        ${starsHtml}
-        ${completed ? '' : '<span class="dp-arrow">&#9654;</span>'}
-    </button>`;
-}
-
-// =============================================
 // RENDER DAILY PANEL (Profile Screen)
 // =============================================
 function renderDailyPanel() {
@@ -452,7 +417,6 @@ function handleClaimDailyBonus() {
         haptic(20);
         showToast('&#127873;', `+${DAILY_BONUS_ALL} монет за все задания!`);
         renderDailyPanel();
-        renderHomeDailyPuzzle();
         refreshProfile();
     }
 }
