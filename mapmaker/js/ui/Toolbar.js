@@ -13,7 +13,8 @@ class Toolbar {
             fill: new FillTool(app),
             rect: new RectTool(app),
             line: new LineTool(app),
-            eyedropper: new EyedropperTool(app)
+            eyedropper: new EyedropperTool(app),
+            mob: new MobTool(app)
         };
 
         this._setupButtons();
@@ -50,7 +51,7 @@ class Toolbar {
     _setupKeyboard() {
         window.addEventListener('keydown', (e) => {
             // Don't trigger shortcuts when typing in inputs
-            if (e.target.tagName === 'INPUT' || e.target.contentEditable === 'true') return;
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.contentEditable === 'true') return;
 
             const shortcuts = {
                 'b': 'draw',
@@ -58,7 +59,8 @@ class Toolbar {
                 'g': 'fill',
                 'r': 'rect',
                 'l': 'line',
-                'i': 'eyedropper'
+                'i': 'eyedropper',
+                'm': 'mob'
             };
 
             if (shortcuts[e.key]) {

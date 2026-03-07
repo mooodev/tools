@@ -21,6 +21,8 @@ class MapMakerApp {
         this.layerPanel = new LayerPanel(this);
         this.toolbar = new Toolbar(this);
         this.minimap = new Minimap(this);
+        this.mobManager = new MobManager(this);
+        this.autotileConfig = new AutotileConfig(this);
 
         // Bind UI controls
         this._bindControls();
@@ -50,6 +52,8 @@ class MapMakerApp {
 
         this.history.clear();
         this.tilesetManager.recalculate(tileSize);
+        this.mobManager.clear();
+        this.autotileConfig.clear();
 
         this._updateMapInfo();
         this.layerPanel.render();
@@ -138,7 +142,7 @@ class MapMakerApp {
         });
         document.getElementById('btn-export-json').addEventListener('click', () => {
             if (!this.tileMap) return;
-            ExportUtils.exportJSON(this.tileMap, this.tilesetManager);
+            ExportUtils.exportJSON(this.tileMap, this.tilesetManager, this.mobManager, this.autotileConfig);
         });
 
         // Import JSON
@@ -153,6 +157,8 @@ class MapMakerApp {
                 const data = await ExportUtils.importJSON(file);
                 if (data.map) {
                     this.tileMap = TileMap.fromJSON(data.map);
+                    if (data.mobs) this.mobManager.fromJSON(data.mobs);
+                    if (data.autotileDefs) this.autotileConfig.fromJSON(data.autotileDefs);
                     this.history.clear();
                     this._updateMapInfo();
                     this.layerPanel.render();
@@ -235,7 +241,7 @@ class MapMakerApp {
      */
     saveProject() {
         if (!this.tileMap) return;
-        ExportUtils.saveProject(this.tileMap, this.tilesetManager, this.animationManager);
+        ExportUtils.saveProject(this.tileMap, this.tilesetManager, this.animationManager, this.mobManager, this.autotileConfig);
     }
 
     /**
@@ -283,6 +289,20 @@ class MapMakerApp {
             if (data.animSpeed) {
                 this.animationManager.setSpeed(data.animSpeed);
                 document.getElementById('anim-speed').value = data.animSpeed;
+            }
+
+            // Load mobs
+            if (data.mobs) {
+                this.mobManager.fromJSON(data.mobs);
+            } else {
+                this.mobManager.clear();
+            }
+
+            // Load autotile config
+            if (data.autotileDefs) {
+                this.autotileConfig.fromJSON(data.autotileDefs);
+            } else {
+                this.autotileConfig.clear();
             }
 
             this.history.clear();

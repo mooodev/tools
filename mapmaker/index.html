@@ -81,6 +81,7 @@
                         <button class="tool-btn" data-tool="rect" title="Rectangle (R)">&#9634; Rect</button>
                         <button class="tool-btn" data-tool="line" title="Line (L)">&#9585; Line</button>
                         <button class="tool-btn" data-tool="eyedropper" title="Eyedropper (I)">&#128065; Pick</button>
+                        <button class="tool-btn" data-tool="mob" title="Mob/NPC (M)">&#9818; Mob</button>
                     </div>
                     <div class="tool-group">
                         <label>Zoom:
@@ -121,6 +122,20 @@
                     <button id="btn-resize-map">Apply</button>
                 </div>
 
+                <div id="mob-panel">
+                    <h3>Mobs/NPCs
+                        <button id="btn-delete-mob" title="Delete Selected Mob">Del</button>
+                    </h3>
+                    <ul id="mob-list"></ul>
+                </div>
+
+                <div id="autotile-config-panel">
+                    <h3>Autotile Regions
+                        <button id="btn-add-autotile-def" title="Define Autotile Region">+</button>
+                    </h3>
+                    <div id="autotile-defs-list"></div>
+                </div>
+
                 <div id="minimap-panel">
                     <h3>Minimap</h3>
                     <canvas id="minimap-canvas"></canvas>
@@ -138,6 +153,61 @@
             <label>Tile Size (px): <input type="number" id="new-tile-size" value="32" min="8" max="128" step="8"></label>
             <div class="modal-actions">
                 <button id="btn-create-map" class="primary">Create</button>
+                <button class="btn-cancel">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mob/NPC Modal -->
+    <div id="modal-mob" class="modal hidden">
+        <div class="modal-content modal-wide">
+            <h2>Add Mob/NPC</h2>
+            <label>Name: <input type="text" id="mob-name" value="NPC" style="width:120px"></label>
+            <label>X (tile): <input type="number" id="mob-x" value="0" min="0"></label>
+            <label>Y (tile): <input type="number" id="mob-y" value="0" min="0"></label>
+            <label>Char Index: <input type="number" id="mob-char-index" value="0" min="0" max="99"></label>
+            <label>Direction:
+                <select id="mob-direction">
+                    <option value="0">Down</option>
+                    <option value="1">Left</option>
+                    <option value="2">Right</option>
+                    <option value="3">Up</option>
+                </select>
+            </label>
+            <label>HP: <input type="number" id="mob-hp" value="10" min="0"></label>
+            <label>Max HP: <input type="number" id="mob-max-hp" value="10" min="1"></label>
+            <label><input type="checkbox" id="mob-collision" checked> Collision</label>
+            <label>Stats (ATK:5, DEF:3): <input type="text" id="mob-stats" value="ATK:1, DEF:1, SPD:1" style="width:160px"></label>
+            <div class="modal-textarea-group">
+                <label style="display:block; margin-bottom:4px;">Dialogue (one line per message):</label>
+                <textarea id="mob-dialogue" rows="4" style="width:100%; background:var(--bg-input); color:var(--text-primary); border:1px solid var(--border); border-radius:4px; padding:6px; font-size:12px; resize:vertical;">Hello!</textarea>
+            </div>
+            <div class="modal-actions">
+                <button id="btn-save-mob" class="primary">Save</button>
+                <button class="btn-cancel">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Autotile Definition Modal -->
+    <div id="modal-autotile-def" class="modal hidden">
+        <div class="modal-content">
+            <h2>Define Autotile Region</h2>
+            <p class="hint">Define a region in the tileset that contains autotile variants. The region should contain all tile variants for automatic tiling.</p>
+            <label>Name: <input type="text" id="atd-name" value="Autotile 1" style="width:120px"></label>
+            <label>Source X (tile): <input type="number" id="atd-src-x" value="0" min="0"></label>
+            <label>Source Y (tile): <input type="number" id="atd-src-y" value="0" min="0"></label>
+            <label>Width (tiles): <input type="number" id="atd-width" value="7" min="1"></label>
+            <label>Height (tiles): <input type="number" id="atd-height" value="7" min="1"></label>
+            <label>Format:
+                <select id="atd-format">
+                    <option value="blob47">Blob 47-tile (7x7)</option>
+                    <option value="simple16">Simple 16-tile (4x4)</option>
+                    <option value="simple4">Simple 4-tile (2x2)</option>
+                </select>
+            </label>
+            <div class="modal-actions">
+                <button id="btn-save-atd" class="primary">Define</button>
                 <button class="btn-cancel">Cancel</button>
             </div>
         </div>
@@ -164,6 +234,7 @@
     <script src="js/tools/RectTool.js"></script>
     <script src="js/tools/LineTool.js"></script>
     <script src="js/tools/EyedropperTool.js"></script>
+    <script src="js/tools/MobTool.js"></script>
 
     <!-- Scripts - Utils -->
     <script src="js/utils/History.js"></script>
@@ -176,6 +247,8 @@
     <script src="js/ui/LayerPanel.js"></script>
     <script src="js/ui/Toolbar.js"></script>
     <script src="js/ui/Minimap.js"></script>
+    <script src="js/ui/MobManager.js"></script>
+    <script src="js/ui/AutotileConfig.js"></script>
 
     <!-- Scripts - App -->
     <script src="js/app.js"></script>

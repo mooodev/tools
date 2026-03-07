@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>RPG Walker</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { width: 100%; height: 100%; overflow: hidden; background: #111; touch-action: none; }
+        #game-container {
+            position: relative;
+            width: 100%; height: 100%;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+        }
+        canvas#game {
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+            background: #1a1a2e;
+        }
+        /* HUD */
+        #hud {
+            position: absolute; top: 8px; left: 8px; right: 8px;
+            display: flex; justify-content: space-between; align-items: flex-start;
+            pointer-events: none; z-index: 10;
+        }
+        #hud > * { pointer-events: auto; }
+        #char-select {
+            background: rgba(0,0,0,0.7); border-radius: 8px; padding: 6px 10px;
+            color: #fff; font-family: monospace; font-size: 13px;
+        }
+        #char-select select { background: #333; color: #fff; border: 1px solid #555; border-radius: 4px; padding: 2px 6px; }
+        #load-controls {
+            background: rgba(0,0,0,0.7); border-radius: 8px; padding: 6px 10px;
+            display: flex; gap: 6px; align-items: center;
+        }
+        #load-controls button, #load-controls label {
+            background: #4a6fa5; color: #fff; border: none; border-radius: 4px;
+            padding: 4px 10px; cursor: pointer; font-size: 12px; font-family: monospace;
+        }
+        #load-controls button:hover, #load-controls label:hover { background: #5a8fcf; }
+        /* D-Pad */
+        #dpad {
+            position: absolute; bottom: 20px; left: 20px; z-index: 20;
+            width: 140px; height: 140px;
+        }
+        .dpad-btn {
+            position: absolute; width: 44px; height: 44px;
+            background: rgba(255,255,255,0.15); border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 8px; display: flex; align-items: center; justify-content: center;
+            color: rgba(255,255,255,0.7); font-size: 20px; user-select: none;
+            -webkit-user-select: none; cursor: pointer;
+        }
+        .dpad-btn:active, .dpad-btn.pressed { background: rgba(255,255,255,0.35); }
+        .dpad-up    { top: 0; left: 48px; }
+        .dpad-down  { bottom: 0; left: 48px; }
+        .dpad-left  { top: 48px; left: 0; }
+        .dpad-right { top: 48px; right: 0; }
+        /* Action button */
+        #action-btn {
+            position: absolute; bottom: 40px; right: 30px; z-index: 20;
+            width: 60px; height: 60px; border-radius: 50%;
+            background: rgba(79,195,247,0.3); border: 2px solid rgba(79,195,247,0.5);
+            color: rgba(255,255,255,0.8); font-size: 14px; font-family: monospace;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; user-select: none; -webkit-user-select: none;
+        }
+        #action-btn:active { background: rgba(79,195,247,0.5); }
+        /* Dialogue box */
+        #dialogue-box {
+            position: absolute; bottom: 0; left: 0; right: 0;
+            background: rgba(0,0,0,0.85); border-top: 2px solid #4fc3f7;
+            padding: 16px 20px; color: #fff; font-family: monospace; font-size: 15px;
+            line-height: 1.5; z-index: 30; display: none; min-height: 80px;
+        }
+        #dialogue-box .speaker { color: #4fc3f7; font-weight: bold; margin-bottom: 4px; }
+        #dialogue-box .text { margin-bottom: 8px; }
+        #dialogue-box .hint { color: #888; font-size: 11px; }
+        /* Mob stats tooltip */
+        #mob-stats {
+            position: absolute; z-index: 25; display: none;
+            background: rgba(0,0,0,0.85); border: 1px solid #4fc3f7; border-radius: 6px;
+            padding: 8px 12px; color: #fff; font-family: monospace; font-size: 12px;
+            pointer-events: none; white-space: nowrap;
+        }
+        #mob-stats .mob-name { color: #4fc3f7; font-weight: bold; font-size: 14px; }
+        #mob-stats .hp-bar { width: 100px; height: 6px; background: #333; border-radius: 3px; margin: 4px 0; }
+        #mob-stats .hp-fill { height: 100%; background: #4caf50; border-radius: 3px; }
+        /* hide file input */
+        #map-file-input { display: none; }
+    </style>
+</head>
+<body>
+<div id="game-container">
+    <canvas id="game"></canvas>
+
+    <div id="hud">
+        <div id="char-select">
+            <label>Character: <select id="char-picker"></select></label>
+        </div>
+        <div id="load-controls">
+            <label for="map-file-input">Load Map</label>
+            <input type="file" id="map-file-input" accept=".json,.mapmaker">
+            <button id="btn-demo-map">Demo Map</button>
+        </div>
+    </div>
+
+    <div id="dpad">
+        <div class="dpad-btn dpad-up" data-dir="up">&#9650;</div>
+        <div class="dpad-btn dpad-down" data-dir="down">&#9660;</div>
+        <div class="dpad-btn dpad-left" data-dir="left">&#9664;</div>
+        <div class="dpad-btn dpad-right" data-dir="right">&#9654;</div>
+    </div>
+
+    <div id="action-btn">ACT</div>
+
+    <div id="dialogue-box">
+        <div class="speaker"></div>
+        <div class="text"></div>
+        <div class="hint">[Tap ACT or press Space to continue]</div>
+    </div>
+
+    <div id="mob-stats">
+        <div class="mob-name"></div>
+        <div class="hp-bar"><div class="hp-fill"></div></div>
+        <div class="stats-text"></div>
+    </div>
+</div>
+
+<script>
+// ============================================================
+// RPG Walker Engine - loads mapmaker JSON, renders tilemap,
+// provides character walking with sprite animation
+// ============================================================
+
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+ctx.imageSmoothingEnabled = false;
+
+// ---- Constants ----
+const DIRECTIONS = { down: 0, left: 1, right: 2, up: 3 };
+const DIR_DX = { up: 0, down: 0, left: -1, right: 1 };
+const DIR_DY = { up: -1, down: 1, left: 0, right: 0 };
+const FRAMES_PER_ANIM = 3;
+const CHAR_COLS = 4;  // 4 characters per row in spritesheet
+const ANIM_SPEED = 150; // ms per frame
+
+// ---- Game State ----
+const state = {
+    map: null,          // loaded TileMap JSON
+    tilesets: [],       // { image, cols, rows, name }
+    mobs: [],           // { id, name, x, y, charIndex, direction, dialogue[], hp, maxHp, stats{} }
+    tileSize: 32,
+    mapWidth: 0,
+    mapHeight: 0,
+    collisionLayer: null,  // name pattern match for collision
+
+    // Player
+    player: {
+        x: 2, y: 2,        // tile position
+        px: 0, py: 0,      // pixel position (for smooth movement)
+        direction: 0,       // 0=down,1=left,2=right,3=up
+        charIndex: 0,       // which character in spritesheet
+        frame: 0,
+        frameTimer: 0,
+        moving: false,
+        moveProgress: 0,
+        moveSpeed: 4,       // pixels per frame at 60fps
+        targetX: 0,
+        targetY: 0,
+    },
+
+    // Camera
+    camera: { x: 0, y: 0 },
+
+    // Input
+    keys: { up: false, down: false, left: false, right: false },
+    action: false,
+
+    // Dialogue
+    dialogue: { active: false, lines: [], index: 0, speaker: '' },
+
+    // Spritesheet
+    spritesheet: null,
+    spriteCols: 0,   // total columns in sheet
+    spriteRows: 0,   // total rows in sheet
+    charWidth: 0,    // pixel width of one frame
+    charHeight: 0,   // pixel height of one frame
+    totalChars: 8,
+};
+
+// ---- Resize ----
+function resizeCanvas() {
+    const dpr = window.devicePixelRatio || 1;
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    canvas.width = w;
+    canvas.height = h;
+    canvas.style.width = w + 'px';
+    canvas.style.height = h + 'px';
+    ctx.imageSmoothingEnabled = false;
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+// ---- Load Spritesheet ----
+function loadSpritesheet(src) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+            state.spritesheet = img;
+            // 4 characters * 3 frames = 12 columns, 4 directions * 2 rows = 8 rows
+            state.spriteCols = CHAR_COLS * FRAMES_PER_ANIM; // 12
+            state.spriteRows = 8; // 4 dirs * 2 character groups
+            state.charWidth = Math.floor(img.width / state.spriteCols);
+            state.charHeight = Math.floor(img.height / state.spriteRows);
+            state.totalChars = 8;
+            populateCharPicker();
+            resolve(img);
+        };
+        img.onerror = reject;
+        img.src = src;
+    });
+}
+
+function populateCharPicker() {
+    const sel = document.getElementById('char-picker');
+    sel.innerHTML = '';
+    for (let i = 0; i < state.totalChars; i++) {
+        const opt = document.createElement('option');
+        opt.value = i;
+        opt.textContent = `Character ${i + 1}`;
+        sel.appendChild(opt);
+    }
+    sel.value = state.player.charIndex;
+    sel.addEventListener('change', () => {
+        state.player.charIndex = parseInt(sel.value);
+    });
+}
+
+// ---- Get sprite source rect for a character ----
+function getSpriteRect(charIndex, direction, frame) {
+    // Top row: chars 0-3, Bottom row: chars 4-7
+    const groupRow = Math.floor(charIndex / CHAR_COLS); // 0 or 1
+    const groupCol = charIndex % CHAR_COLS;              // 0-3
+
+    const col = groupCol * FRAMES_PER_ANIM + frame;
+    const row = groupRow * 4 + direction;
+
+    return {
+        sx: col * state.charWidth,
+        sy: row * state.charHeight,
+        sw: state.charWidth,
+        sh: state.charHeight,
+    };
+}
+
+// ---- Map Loading ----
+function loadMapFromJSON(data) {
+    // Support both raw map and project format
+    const mapData = data.map || data;
+    state.tileSize = mapData.tileSize || 32;
+    state.mapWidth = mapData.width;
+    state.mapHeight = mapData.height;
+    state.map = mapData;
+
+    // Load tileset images if project format (base64)
+    state.tilesets = [];
+    if (data.tilesets && data.tilesets.length > 0) {
+        const loadPromises = data.tilesets.map((ts, idx) => {
+            const imgSrc = ts.image; // base64 data URL or tileset metadata
+            if (typeof imgSrc === 'string' && imgSrc.startsWith('data:')) {
+                return new Promise((resolve) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        state.tilesets[idx] = {
+                            image: img,
+                            name: ts.name,
+                            cols: ts.cols || Math.floor(img.width / state.tileSize),
+                            rows: ts.rows || Math.floor(img.height / state.tileSize),
+                        };
+                        resolve();
+                    };
+                    img.onerror = () => resolve();
+                    img.src = imgSrc;
+                });
+            } else {
+                // JSON-only export (no images embedded) - store metadata
+                state.tilesets[idx] = { image: null, name: ts.name, cols: ts.cols, rows: ts.rows };
+                return Promise.resolve();
+            }
+        });
+        return Promise.all(loadPromises).then(() => {
+            loadMobs(data);
+            findPlayerStart(data);
+        });
+    }
+
+    loadMobs(data);
+    findPlayerStart(data);
+    return Promise.resolve();
+}
+
+function loadMobs(data) {
+    state.mobs = [];
+    if (data.mobs && Array.isArray(data.mobs)) {
+        data.mobs.forEach((m, i) => {
+            state.mobs.push({
+                id: m.id || `mob_${i}`,
+                name: m.name || 'NPC',
+                x: m.x || 0,
+                y: m.y || 0,
+                charIndex: m.charIndex != null ? m.charIndex : 1,
+                direction: m.direction != null ? m.direction : 0,
+                dialogue: m.dialogue || [],
+                hp: m.hp || m.maxHp || 10,
+                maxHp: m.maxHp || 10,
+                stats: m.stats || {},
+                collision: m.collision !== false,
+            });
+        });
+    }
+}
+
+function findPlayerStart(data) {
+    if (data.playerStart) {
+        state.player.x = data.playerStart.x || 2;
+        state.player.y = data.playerStart.y || 2;
+    } else {
+        state.player.x = 2;
+        state.player.y = 2;
+    }
+    state.player.px = state.player.x * state.tileSize;
+    state.player.py = state.player.y * state.tileSize;
+    state.player.targetX = state.player.x;
+    state.player.targetY = state.player.y;
+    state.player.moving = false;
+}
+
+// ---- Collision ----
+function isBlocked(tx, ty) {
+    if (tx < 0 || ty < 0 || tx >= state.mapWidth || ty >= state.mapHeight) return true;
+
+    // Check collision layer (any layer named "collision" or with collision tiles)
+    if (state.map && state.map.layers) {
+        for (const layer of state.map.layers) {
+            if (layer.name && layer.name.toLowerCase().includes('collision')) {
+                if (layer.data && layer.data[ty] && layer.data[ty][tx] !== null) {
+                    return true;
+                }
+            }
+        }
+    }
+
+    // Check mob collision
+    for (const mob of state.mobs) {
+        if (mob.collision && mob.x === tx && mob.y === ty) return true;
+    }
+
+    return false;
+}
+
+// ---- Movement ----
+function updatePlayer(dt) {
+    const p = state.player;
+
+    if (state.dialogue.active) {
+        p.moving = false;
+        return;
+    }
+
+    if (!p.moving) {
+        // Check input
+        let dir = null;
+        if (state.keys.up) dir = 'up';
+        else if (state.keys.down) dir = 'down';
+        else if (state.keys.left) dir = 'left';
+        else if (state.keys.right) dir = 'right';
+
+        if (dir !== null) {
+            p.direction = DIRECTIONS[dir];
+            const nx = p.x + DIR_DX[dir];
+            const ny = p.y + DIR_DY[dir];
+
+            if (!isBlocked(nx, ny)) {
+                p.moving = true;
+                p.targetX = nx;
+                p.targetY = ny;
+                p.moveProgress = 0;
+            }
+        }
+    }
+
+    if (p.moving) {
+        p.moveProgress += p.moveSpeed;
+        const total = state.tileSize;
+        const t = Math.min(p.moveProgress / total, 1);
+
+        p.px = p.x * total + (p.targetX - p.x) * total * t;
+        p.py = p.y * total + (p.targetY - p.y) * total * t;
+
+        // Animate walking
+        p.frameTimer += dt;
+        if (p.frameTimer >= ANIM_SPEED) {
+            p.frame = (p.frame + 1) % FRAMES_PER_ANIM;
+            p.frameTimer = 0;
+        }
+
+        if (t >= 1) {
+            p.x = p.targetX;
+            p.y = p.targetY;
+            p.px = p.x * total;
+            p.py = p.y * total;
+            p.moving = false;
+            p.moveProgress = 0;
+        }
+    } else {
+        // Idle - use frame 1 (middle/standing frame)
+        p.frame = 1;
+        p.frameTimer = 0;
+    }
+}
+
+// ---- Camera ----
+function updateCamera() {
+    const p = state.player;
+    const ts = state.tileSize;
+    const halfW = canvas.width / 2;
+    const halfH = canvas.height / 2;
+
+    state.camera.x = p.px + ts / 2 - halfW;
+    state.camera.y = p.py + ts / 2 - halfH;
+
+    // Clamp to map bounds
+    const mapPxW = state.mapWidth * ts;
+    const mapPxH = state.mapHeight * ts;
+    state.camera.x = Math.max(0, Math.min(state.camera.x, mapPxW - canvas.width));
+    state.camera.y = Math.max(0, Math.min(state.camera.y, mapPxH - canvas.height));
+
+    // If map smaller than screen, center it
+    if (mapPxW < canvas.width) state.camera.x = (mapPxW - canvas.width) / 2;
+    if (mapPxH < canvas.height) state.camera.y = (mapPxH - canvas.height) / 2;
+}
+
+// ---- Rendering ----
+function render() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.imageSmoothingEnabled = false;
+
+    const cam = state.camera;
+    const ts = state.tileSize;
+
+    // Draw map layers (except collision)
+    if (state.map && state.map.layers) {
+        for (const layer of state.map.layers) {
+            if (!layer.visible && layer.visible !== undefined) continue;
+            if (layer.name && layer.name.toLowerCase().includes('collision')) continue;
+            drawMapLayer(layer, cam, ts);
+        }
+    }
+
+    // Draw mobs
+    drawMobs(cam, ts);
+
+    // Draw player
+    drawCharacter(
+        state.player.charIndex,
+        state.player.direction,
+        state.player.frame,
+        state.player.px - cam.x,
+        state.player.py - cam.y,
+        ts
+    );
+}
+
+function drawMapLayer(layer, cam, ts) {
+    if (!layer.data) return;
+    const opacity = layer.opacity != null ? layer.opacity : 1;
+    ctx.globalAlpha = opacity;
+
+    // Calculate visible tile range
+    const startX = Math.max(0, Math.floor(cam.x / ts));
+    const startY = Math.max(0, Math.floor(cam.y / ts));
+    const endX = Math.min(layer.width, Math.ceil((cam.x + canvas.width) / ts) + 1);
+    const endY = Math.min(layer.height, Math.ceil((cam.y + canvas.height) / ts) + 1);
+
+    for (let y = startY; y < endY; y++) {
+        if (!layer.data[y]) continue;
+        for (let x = startX; x < endX; x++) {
+            const tile = layer.data[y][x];
+            if (!tile) continue;
+
+            const tsIdx = tile.ts != null ? tile.ts : tile.tilesetIndex;
+            const tilesetData = state.tilesets[tsIdx];
+            if (!tilesetData || !tilesetData.image) continue;
+
+            let srcX = tile.sx != null ? tile.sx : tile.srcX || 0;
+            let srcY = tile.sy != null ? tile.sy : tile.srcY || 0;
+
+            ctx.drawImage(
+                tilesetData.image,
+                srcX * ts, srcY * ts, ts, ts,
+                Math.floor(x * ts - cam.x), Math.floor(y * ts - cam.y), ts, ts
+            );
+        }
+    }
+    ctx.globalAlpha = 1;
+}
+
+function drawCharacter(charIndex, direction, frame, screenX, screenY, tileSize) {
+    if (!state.spritesheet) return;
+    const rect = getSpriteRect(charIndex, direction, frame);
+
+    // Draw character centered on tile, but allow sprite to be taller than tile
+    const scale = tileSize / rect.sw;
+    const drawW = rect.sw * scale;
+    const drawH = rect.sh * scale;
+    const drawX = screenX + (tileSize - drawW) / 2;
+    const drawY = screenY + tileSize - drawH; // Align feet to bottom of tile
+
+    ctx.drawImage(
+        state.spritesheet,
+        rect.sx, rect.sy, rect.sw, rect.sh,
+        Math.floor(drawX), Math.floor(drawY), Math.floor(drawW), Math.floor(drawH)
+    );
+}
+
+function drawMobs(cam, ts) {
+    for (const mob of state.mobs) {
+        const screenX = mob.x * ts - cam.x;
+        const screenY = mob.y * ts - cam.y;
+
+        // Only draw if on screen
+        if (screenX < -ts || screenY < -ts || screenX > canvas.width + ts || screenY > canvas.height + ts) continue;
+
+        drawCharacter(mob.charIndex, mob.direction, 1, screenX, screenY, ts);
+
+        // Draw name above mob
+        ctx.fillStyle = '#fff';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(mob.name, screenX + ts / 2, screenY - 4);
+
+        // Draw HP bar if damaged
+        if (mob.hp < mob.maxHp) {
+            const barW = ts * 0.8;
+            const barH = 3;
+            const barX = screenX + (ts - barW) / 2;
+            const barY = screenY - 10;
+            ctx.fillStyle = '#333';
+            ctx.fillRect(barX, barY, barW, barH);
+            ctx.fillStyle = mob.hp / mob.maxHp > 0.3 ? '#4caf50' : '#f44336';
+            ctx.fillRect(barX, barY, barW * (mob.hp / mob.maxHp), barH);
+        }
+    }
+}
+
+// ---- Interaction ----
+function interact() {
+    if (state.dialogue.active) {
+        advanceDialogue();
+        return;
+    }
+
+    const p = state.player;
+    // Check facing tile for mobs
+    const dirs = ['down', 'left', 'right', 'up'];
+    const dir = dirs[p.direction];
+    const fx = p.x + DIR_DX[dir];
+    const fy = p.y + DIR_DY[dir];
+
+    for (const mob of state.mobs) {
+        if (mob.x === fx && mob.y === fy) {
+            if (mob.dialogue && mob.dialogue.length > 0) {
+                startDialogue(mob.name, mob.dialogue);
+            }
+            showMobStats(mob);
+            return;
+        }
+    }
+}
+
+function startDialogue(speaker, lines) {
+    state.dialogue.active = true;
+    state.dialogue.speaker = speaker;
+    state.dialogue.lines = lines;
+    state.dialogue.index = 0;
+
+    const box = document.getElementById('dialogue-box');
+    box.style.display = 'block';
+    box.querySelector('.speaker').textContent = speaker;
+    box.querySelector('.text').textContent = lines[0];
+}
+
+function advanceDialogue() {
+    state.dialogue.index++;
+    if (state.dialogue.index >= state.dialogue.lines.length) {
+        closeDialogue();
+        return;
+    }
+    const box = document.getElementById('dialogue-box');
+    box.querySelector('.text').textContent = state.dialogue.lines[state.dialogue.index];
+}
+
+function closeDialogue() {
+    state.dialogue.active = false;
+    document.getElementById('dialogue-box').style.display = 'none';
+}
+
+function showMobStats(mob) {
+    const el = document.getElementById('mob-stats');
+    el.querySelector('.mob-name').textContent = mob.name;
+    el.querySelector('.hp-fill').style.width = (mob.hp / mob.maxHp * 100) + '%';
+    const statsText = Object.entries(mob.stats).map(([k, v]) => `${k}: ${v}`).join(' | ');
+    el.querySelector('.stats-text').textContent = statsText || `HP: ${mob.hp}/${mob.maxHp}`;
+    el.style.display = 'block';
+    el.style.top = '50px';
+    el.style.left = '50%';
+    el.style.transform = 'translateX(-50%)';
+    setTimeout(() => { el.style.display = 'none'; }, 3000);
+}
+
+// ---- Input: Keyboard ----
+window.addEventListener('keydown', (e) => {
+    switch (e.key) {
+        case 'ArrowUp': case 'w': case 'W': state.keys.up = true; break;
+        case 'ArrowDown': case 's': case 'S': state.keys.down = true; break;
+        case 'ArrowLeft': case 'a': case 'A': state.keys.left = true; break;
+        case 'ArrowRight': case 'd': case 'D': state.keys.right = true; break;
+        case ' ': case 'Enter': interact(); break;
+    }
+});
+window.addEventListener('keyup', (e) => {
+    switch (e.key) {
+        case 'ArrowUp': case 'w': case 'W': state.keys.up = false; break;
+        case 'ArrowDown': case 's': case 'S': state.keys.down = false; break;
+        case 'ArrowLeft': case 'a': case 'A': state.keys.left = false; break;
+        case 'ArrowRight': case 'd': case 'D': state.keys.right = false; break;
+    }
+});
+
+// ---- Input: D-Pad (touch + mouse) ----
+document.querySelectorAll('.dpad-btn').forEach(btn => {
+    const dir = btn.dataset.dir;
+
+    const press = (e) => { e.preventDefault(); state.keys[dir] = true; btn.classList.add('pressed'); };
+    const release = (e) => { e.preventDefault(); state.keys[dir] = false; btn.classList.remove('pressed'); };
+
+    btn.addEventListener('mousedown', press);
+    btn.addEventListener('mouseup', release);
+    btn.addEventListener('mouseleave', release);
+    btn.addEventListener('touchstart', press, { passive: false });
+    btn.addEventListener('touchend', release, { passive: false });
+    btn.addEventListener('touchcancel', release, { passive: false });
+});
+
+// Action button
+const actionBtn = document.getElementById('action-btn');
+actionBtn.addEventListener('mousedown', (e) => { e.preventDefault(); interact(); });
+actionBtn.addEventListener('touchstart', (e) => { e.preventDefault(); interact(); }, { passive: false });
+
+// ---- File Loading ----
+document.getElementById('map-file-input').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+        const text = await file.text();
+        const data = JSON.parse(text);
+        await loadMapFromJSON(data);
+    } catch (err) {
+        console.error('Failed to load map:', err);
+        alert('Failed to load map file: ' + err.message);
+    }
+});
+
+// ---- Demo Map ----
+function createDemoMap() {
+    const w = 20, h = 15, ts = 32;
+    const groundLayer = {
+        name: 'Ground', visible: true, opacity: 1, width: w, height: h,
+        data: []
+    };
+    for (let y = 0; y < h; y++) {
+        groundLayer.data[y] = [];
+        for (let x = 0; x < w; x++) {
+            groundLayer.data[y][x] = null; // No tileset loaded, just colored tiles
+        }
+    }
+
+    return {
+        version: 1,
+        map: {
+            width: w, height: h, tileSize: ts,
+            layers: [groundLayer]
+        },
+        tilesets: [],
+        mobs: [
+            {
+                id: 'npc_1', name: 'Villager', x: 5, y: 5,
+                charIndex: 2, direction: 0,
+                dialogue: ['Hello traveler!', 'Welcome to our village.', 'Be careful of the monsters in the forest...'],
+                hp: 20, maxHp: 20,
+                stats: { ATK: 5, DEF: 3, SPD: 2 },
+                collision: true
+            },
+            {
+                id: 'npc_2', name: 'Merchant', x: 8, y: 3,
+                charIndex: 5, direction: 0,
+                dialogue: ['Want to buy something?', 'I have potions and swords!'],
+                hp: 15, maxHp: 15,
+                stats: { ATK: 2, DEF: 8, SPD: 1 },
+                collision: true
+            },
+            {
+                id: 'mob_1', name: 'Slime', x: 14, y: 10,
+                charIndex: 7, direction: 2,
+                dialogue: ['*squelch*'],
+                hp: 5, maxHp: 10,
+                stats: { ATK: 3, DEF: 1, SPD: 4 },
+                collision: true
+            }
+        ],
+        playerStart: { x: 2, y: 2 }
+    };
+}
+
+document.getElementById('btn-demo-map').addEventListener('click', async () => {
+    const demo = createDemoMap();
+    await loadMapFromJSON(demo);
+});
+
+// ---- Game Loop ----
+let lastTime = 0;
+function gameLoop(timestamp) {
+    const dt = timestamp - lastTime;
+    lastTime = timestamp;
+
+    updatePlayer(dt);
+    updateCamera();
+    render();
+
+    // Draw ground color when no tilesets loaded
+    if (state.map && state.tilesets.every(ts => !ts || !ts.image)) {
+        drawFallbackGround();
+    }
+
+    requestAnimationFrame(gameLoop);
+}
+
+function drawFallbackGround() {
+    const cam = state.camera;
+    const ts = state.tileSize;
+    const startX = Math.max(0, Math.floor(cam.x / ts));
+    const startY = Math.max(0, Math.floor(cam.y / ts));
+    const endX = Math.min(state.mapWidth, Math.ceil((cam.x + canvas.width) / ts) + 1);
+    const endY = Math.min(state.mapHeight, Math.ceil((cam.y + canvas.height) / ts) + 1);
+
+    // Draw a simple grass pattern
+    for (let y = startY; y < endY; y++) {
+        for (let x = startX; x < endX; x++) {
+            const shade = ((x + y) % 2 === 0) ? '#2d5a1e' : '#357a24';
+            ctx.fillStyle = shade;
+            ctx.fillRect(
+                Math.floor(x * ts - cam.x),
+                Math.floor(y * ts - cam.y),
+                ts, ts
+            );
+        }
+    }
+
+    // Re-draw mobs and player on top
+    drawMobs(cam, ts);
+    drawCharacter(
+        state.player.charIndex,
+        state.player.direction,
+        state.player.frame,
+        state.player.px - cam.x,
+        state.player.py - cam.y,
+        ts
+    );
+}
+
+// ---- Init ----
+async function init() {
+    // Try loading spritesheet from same directory
+    try {
+        await loadSpritesheet('characters.png');
+    } catch {
+        console.log('No characters.png found. Place your spritesheet as game/characters.png');
+        // Create placeholder
+        const placeholderCanvas = document.createElement('canvas');
+        placeholderCanvas.width = 12 * 32;
+        placeholderCanvas.height = 8 * 48;
+        const pCtx = placeholderCanvas.getContext('2d');
+        const colors = ['#4a90d9', '#d94a4a', '#4ad94a', '#d9d94a', '#d94ad9', '#4ad9d9', '#d9904a', '#9a4ad9'];
+        for (let ci = 0; ci < 8; ci++) {
+            const gRow = Math.floor(ci / 4);
+            const gCol = ci % 4;
+            for (let dir = 0; dir < 4; dir++) {
+                for (let f = 0; f < 3; f++) {
+                    const cx = (gCol * 3 + f) * 32 + 16;
+                    const cy = (gRow * 4 + dir) * 48 + 24;
+                    pCtx.fillStyle = colors[ci];
+                    pCtx.beginPath();
+                    pCtx.arc(cx, cy, 12, 0, Math.PI * 2);
+                    pCtx.fill();
+                    // Direction indicator
+                    pCtx.fillStyle = '#fff';
+                    const dx = [0, -1, 1, 0][dir] * 6;
+                    const dy = [6, 0, 0, -6][dir];
+                    pCtx.beginPath();
+                    pCtx.arc(cx + dx, cy + dy, 3, 0, Math.PI * 2);
+                    pCtx.fill();
+                    // Animation offset for walking
+                    if (f !== 1) {
+                        pCtx.fillStyle = colors[ci];
+                        const legOff = f === 0 ? -3 : 3;
+                        pCtx.fillRect(cx - 4 + legOff, cy + 12, 4, 8);
+                    }
+                }
+            }
+        }
+        state.spritesheet = placeholderCanvas;
+        state.spriteCols = 12;
+        state.spriteRows = 8;
+        state.charWidth = 32;
+        state.charHeight = 48;
+        state.totalChars = 8;
+        populateCharPicker();
+    }
+
+    // Start with demo map
+    const demo = createDemoMap();
+    await loadMapFromJSON(demo);
+
+    requestAnimationFrame(gameLoop);
+}
+
+init();
+</script>
+</body>
+</html>
