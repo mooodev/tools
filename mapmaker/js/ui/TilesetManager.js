@@ -1,6 +1,7 @@
 /**
  * TilesetManager.js - Manages loaded tileset images.
  * Handles uploading, storing, and providing tileset images.
+ * Shows image previews in tabs that auto-update.
  */
 class TilesetManager {
     constructor(app) {
@@ -54,6 +55,7 @@ class TilesetManager {
             this.activeTilesetIndex = tsIndex;
             this._renderTabs();
             this.app.palette.setTileset(tsIndex);
+            this.app.mapCanvas.render();
         });
 
         this._fileInput.value = '';
@@ -78,7 +80,27 @@ class TilesetManager {
         this.tilesets.forEach((ts, idx) => {
             const tab = document.createElement('div');
             tab.className = 'tileset-tab' + (idx === this.activeTilesetIndex ? ' active' : '');
-            tab.textContent = ts.name;
+
+            // Image thumbnail
+            if (ts.image) {
+                const thumb = document.createElement('canvas');
+                thumb.className = 'tileset-tab-thumb';
+                thumb.width = 24;
+                thumb.height = 24;
+                const ctx = thumb.getContext('2d');
+                ctx.imageSmoothingEnabled = false;
+                const aspect = ts.image.width / ts.image.height;
+                const drawW = aspect >= 1 ? 24 : 24 * aspect;
+                const drawH = aspect >= 1 ? 24 / aspect : 24;
+                ctx.drawImage(ts.image, (24 - drawW) / 2, (24 - drawH) / 2, drawW, drawH);
+                tab.appendChild(thumb);
+            }
+
+            const nameSpan = document.createElement('span');
+            nameSpan.className = 'tileset-tab-name';
+            nameSpan.textContent = ts.name;
+            tab.appendChild(nameSpan);
+
             tab.addEventListener('click', () => {
                 this.activeTilesetIndex = idx;
                 this._renderTabs();
@@ -110,6 +132,7 @@ class TilesetManager {
         } else {
             this.app.palette.clear();
         }
+        this.app.mapCanvas.render();
     }
 
     /**
@@ -120,6 +143,7 @@ class TilesetManager {
             ts.cols = Math.floor(ts.image.width / tileSize);
             ts.rows = Math.floor(ts.image.height / tileSize);
         }
+        this._renderTabs();
     }
 
     /**

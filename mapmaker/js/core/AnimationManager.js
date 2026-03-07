@@ -33,6 +33,10 @@ class AnimationManager {
             this.frames.set(tilesetIndex, []);
         }
         this.frames.get(tilesetIndex).push(image);
+        // Auto-play when frames are added
+        if (!this.playing && this.frames.get(tilesetIndex).length > 1) {
+            this.play();
+        }
     }
 
     /**
@@ -40,6 +44,14 @@ class AnimationManager {
      */
     removeFrames(tilesetIndex) {
         this.frames.delete(tilesetIndex);
+        // Auto-stop if no tilesets have frames
+        if (this.playing) {
+            let hasFrames = false;
+            for (const [, frameList] of this.frames) {
+                if (frameList.length > 1) { hasFrames = true; break; }
+            }
+            if (!hasFrames) this.stop();
+        }
     }
 
     /**
@@ -81,6 +93,7 @@ class AnimationManager {
     play() {
         if (this.playing) return;
         this.playing = true;
+        this.currentFrame = 0;
         this._timer = setInterval(() => {
             this.currentFrame++;
             if (this._onFrameChange) {
