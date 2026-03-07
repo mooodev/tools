@@ -175,6 +175,76 @@
     border-top: 1px solid var(--border);
 }
 
+/* Character Sheet Upload */
+#charsheet-upload {
+    padding: 4px 8px;
+}
+
+#charsheet-upload .charsheet-label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-bottom: 4px;
+}
+
+#charsheet-upload .charsheet-label button {
+    padding: 1px 8px;
+    font-size: 11px;
+}
+
+#charsheet-preview-container {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 0;
+}
+
+.charsheet-preview {
+    max-width: 100%;
+    max-height: 64px;
+    image-rendering: pixelated;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: repeating-conic-gradient(#2a2a3e 0% 25%, #22223a 0% 50%) 50% / 8px 8px;
+}
+
+.charsheet-remove-btn {
+    padding: 1px 6px !important;
+    font-size: 10px !important;
+    color: var(--danger) !important;
+    background: none !important;
+    border: 1px solid var(--danger) !important;
+}
+
+.charsheet-remove-btn:hover {
+    background: rgba(239, 83, 80, 0.15) !important;
+}
+
+/* Mob Sprite Preview in Modal */
+.mob-sprite-preview {
+    display: flex;
+    justify-content: center;
+    padding: 8px 0;
+    margin-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+}
+
+.mob-sprite-preview canvas {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: repeating-conic-gradient(#2a2a3e 0% 25%, #22223a 0% 50%) 50% / 8px 8px;
+}
+
+/* Mob List Thumbnails */
+.mob-list-thumb {
+    flex-shrink: 0;
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    background: var(--bg-input);
+}
+
 #mob-list {
     list-style: none;
     padding: 4px;

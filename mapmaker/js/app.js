@@ -33,6 +33,9 @@ class MapMakerApp {
         // Setup animation
         this.animationManager.onFrameChange(() => {
             this.mapCanvas.render();
+            // Keep play/stop button text in sync
+            document.getElementById('btn-toggle-anim').textContent =
+                this.animationManager.playing ? 'Stop' : 'Play';
         });
     }
 
@@ -157,11 +160,43 @@ class MapMakerApp {
                 const data = await ExportUtils.importJSON(file);
                 if (data.map) {
                     this.tileMap = TileMap.fromJSON(data.map);
+
+                    // Load tileset images if embedded
+                    if (data.tilesets) {
+                        this.tilesetManager.tilesets = [];
+                        for (let i = 0; i < data.tilesets.length; i++) {
+                            const tsData = data.tilesets[i];
+                            if (tsData.image && typeof tsData.image === 'string' && tsData.image.startsWith('data:')) {
+                                const img = await ExportUtils.loadImageFromDataURL(tsData.image);
+                                const tileSize = data.map.tileSize || 32;
+                                this.tilesetManager.tilesets.push({
+                                    name: tsData.name,
+                                    image: img,
+                                    cols: tsData.cols || Math.floor(img.width / tileSize),
+                                    rows: tsData.rows || Math.floor(img.height / tileSize),
+                                });
+                            }
+                        }
+                        if (this.tilesetManager.tilesets.length > 0) {
+                            this.tilesetManager.activeTilesetIndex = 0;
+                        }
+                        this.tilesetManager._renderTabs();
+                    }
+
+                    // Load character spritesheet
+                    if (data.charSpritesheet) {
+                        const charImg = await ExportUtils.loadImageFromDataURL(data.charSpritesheet);
+                        this.mobManager.setSpritesheet(charImg);
+                    }
+
                     if (data.mobs) this.mobManager.fromJSON(data.mobs);
                     if (data.autotileDefs) this.autotileConfig.fromJSON(data.autotileDefs);
                     this.history.clear();
                     this._updateMapInfo();
                     this.layerPanel.render();
+                    if (this.tilesetManager.tilesets.length > 0) {
+                        this.palette.setTileset(0);
+                    }
                     this.mapCanvas.render();
                 }
             } catch (err) {
@@ -289,6 +324,12 @@ class MapMakerApp {
             if (data.animSpeed) {
                 this.animationManager.setSpeed(data.animSpeed);
                 document.getElementById('anim-speed').value = data.animSpeed;
+            }
+
+            // Load character spritesheet
+            if (data.charSpritesheet) {
+                const charImg = await ExportUtils.loadImageFromDataURL(data.charSpritesheet);
+                this.mobManager.setSpritesheet(charImg);
             }
 
             // Load mobs

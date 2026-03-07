@@ -58,17 +58,30 @@ class ExportUtils {
     }
 
     /**
-     * Export map data as JSON.
+     * Export map data as JSON, including tileset and character spritesheet images.
      */
     static exportJSON(tileMap, tilesetMgr, mobManager, autotileConfig) {
+        const tilesetData = tilesetMgr.tilesets.map(ts => ({
+            name: ts.name,
+            cols: ts.cols,
+            rows: ts.rows,
+            image: ExportUtils._imageToDataURL(ts.image),
+        }));
+
         const data = {
-            version: 1,
+            version: 2,
             map: tileMap.toJSON(),
-            tilesets: tilesetMgr.toJSON(),
+            tilesets: tilesetData,
             mobs: mobManager ? mobManager.toJSON() : [],
             autotileDefs: autotileConfig ? autotileConfig.toJSON() : {},
-            playerStart: { x: 2, y: 2 }
+            playerStart: { x: 2, y: 2 },
         };
+
+        // Include character spritesheet if loaded
+        if (mobManager && mobManager.spritesheet) {
+            data.charSpritesheet = ExportUtils._imageToDataURL(mobManager.spritesheet);
+        }
+
         const json = JSON.stringify(data, null, 2);
         const blob = new Blob([json], { type: 'application/json' });
         const link = document.createElement('a');
@@ -98,7 +111,7 @@ class ExportUtils {
     }
 
     /**
-     * Save full project (map + tileset images as base64).
+     * Save full project (map + tileset images + character spritesheet as base64).
      */
     static saveProject(tileMap, tilesetMgr, animMgr, mobManager, autotileConfig) {
         const tilesetData = tilesetMgr.tilesets.map((ts, idx) => {
@@ -118,7 +131,7 @@ class ExportUtils {
         });
 
         const project = {
-            version: 1,
+            version: 2,
             map: tileMap.toJSON(),
             tilesets: tilesetData,
             animSpeed: animMgr.speed,
@@ -126,6 +139,11 @@ class ExportUtils {
             autotileDefs: autotileConfig ? autotileConfig.toJSON() : {},
             playerStart: { x: 2, y: 2 }
         };
+
+        // Include character spritesheet
+        if (mobManager && mobManager.spritesheet) {
+            project.charSpritesheet = ExportUtils._imageToDataURL(mobManager.spritesheet);
+        }
 
         const json = JSON.stringify(project);
         const blob = new Blob([json], { type: 'application/json' });

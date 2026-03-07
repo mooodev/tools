@@ -143,7 +143,7 @@ const DIR_DX = { up: 0, down: 0, left: -1, right: 1 };
 const DIR_DY = { up: -1, down: 1, left: 0, right: 0 };
 const FRAMES_PER_ANIM = 3;
 const CHAR_COLS = 4;  // 4 characters per row in spritesheet
-const ANIM_SPEED = 150; // ms per frame
+const ANIM_SPEED = 80; // ms per frame
 
 // ---- Game State ----
 const state = {
@@ -165,7 +165,7 @@ const state = {
         frameTimer: 0,
         moving: false,
         moveProgress: 0,
-        moveSpeed: 4,       // pixels per frame at 60fps
+        moveSpeed: 2,       // pixels per frame at 60fps
         targetX: 0,
         targetY: 0,
     },
@@ -256,7 +256,7 @@ function getSpriteRect(charIndex, direction, frame) {
 }
 
 // ---- Map Loading ----
-function loadMapFromJSON(data) {
+async function loadMapFromJSON(data) {
     // Support both raw map and project format
     const mapData = data.map || data;
     state.tileSize = mapData.tileSize || 32;
@@ -290,14 +290,24 @@ function loadMapFromJSON(data) {
                 return Promise.resolve();
             }
         });
-        return Promise.all(loadPromises).then(() => {
+        return Promise.all(loadPromises).then(async () => {
             loadMobs(data);
             findPlayerStart(data);
+            // Load character spritesheet if embedded
+            if (data.charSpritesheet) {
+                await loadSpritesheet(data.charSpritesheet);
+            }
         });
     }
 
     loadMobs(data);
     findPlayerStart(data);
+
+    // Load character spritesheet if embedded
+    if (data.charSpritesheet) {
+        await loadSpritesheet(data.charSpritesheet);
+    }
+
     return Promise.resolve();
 }
 
@@ -387,6 +397,8 @@ function updatePlayer(dt) {
                 p.targetX = nx;
                 p.targetY = ny;
                 p.moveProgress = 0;
+                p.frame = 0;
+                p.frameTimer = 0;
             }
         }
     }
@@ -732,7 +744,8 @@ document.getElementById('btn-demo-map').addEventListener('click', async () => {
 // ---- Game Loop ----
 let lastTime = 0;
 function gameLoop(timestamp) {
-    const dt = timestamp - lastTime;
+    if (lastTime === 0) lastTime = timestamp;
+    const dt = Math.min(timestamp - lastTime, 50); // cap dt to prevent animation spikes
     lastTime = timestamp;
 
     updatePlayer(dt);
