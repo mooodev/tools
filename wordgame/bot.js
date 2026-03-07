@@ -295,8 +295,43 @@ bot.on('callback_query', (query) => {
 // =============================================
 
 /**
+ * Load weekly speed data to check previous week ranks.
+ */
+const WEEKLY_SPEED_FILE = path.join(__dirname, 'data', 'weekly_speed.json');
+
+function loadWeeklySpeed() {
+    try {
+        if (fs.existsSync(WEEKLY_SPEED_FILE)) {
+            return JSON.parse(fs.readFileSync(WEEKLY_SPEED_FILE, 'utf8'));
+        }
+    } catch (e) {
+        console.error('Error loading weekly speed:', e.message);
+    }
+    return { weeks: {} };
+}
+
+function getPreviousWeekId() {
+    const now = new Date();
+    const prevWeek = new Date(now);
+    prevWeek.setDate(prevWeek.getDate() - 7);
+    const day = prevWeek.getDay() || 7;
+    prevWeek.setDate(prevWeek.getDate() + 4 - day);
+    const year = prevWeek.getFullYear();
+    const jan1 = new Date(year, 0, 1);
+    const weekNum = Math.ceil(((prevWeek - jan1) / 86400000 + 1) / 7);
+    return `${year}-W${String(weekNum).padStart(2, '0')}`;
+}
+
+function formatTime(seconds) {
+    const min = Math.floor(seconds / 60);
+    const sec = String(seconds % 60).padStart(2, '0');
+    return `${min}:${sec}`;
+}
+
+/**
  * Send weekly puzzle notification to all subscribers.
  * Called every Monday at 10:00 Moscow time.
+ * Includes previous week's speed rank if player participated.
  */
 async function sendWeeklyNotification() {
     const weeklySubs = subscribers.chatIds.filter(id => {
@@ -306,9 +341,28 @@ async function sendWeeklyNotification() {
 
     console.log(`Sending weekly notification to ${weeklySubs.length} subscribers`);
 
+    // Load previous week's speed data
+    const speedData = loadWeeklySpeed();
+    const prevWeekId = getPreviousWeekId();
+    const prevWeekEntries = speedData.weeks[prevWeekId] ? Object.values(speedData.weeks[prevWeekId]) : [];
+    prevWeekEntries.sort((a, b) => a.time - b.time);
+
     for (const chatId of weeklySubs) {
         try {
-            await bot.sendMessage(chatId, '🏆 *Новый еженедельный паззл!*\n\nСложный паззл на всю неделю. Покажи свой уровень!', {
+            const playerId = 'tg_' + chatId;
+            let message = '🏆 *Новый еженедельный паззл!*\n\nСложный паззл на всю неделю. Покажи свой уровень!';
+
+            // Check if player participated in previous week's speed leaderboard
+            const prevIdx = prevWeekEntries.findIndex(e => e.id === playerId);
+            if (prevIdx !== -1) {
+                const rank = prevIdx + 1;
+                const total = prevWeekEntries.length;
+                const time = prevWeekEntries[prevIdx].time;
+                const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : '';
+                message = `🏆 *Новый еженедельный паззл!*\n\n⚡ На прошлой неделе ты прошёл за *${formatTime(time)}* — *${medal}${rank} место* из ${total}!\n\nСложный паззл на всю неделю. Покажи свой уровень!`;
+            }
+
+            await bot.sendMessage(chatId, message, {
                 parse_mode: 'Markdown',
                 reply_markup: {
                     inline_keyboard: [

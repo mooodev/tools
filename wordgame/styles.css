@@ -1259,6 +1259,19 @@ body {
     text-align: right;
 }
 
+.lb-weekly-header {
+    text-align: center;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text);
+    padding: 8px 0 12px;
+    opacity: 0.85;
+}
+
+.weekly-speed .daily-unlock-icon {
+    color: var(--coin);
+}
+
 /* ==============================
    DUEL PICK SCREEN
    ============================== */

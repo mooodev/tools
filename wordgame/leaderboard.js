@@ -104,6 +104,12 @@ async function refreshLeaderboard(sort) {
         tab.classList.toggle('active', tab.dataset.sort === currentLeaderboardSort);
     });
 
+    // Weekly speed leaderboard is a separate flow
+    if (currentLeaderboardSort === 'weekly') {
+        await renderWeeklySpeedLeaderboard(content);
+        return;
+    }
+
     const data = await fetchLeaderboard(currentLeaderboardSort);
     const myId = ensurePlayerId();
     lastLeaderboardData = data;
@@ -140,6 +146,54 @@ async function refreshLeaderboard(sort) {
                     <div class="lb-stat-sub">${player.totalWins} побед &middot; ${player.totalGames} игр</div>
                 </div>
                 <div class="lb-value">${statValue}</div>
+            </div>`;
+    });
+
+    content.innerHTML = html;
+}
+
+// =============================================
+// WEEKLY SPEED LEADERBOARD
+// =============================================
+async function fetchWeeklySpeedLeaderboard(weekId) {
+    try {
+        const res = await fetch(`/api/weekly-speed?weekId=${weekId}&limit=50`);
+        return await res.json();
+    } catch (e) {
+        console.warn('Weekly speed fetch failed:', e.message);
+        return { players: [], total: 0 };
+    }
+}
+
+function formatSpeedTime(seconds) {
+    const min = Math.floor(seconds / 60);
+    const sec = String(seconds % 60).padStart(2, '0');
+    return `${min}:${sec}`;
+}
+
+async function renderWeeklySpeedLeaderboard(content) {
+    const weekId = typeof getWeekId === 'function' ? getWeekId() : '';
+    const data = await fetchWeeklySpeedLeaderboard(weekId);
+    const myId = ensurePlayerId();
+
+    if (!data.players || !data.players.length) {
+        content.innerHTML = '<div class="lb-empty">Ещё никто не прошёл недельный паззл. Будь первым!</div>';
+        return;
+    }
+
+    let html = '<div class="lb-weekly-header">&#9889; Скорость прохождения недельного паззла</div>';
+    data.players.forEach((player, i) => {
+        const rank = i + 1;
+        const isMe = player.id === myId;
+        const medal = rank === 1 ? '&#129351;' : rank === 2 ? '&#129352;' : rank === 3 ? '&#129353;' : '';
+
+        html += `
+            <div class="lb-row ${isMe ? 'lb-me' : ''}">
+                <div class="lb-rank">${medal || rank}</div>
+                <div class="lb-player">
+                    <div class="lb-name">${escapeHtml(player.name)}</div>
+                </div>
+                <div class="lb-value">${formatSpeedTime(player.time)}</div>
             </div>`;
     });
 
