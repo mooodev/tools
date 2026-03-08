@@ -52,8 +52,13 @@ async function fetchPuzzleFile(source) {
         const dataStr = extractBalancedExpression(text, dataStart);
         if (!dataStr) throw new Error('Could not parse data expression');
 
-        // Safe evaluation using Function constructor
-        const data = new Function(`return ${dataStr}`)();
+        // Safe parsing: convert JS object literal syntax to valid JSON, then parse
+        const jsonStr = dataStr
+            .replace(/\/\/.*$/gm, '')             // remove line comments
+            .replace(/\/\*[\s\S]*?\*\//g, '')     // remove block comments
+            .replace(/,\s*([}\]])/g, '$1')        // remove trailing commas
+            .replace(/([{,]\s*)(\w+)\s*:/g, '$1"$2":'); // quote unquoted keys
+        const data = JSON.parse(jsonStr);
 
         if (data !== undefined && data !== null) {
             window[source.globalVar] = data;

@@ -1,7 +1,7 @@
 /**
  * server.js — Node.js backend: Express + Socket.io
  *
- * - Serves static files
+ * - Serves static files from public/ directory only
  * - REST API for leaderboard
  * - WebSocket for duel matchmaking & gameplay
  */
@@ -10,35 +10,103 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const fs = require('fs');
+const fsPromises = require('fs').promises;
 const path = require('path');
 const crypto = require('crypto');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: '*' } });
+
+// CORS: restrict to allowed origins from env, default to same-origin (no wildcard)
+const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS
+    ? process.env.ALLOWED_ORIGINS.split(',').map(s => s.trim())
+    : undefined;
+
+const io = new Server(server, {
+    cors: ALLOWED_ORIGINS
+        ? { origin: ALLOWED_ORIGINS }
+        : {} // same-origin only by default
+});
 
 const PORT = process.env.PORT || 3000;
-const DATA_FILE = path.join(__dirname, 'data', 'leaderboard.json');
-const BONUS_UNLOCKS_FILE = path.join(__dirname, 'data', 'bonus_unlocks.json');
-const WEEKLY_SPEED_FILE = path.join(__dirname, 'data', 'weekly_speed.json');
+const DATA_DIR = path.join(__dirname, 'data');
+const DATA_FILE = path.join(DATA_DIR, 'leaderboard.json');
+const BONUS_UNLOCKS_FILE = path.join(DATA_DIR, 'bonus_unlocks.json');
+const WEEKLY_SPEED_FILE = path.join(DATA_DIR, 'weekly_speed.json');
 
 // =============================================
 // MIDDLEWARE
 // =============================================
-app.use(express.json());
-app.use(express.static(__dirname));
+app.use(helmet({
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'"],
+            scriptSrc: ["'self'", "https://telegram.org"],
+            styleSrc: ["'self'", "'unsafe-inline'"],
+            connectSrc: ["'self'", "https://raw.githubusercontent.com", "wss:", "ws:"],
+            imgSrc: ["'self'", "data:", "https://raw.githubusercontent.com"],
+        }
+    }
+}));
+app.use(express.json({ limit: '10kb' }));
+
+// Serve only the public/ directory — prevents source code exposure
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Rate limiting for POST API endpoints
+const apiLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute
+    max: 30,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many requests, please try again later' }
+});
+app.use('/api', apiLimiter);
+
+// =============================================
+// ASYNC FILE I/O HELPERS
+// =============================================
+async function ensureDataDir() {
+    await fsPromises.mkdir(DATA_DIR, { recursive: true });
+}
+
+/**
+ * Atomically write data to a JSON file (write to tmp, then rename).
+ * Prevents corruption from crashes mid-write.
+ */
+async function atomicWriteJSON(filePath, data) {
+    await ensureDataDir();
+    const tmp = filePath + '.tmp';
+    await fsPromises.writeFile(tmp, JSON.stringify(data, null, 2));
+    await fsPromises.rename(tmp, filePath);
+}
+
+async function readJSON(filePath, defaultValue) {
+    try {
+        await ensureDataDir();
+        const content = await fsPromises.readFile(filePath, 'utf8');
+        return JSON.parse(content);
+    } catch (e) {
+        if (e.code !== 'ENOENT') {
+            console.error(`Error reading ${filePath}:`, e.message);
+        }
+        return defaultValue;
+    }
+}
 
 // =============================================
 // LEADERBOARD DATA STORE
 // =============================================
-function ensureDataDir() {
-    const dir = path.join(__dirname, 'data');
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+// Load initial data synchronously at startup only
+function ensureDataDirSync() {
+    if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 }
 
-function loadLeaderboard() {
+function loadLeaderboardSync() {
     try {
-        ensureDataDir();
+        ensureDataDirSync();
         if (fs.existsSync(DATA_FILE)) {
             return JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
         }
@@ -48,21 +116,25 @@ function loadLeaderboard() {
     return { players: {} };
 }
 
-function saveLeaderboard(data) {
+function loadWeeklySpeedSync() {
     try {
-        ensureDataDir();
-        fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+        ensureDataDirSync();
+        if (fs.existsSync(WEEKLY_SPEED_FILE)) {
+            return JSON.parse(fs.readFileSync(WEEKLY_SPEED_FILE, 'utf8'));
+        }
     } catch (e) {
-        console.error('Error saving leaderboard:', e.message);
+        console.error('Error loading weekly speed:', e.message);
     }
+    return { weeks: {} };
 }
 
-let leaderboardData = loadLeaderboard();
+let leaderboardData = loadLeaderboardSync();
+let weeklySpeedData = loadWeeklySpeedSync();
 
 // =============================================
 // LEADERBOARD API
 // =============================================
-app.post('/api/leaderboard', (req, res) => {
+app.post('/api/leaderboard', async (req, res) => {
     const { id, name, xp, level, totalStars, bestStreak, currentStreak,
             dailyStreak, totalWins, totalGames, perfectGames, duelWins,
             categoriesFound, dailyPuzzlesTotal, weeklyPuzzlesTotal } = req.body;
@@ -90,7 +162,11 @@ app.post('/api/leaderboard', (req, res) => {
         lastActive: new Date().toISOString()
     };
 
-    saveLeaderboard(leaderboardData);
+    try {
+        await atomicWriteJSON(DATA_FILE, leaderboardData);
+    } catch (e) {
+        console.error('Error saving leaderboard:', e.message);
+    }
     res.json({ ok: true });
 });
 
@@ -126,31 +202,7 @@ app.get('/api/player/:id', (req, res) => {
 // =============================================
 // WEEKLY SPEED LEADERBOARD
 // =============================================
-function loadWeeklySpeed() {
-    try {
-        ensureDataDir();
-        if (fs.existsSync(WEEKLY_SPEED_FILE)) {
-            return JSON.parse(fs.readFileSync(WEEKLY_SPEED_FILE, 'utf8'));
-        }
-    } catch (e) {
-        console.error('Error loading weekly speed:', e.message);
-    }
-    return { weeks: {} };
-}
-
-function saveWeeklySpeed(data) {
-    try {
-        ensureDataDir();
-        fs.writeFileSync(WEEKLY_SPEED_FILE, JSON.stringify(data, null, 2));
-    } catch (e) {
-        console.error('Error saving weekly speed:', e.message);
-    }
-}
-
-let weeklySpeedData = loadWeeklySpeed();
-
-// Submit weekly puzzle completion time (only first completion counts)
-app.post('/api/weekly-speed', (req, res) => {
+app.post('/api/weekly-speed', async (req, res) => {
     const { id, name, weekId, time } = req.body;
 
     if (!id || !weekId || time === undefined) {
@@ -163,7 +215,6 @@ app.post('/api/weekly-speed', (req, res) => {
 
     // Only first completion counts — do not overwrite
     if (weeklySpeedData.weeks[weekId][id]) {
-        // Already submitted, return existing rank
         const entries = Object.values(weeklySpeedData.weeks[weekId]);
         entries.sort((a, b) => a.time - b.time);
         const rank = entries.findIndex(e => e.id === id) + 1;
@@ -177,9 +228,12 @@ app.post('/api/weekly-speed', (req, res) => {
         submittedAt: new Date().toISOString()
     };
 
-    saveWeeklySpeed(weeklySpeedData);
+    try {
+        await atomicWriteJSON(WEEKLY_SPEED_FILE, weeklySpeedData);
+    } catch (e) {
+        console.error('Error saving weekly speed:', e.message);
+    }
 
-    // Calculate rank
     const entries = Object.values(weeklySpeedData.weeks[weekId]);
     entries.sort((a, b) => a.time - b.time);
     const rank = entries.findIndex(e => e.id === id) + 1;
@@ -187,7 +241,6 @@ app.post('/api/weekly-speed', (req, res) => {
     res.json({ ok: true, rank, total: entries.length });
 });
 
-// Get weekly speed leaderboard for a specific week
 app.get('/api/weekly-speed', (req, res) => {
     const weekId = req.query.weekId;
     const limit = Math.min(Number(req.query.limit) || 50, 100);
@@ -206,11 +259,9 @@ app.get('/api/weekly-speed', (req, res) => {
     });
 });
 
-// Get player's rank for previous week
 app.get('/api/weekly-speed/previous/:id', (req, res) => {
     const playerId = req.params.id;
 
-    // Calculate previous week ID
     const now = new Date();
     const prevWeek = new Date(now);
     prevWeek.setDate(prevWeek.getDate() - 7);
@@ -246,51 +297,37 @@ app.get('/api/weekly-speed/previous/:id', (req, res) => {
 // =============================================
 // BONUS WORDS UNLOCK TRACKING
 // =============================================
-function loadBonusUnlocks() {
-    try {
-        ensureDataDir();
-        if (fs.existsSync(BONUS_UNLOCKS_FILE)) {
-            return JSON.parse(fs.readFileSync(BONUS_UNLOCKS_FILE, 'utf8'));
-        }
-    } catch (e) {
-        console.error('Error loading bonus unlocks:', e.message);
-    }
-    return { users: {} };
-}
-
-function saveBonusUnlocks(data) {
-    try {
-        ensureDataDir();
-        fs.writeFileSync(BONUS_UNLOCKS_FILE, JSON.stringify(data, null, 2));
-    } catch (e) {
-        console.error('Error saving bonus unlocks:', e.message);
-    }
-}
-
-// Register a bonus words unlock for a user
-app.post('/api/bonus-unlock', (req, res) => {
+app.post('/api/bonus-unlock', async (req, res) => {
     const { userId, telegramId } = req.body;
     const id = telegramId || userId;
     if (!id) {
         return res.status(400).json({ error: 'userId or telegramId required' });
     }
 
-    const data = loadBonusUnlocks();
-    data.users[id] = {
-        unlockedAt: new Date().toISOString(),
-        telegramId: telegramId || null,
-        userId: userId || null
-    };
-
-    saveBonusUnlocks(data);
-    res.json({ ok: true, unlocked: true });
+    try {
+        const data = await readJSON(BONUS_UNLOCKS_FILE, { users: {} });
+        data.users[id] = {
+            unlockedAt: new Date().toISOString(),
+            telegramId: telegramId || null,
+            userId: userId || null
+        };
+        await atomicWriteJSON(BONUS_UNLOCKS_FILE, data);
+        res.json({ ok: true, unlocked: true });
+    } catch (e) {
+        console.error('Error saving bonus unlock:', e.message);
+        res.status(500).json({ error: 'Internal server error' });
+    }
 });
 
-// Check if a user has unlocked bonus words
-app.get('/api/bonus-unlock/:id', (req, res) => {
-    const data = loadBonusUnlocks();
-    const unlocked = !!data.users[req.params.id];
-    res.json({ unlocked });
+app.get('/api/bonus-unlock/:id', async (req, res) => {
+    try {
+        const data = await readJSON(BONUS_UNLOCKS_FILE, { users: {} });
+        const unlocked = !!data.users[req.params.id];
+        res.json({ unlocked });
+    } catch (e) {
+        console.error('Error reading bonus unlock:', e.message);
+        res.status(500).json({ error: 'Internal server error' });
+    }
 });
 
 // =============================================
@@ -299,6 +336,7 @@ app.get('/api/bonus-unlock/:id', (req, res) => {
 const duelQueue = [];        // Players waiting for a match
 const activeduels = {};      // roomId → duel state
 const BOT_WAIT_MS = 10000;   // 10 seconds before bot
+const DUEL_MAX_AGE_MS = 10 * 60 * 1000; // 10 minutes max duel lifetime
 
 const BOT_NAMES = [
     'Умник', 'Мастер слов', 'Знаток', 'Лингвист', 'Эрудит',
@@ -308,6 +346,20 @@ const BOT_NAMES = [
 function generateRoomId() {
     return 'duel_' + crypto.randomBytes(6).toString('hex');
 }
+
+// Periodic cleanup of abandoned/stale duels (issue #6)
+const duelCleanupInterval = setInterval(() => {
+    const now = Date.now();
+    for (const [roomId, duel] of Object.entries(activeduels)) {
+        if (now - duel.startTime > DUEL_MAX_AGE_MS) {
+            if (duel.botIntervals) {
+                duel.botIntervals.forEach(t => clearTimeout(t));
+            }
+            delete activeduels[roomId];
+            console.log(`Cleaned up stale duel: ${roomId}`);
+        }
+    }
+}, 60 * 1000); // Check every minute
 
 io.on('connection', (socket) => {
     let currentRoom = null;
@@ -692,6 +744,43 @@ if (process.env.BOT_TOKEN) {
         console.warn('Install node-telegram-bot-api: npm install node-telegram-bot-api');
     }
 }
+
+// =============================================
+// GRACEFUL SHUTDOWN
+// =============================================
+function gracefulShutdown(signal) {
+    console.log(`${signal} received. Shutting down gracefully...`);
+
+    // Stop accepting new connections
+    server.close(() => {
+        console.log('HTTP server closed');
+    });
+
+    // Clear duel cleanup interval
+    clearInterval(duelCleanupInterval);
+
+    // Clear all active duel bot intervals
+    for (const duel of Object.values(activeduels)) {
+        if (duel.botIntervals) {
+            duel.botIntervals.forEach(t => clearTimeout(t));
+        }
+    }
+
+    // Close all socket connections
+    io.close(() => {
+        console.log('WebSocket server closed');
+        process.exit(0);
+    });
+
+    // Force exit after 10 seconds if graceful shutdown fails
+    setTimeout(() => {
+        console.error('Forced shutdown after timeout');
+        process.exit(1);
+    }, 10000).unref();
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 // =============================================
 // START SERVER

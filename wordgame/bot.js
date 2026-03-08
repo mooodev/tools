@@ -21,7 +21,7 @@ const BONUS_UNLOCKS_FILE = path.join(__dirname, 'data', 'bonus_unlocks.json');
 
 if (!BOT_TOKEN) {
     console.error('BOT_TOKEN environment variable is required!');
-    process.exit(1);
+    throw new Error('BOT_TOKEN environment variable is required');
 }
 
 // Count bonus words from wordsunlocked.js (4 puzzles × 4 categories × 4 words)
