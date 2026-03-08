@@ -511,16 +511,23 @@ function showResultScreen(won, stars, xpGain, coinsGain, elapsed, leveledUp, new
     // Action buttons
     const actEl = $('res-actions');
     actEl.innerHTML = '';
+    function addActionBtn(label, callback, primary = true) {
+        const btn = document.createElement('button');
+        btn.className = primary ? 'pill-btn primary' : 'pill-btn';
+        btn.textContent = label;
+        btn.onclick = callback;
+        actEl.appendChild(btn);
+    }
     if (typeof isDuel !== 'undefined' && isDuel) {
-        actEl.innerHTML += `<button class="pill-btn primary" onclick="showDuelDiffPicker()">Ещё дуэль</button>`;
+        addActionBtn('Ещё дуэль', () => showDuelDiffPicker());
     } else if (isEndless) {
-        actEl.innerHTML += `<button class="pill-btn primary" onclick="launchEndless()">Следующий раунд</button>`;
+        addActionBtn('Следующий раунд', () => launchEndless());
     } else if (won && difficultyCompleted) {
         // All puzzles of this difficulty completed — only show menu button
-        actEl.innerHTML += `<button class="pill-btn primary" onclick="refreshHome();showScreen('start-screen')">В меню</button>`;
+        addActionBtn('В меню', () => { refreshHome(); showScreen('start-screen'); });
     } else {
-        actEl.innerHTML += `<button class="pill-btn primary" onclick="launchGame('${difficulty}')">Играть ещё</button>`;
-        actEl.innerHTML += `<button class="pill-btn" onclick="refreshHome();showScreen('start-screen')">В меню</button>`;
+        addActionBtn('Играть ещё', () => launchGame(difficulty));
+        addActionBtn('В меню', () => { refreshHome(); showScreen('start-screen'); }, false);
     }
 
     showScreen('result-screen');
@@ -704,9 +711,16 @@ function initEventListeners() {
     // Archive
     $('archive-back').onclick = () => { refreshProfile(); showScreen('profile-screen'); };
 
+    // Result screen
+    $('share-img-btn').onclick = () => shareResultImage();
+
     // Leaderboard
     $('lb-btn').onclick = () => { refreshLeaderboard(); showScreen('lb-screen'); };
     $('lb-back').onclick = () => { refreshHome(); showScreen('start-screen'); };
+    $('share-lb-btn').onclick = () => shareLeaderboardPosition();
+    document.querySelectorAll('#lb-tabs .lb-tab').forEach(tab => {
+        tab.onclick = () => refreshLeaderboard(tab.dataset.sort);
+    });
 
     // Duel
     $('duel-btn').onclick = () => showDuelDiffPicker();

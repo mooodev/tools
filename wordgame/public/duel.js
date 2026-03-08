@@ -169,8 +169,10 @@ function renderDuelSearchStart() {
         </div>
         <div class="duel-search-sub">Если соперник не найден за 10 секунд,<br>вы сыграете с ботом</div>
         <div class="duel-search-timer" id="duel-timer">10</div>
-        <button class="pill-btn" onclick="cancelDuelSearch()">Отмена</button>
+        <button class="pill-btn" id="duel-cancel-btn">Отмена</button>
     `;
+
+    content.querySelector('#duel-cancel-btn').onclick = () => cancelDuelSearch();
 
     // Countdown
     let count = 10;

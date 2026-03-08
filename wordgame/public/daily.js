@@ -316,7 +316,7 @@ function renderHomeWeekly() {
                 <span class="weekly-title">Еженедельный челлендж</span>
             </div>
             <div class="weekly-desc">Завершён!</div>
-            <button class="weekly-claim-btn" onclick="handleClaimWeeklyReward()">
+            <button class="weekly-claim-btn" id="weekly-claim-btn">
                 Забрать +${WEEKLY_COIN_REWARD} &#9679; и +${WEEKLY_XP_REWARD} XP
             </button>
         </div>`;
@@ -336,11 +336,17 @@ function renderHomeWeekly() {
             </div>
             <div class="weekly-desc">Победи в сложном паззле недели!</div>
             <div class="weekly-reward">&#127873; ${WEEKLY_COIN_REWARD} &#9679; + ${WEEKLY_XP_REWARD} XP</div>
-            <button class="weekly-play-btn" onclick="launchWeeklyChallenge()">Принять вызов</button>
+            <button class="weekly-play-btn" id="weekly-play-btn">Принять вызов</button>
         </div>`;
     }
 
     el.innerHTML = html;
+
+    // Bind buttons after innerHTML is set
+    const claimBtn = el.querySelector('#weekly-claim-btn');
+    if (claimBtn) claimBtn.onclick = () => handleClaimWeeklyReward();
+    const playBtn = el.querySelector('#weekly-play-btn');
+    if (playBtn) playBtn.onclick = () => launchWeeklyChallenge();
 }
 
 // =============================================
@@ -395,7 +401,7 @@ function renderDailyPanel() {
 
         // Claim button
         if (save.dailyChallenges.allCompleted && !save.dailyChallenges.claimed) {
-            html += `<button class="daily-claim-btn" onclick="handleClaimDailyBonus()">
+            html += `<button class="daily-claim-btn" id="daily-claim-btn">
                 &#127873; Забрать бонус +${DAILY_BONUS_ALL} &#9679;
             </button>`;
         } else if (save.dailyChallenges.claimed) {
@@ -406,6 +412,10 @@ function renderDailyPanel() {
     }
 
     panel.innerHTML = html;
+
+    // Bind claim button after innerHTML is set
+    const dailyClaimBtn = panel.querySelector('#daily-claim-btn');
+    if (dailyClaimBtn) dailyClaimBtn.onclick = () => handleClaimDailyBonus();
 }
 
 // =============================================

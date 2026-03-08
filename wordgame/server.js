@@ -166,6 +166,7 @@ app.post('/api/leaderboard', async (req, res) => {
         await atomicWriteJSON(DATA_FILE, leaderboardData);
     } catch (e) {
         console.error('Error saving leaderboard:', e.message);
+        return res.status(500).json({ error: 'Internal server error' });
     }
     res.json({ ok: true });
 });
@@ -232,6 +233,7 @@ app.post('/api/weekly-speed', async (req, res) => {
         await atomicWriteJSON(WEEKLY_SPEED_FILE, weeklySpeedData);
     } catch (e) {
         console.error('Error saving weekly speed:', e.message);
+        return res.status(500).json({ error: 'Internal server error' });
     }
 
     const entries = Object.values(weeklySpeedData.weeks[weekId]);
@@ -413,7 +415,8 @@ io.on('connection', (socket) => {
                     }
                 },
                 startTime: Date.now(),
-                isBot: false
+                isBot: false,
+                botIntervals: []
             };
 
             activeduels[roomId] = duelState;
