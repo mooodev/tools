@@ -43,7 +43,7 @@ app.use(helmet({
     contentSecurityPolicy: {
         directives: {
             defaultSrc: ["'self'"],
-            scriptSrc: ["'self'", "https://telegram.org"],
+            scriptSrc: ["'self'", "https://telegram.org", "https://cdn.jsdelivr.net"],
             styleSrc: ["'self'", "'unsafe-inline'"],
             connectSrc: ["'self'", "https://raw.githubusercontent.com", "wss:", "ws:"],
             imgSrc: ["'self'", "data:", "https://raw.githubusercontent.com"],
@@ -293,6 +293,116 @@ app.get('/api/weekly-speed/previous/:id', (req, res) => {
         total: entries.length,
         time: entry.time,
         weekId: prevWeekId
+    });
+});
+
+// =============================================
+// STATS API
+// =============================================
+app.get('/api/stats', (req, res) => {
+    const players = Object.values(leaderboardData.players);
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    // Group players by registration day (using lastActive as proxy)
+    const playersByDate = {};
+    let totalGames = 0;
+    let totalWins = 0;
+    let totalPerfect = 0;
+    let totalDuels = 0;
+    let totalDailyPuzzles = 0;
+    let totalWeeklyPuzzles = 0;
+    let totalStars = 0;
+    let totalCategories = 0;
+
+    // Level distribution
+    const levelDistribution = {};
+
+    // Activity tracking
+    const activityByDate = {};
+
+    players.forEach(p => {
+        totalGames += p.totalGames || 0;
+        totalWins += p.totalWins || 0;
+        totalPerfect += p.perfectGames || 0;
+        totalDuels += p.duelWins || 0;
+        totalDailyPuzzles += p.dailyPuzzlesTotal || 0;
+        totalWeeklyPuzzles += p.weeklyPuzzlesTotal || 0;
+        totalStars += p.totalStars || 0;
+        totalCategories += p.categoriesFound || 0;
+
+        // Level distribution
+        const lvl = p.level || 1;
+        levelDistribution[lvl] = (levelDistribution[lvl] || 0) + 1;
+
+        // Activity by date (from lastActive)
+        if (p.lastActive) {
+            const dateKey = p.lastActive.slice(0, 10); // YYYY-MM-DD
+            if (!activityByDate[dateKey]) {
+                activityByDate[dateKey] = { active: 0, new: 0 };
+            }
+            activityByDate[dateKey].active++;
+        }
+    });
+
+    // Sort activity dates and compute cumulative new players
+    // We treat a player's lastActive as their "first seen" approximation
+    // For a better approach, we'd need a createdAt field
+    const sortedDates = Object.keys(activityByDate).sort();
+
+    // Players active in last periods
+    const oneDayAgo = new Date(now - 24 * 60 * 60 * 1000);
+    const sevenDaysAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
+    const thirtyDaysAgo = new Date(now - 30 * 24 * 60 * 60 * 1000);
+
+    let activeToday = 0, activeLast7 = 0, activeLast30 = 0;
+    players.forEach(p => {
+        if (!p.lastActive) return;
+        const la = new Date(p.lastActive);
+        if (la >= todayStart) activeToday++;
+        if (la >= sevenDaysAgo) activeLast7++;
+        if (la >= thirtyDaysAgo) activeLast30++;
+    });
+
+    // Weekly speed stats
+    const weeklySpeedStats = {};
+    for (const [weekId, entries] of Object.entries(weeklySpeedData.weeks)) {
+        const times = Object.values(entries);
+        weeklySpeedStats[weekId] = {
+            participants: times.length,
+            avgTime: times.length > 0
+                ? Math.round(times.reduce((s, e) => s + e.time, 0) / times.length)
+                : 0,
+            bestTime: times.length > 0
+                ? Math.min(...times.map(e => e.time))
+                : 0
+        };
+    }
+
+    res.json({
+        overview: {
+            totalPlayers: players.length,
+            activeToday,
+            activeLast7Days: activeLast7,
+            activeLast30Days: activeLast30,
+            totalGames,
+            totalWins,
+            totalPerfectGames: totalPerfect,
+            totalDuelWins: totalDuels,
+            totalDailyPuzzles,
+            totalWeeklyPuzzles,
+            totalStars,
+            totalCategories,
+            avgGamesPerPlayer: players.length > 0
+                ? Math.round(totalGames / players.length * 10) / 10
+                : 0,
+            avgWinRate: totalGames > 0
+                ? Math.round(totalWins / totalGames * 1000) / 10
+                : 0
+        },
+        levelDistribution,
+        activityByDate,
+        weeklySpeedStats
     });
 });
 
