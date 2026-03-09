@@ -45,7 +45,7 @@ app.use(helmet({
             defaultSrc: ["'self'"],
             scriptSrc: ["'self'", "https://telegram.org", "https://cdn.jsdelivr.net"],
             styleSrc: ["'self'", "'unsafe-inline'"],
-            connectSrc: ["'self'", "https://raw.githubusercontent.com", "wss:", "ws:"],
+            connectSrc: ["'self'", "https://raw.githubusercontent.com", "https://cdn.jsdelivr.net", "wss:", "ws:"],
             imgSrc: ["'self'", "data:", "https://raw.githubusercontent.com"],
         }
     }

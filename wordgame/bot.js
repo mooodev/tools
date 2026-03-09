@@ -146,7 +146,7 @@ bot.onText(/\/start/, (msg) => {
         keyboard.push([{ text: '🎁 Открыть доп.слова', callback_data: 'unlock_bonus_words' }]);
     }
 
-    const imageUrl = 'https://raw.githubusercontent.com/mooodev/tools/refs/heads/main/images/vtemumenu.jpg';
+    const imageUrl = `https://raw.githubusercontent.com/mooodev/tools/refs/heads/main/images/vtemumenu.jpg?v=${Date.now()}`;
 
     bot.sendPhoto(chatId, imageUrl, {
         caption: welcomeText,
