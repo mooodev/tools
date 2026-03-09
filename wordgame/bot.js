@@ -27,6 +27,9 @@ if (!BOT_TOKEN) {
 // Count bonus words from wordsunlocked.js (4 puzzles × 4 categories × 4 words)
 const BONUS_WORDS_COUNT = 4 * 4 * 4;
 
+// Feature flag: set to true to enable the "Открыть доп.слова" button
+const BONUS_BUTTON_ENABLED = false;
+
 // =============================================
 // SUBSCRIBER STORE
 // =============================================
@@ -138,8 +141,8 @@ bot.onText(/\/start/, (msg) => {
         [{ text: '🎮 Играть в «В тему!»', web_app: { url: WEBAPP_URL } }]
     ];
 
-    // Only show bonus words button if not yet unlocked
-    if (!bonusUnlocked) {
+    // Only show bonus words button if enabled and not yet unlocked
+    if (BONUS_BUTTON_ENABLED && !bonusUnlocked) {
         keyboard.push([{ text: '🎁 Открыть доп.слова', callback_data: 'unlock_bonus_words' }]);
     }
 
