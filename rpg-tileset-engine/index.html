@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RPG Tileset Engine</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #1a1a2e;
+      color: #e0e0e0;
+      overflow: hidden;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #toolbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      background: #16213e;
+      border-bottom: 2px solid #0f3460;
+      z-index: 10;
+      flex-shrink: 0;
+    }
+
+    #toolbar h1 {
+      font-size: 14px;
+      color: #e94560;
+      margin-right: 12px;
+      white-space: nowrap;
+    }
+
+    .toolbar-btn {
+      padding: 5px 12px;
+      background: #0f3460;
+      color: #e0e0e0;
+      border: 1px solid #1a1a5e;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      transition: background 0.2s;
+    }
+    .toolbar-btn:hover { background: #1a1a5e; }
+    .toolbar-btn.active { background: #e94560; border-color: #e94560; }
+
+    .toolbar-sep {
+      width: 1px;
+      height: 24px;
+      background: #0f3460;
+      margin: 0 4px;
+    }
+
+    .toolbar-label {
+      font-size: 11px;
+      color: #888;
+      margin-right: 4px;
+    }
+
+    #main-container {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* Left panel - tileset */
+    #tileset-panel {
+      width: 260px;
+      min-width: 200px;
+      background: #16213e;
+      border-right: 2px solid #0f3460;
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+
+    #tileset-header {
+      padding: 8px 10px;
+      background: #0f3460;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    #tileset-header span { font-size: 12px; font-weight: bold; }
+
+    #upload-btn {
+      padding: 3px 10px;
+      background: #e94560;
+      color: white;
+      border: none;
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 11px;
+    }
+    #upload-btn:hover { background: #c73650; }
+
+    #tileset-scroll {
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding: 6px;
+    }
+
+    #tileset-scroll::-webkit-scrollbar { width: 6px; }
+    #tileset-scroll::-webkit-scrollbar-track { background: #1a1a2e; }
+    #tileset-scroll::-webkit-scrollbar-thumb { background: #0f3460; border-radius: 3px; }
+
+    #tileset-container {
+      position: relative;
+      cursor: crosshair;
+      image-rendering: pixelated;
+    }
+
+    #tileset-container img {
+      display: block;
+      width: 100%;
+      image-rendering: pixelated;
+    }
+
+    #tileset-container canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+
+    #tile-size-control {
+      padding: 6px 10px;
+      background: #0f3460;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+    }
+
+    #tile-size-control input {
+      width: 50px;
+      padding: 2px 4px;
+      background: #1a1a2e;
+      border: 1px solid #1a1a5e;
+      color: #e0e0e0;
+      border-radius: 3px;
+      font-size: 11px;
+      text-align: center;
+    }
+
+    /* Right panel - viewport */
+    #viewport-container {
+      flex: 1;
+      position: relative;
+    }
+
+    #viewport {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    #info-bar {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding: 4px 10px;
+      background: rgba(22, 33, 62, 0.9);
+      font-size: 11px;
+      color: #888;
+      display: flex;
+      gap: 16px;
+      border-top: 1px solid #0f3460;
+    }
+
+    #no-tileset-msg {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 200px;
+      color: #555;
+      font-size: 12px;
+      text-align: center;
+      gap: 8px;
+    }
+
+    #no-tileset-msg .icon { font-size: 36px; }
+
+    /* Preview tile */
+    #selected-preview {
+      padding: 6px 10px;
+      background: #1a1a2e;
+      border-top: 1px solid #0f3460;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+    }
+
+    #selected-preview canvas {
+      border: 1px solid #0f3460;
+      image-rendering: pixelated;
+      background: repeating-conic-gradient(#333 0% 25%, #444 0% 50%) 50% / 8px 8px;
+    }
+
+    /* Layer panel */
+    #layer-controls {
+      padding: 6px 10px;
+      background: #0f3460;
+      border-top: 1px solid #1a1a5e;
+      font-size: 11px;
+    }
+
+    #layer-controls .layer-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 2px 0;
+    }
+
+    #height-slider {
+      width: 100%;
+      accent-color: #e94560;
+    }
+
+    /* Hidden file input */
+    #file-input { display: none; }
+
+    /* Cursor overlay on viewport */
+    #cursor-info {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      padding: 4px 8px;
+      background: rgba(22, 33, 62, 0.85);
+      border: 1px solid #0f3460;
+      border-radius: 4px;
+      font-size: 11px;
+      color: #aaa;
+      pointer-events: none;
+    }
+
+    select {
+      padding: 3px 6px;
+      background: #1a1a2e;
+      color: #e0e0e0;
+      border: 1px solid #1a1a5e;
+      border-radius: 3px;
+      font-size: 11px;
+    }
+  </style>
+</head>
+<body>
+
+<!-- Toolbar -->
+<div id="toolbar">
+  <h1>RPG Tileset Engine</h1>
+  <button class="toolbar-btn active" id="btn-draw" title="Draw tiles (D)">Draw</button>
+  <button class="toolbar-btn" id="btn-erase" title="Erase tiles (E)">Erase</button>
+  <button class="toolbar-btn" id="btn-rect" title="Rectangle fill (R)">Rect</button>
+  <div class="toolbar-sep"></div>
+  <span class="toolbar-label">Face:</span>
+  <select id="face-select">
+    <option value="top">Top</option>
+    <option value="front">Front (Wall)</option>
+    <option value="left">Left (Wall)</option>
+  </select>
+  <div class="toolbar-sep"></div>
+  <span class="toolbar-label">Height:</span>
+  <input type="range" id="height-slider-tb" min="0" max="10" value="0" style="width:80px;accent-color:#e94560;">
+  <span id="height-val">0</span>
+  <div class="toolbar-sep"></div>
+  <button class="toolbar-btn" id="btn-grid" title="Toggle grid (G)">Grid</button>
+  <button class="toolbar-btn" id="btn-clear" title="Clear all tiles">Clear</button>
+  <div class="toolbar-sep"></div>
+  <button class="toolbar-btn" id="btn-save" title="Save map (Ctrl+S)">Save</button>
+  <button class="toolbar-btn" id="btn-load" title="Load map">Load</button>
+</div>
+
+<div id="main-container">
+  <!-- Left Panel: Tileset -->
+  <div id="tileset-panel">
+    <div id="tileset-header">
+      <span>Tileset</span>
+      <button id="upload-btn">Upload</button>
+    </div>
+
+    <div id="tile-size-control">
+      <span>Tile Size:</span>
+      <input type="number" id="tile-w" value="32" min="8" max="256"> x
+      <input type="number" id="tile-h" value="32" min="8" max="256"> px
+    </div>
+
+    <div id="tileset-scroll">
+      <div id="tileset-container">
+        <div id="no-tileset-msg">
+          <div class="icon">&#128444;</div>
+          <div>No tileset loaded</div>
+          <div>Click "Upload" to load a tileset image</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="selected-preview">
+      <canvas id="preview-canvas" width="48" height="48"></canvas>
+      <span id="preview-label">No tile selected</span>
+    </div>
+  </div>
+
+  <!-- Main 3D Viewport -->
+  <div id="viewport-container">
+    <canvas id="viewport"></canvas>
+    <div id="cursor-info">Hover over grid to place tiles</div>
+    <div id="info-bar">
+      <span id="info-pos">Position: -</span>
+      <span id="info-tiles">Tiles: 0</span>
+      <span>LMB: Place | RMB: Orbit | Scroll: Zoom | MMB: Pan</span>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="file-input" accept="image/*">
+<input type="file" id="load-input" accept=".json">
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="engine.js"></script>
+</body>
+</html>
