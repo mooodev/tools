@@ -451,7 +451,7 @@
     const x = parseInt(parts[0]);
     const z = parseInt(parts[1]);
     const y = parseInt(parts[2]);
-    const face = parts[3];
+    const face = parts[3].split('_')[0]; // Extract face from "face_shape_rotation"
 
     const { col, row } = tileData;
     const uv = getTileUV(col, row);
@@ -555,7 +555,7 @@
     return group;
   }
 
-  // -- Triangular Prism (A-Frame half) --
+  // -- Triangular Prism (3D triangle) --
   function createPrismMesh(key, tileData) {
     const parts = key.split(',');
     const x = parseInt(parts[0]);
@@ -563,99 +563,34 @@
     const y = parseInt(parts[2]);
 
     const { col, row } = tileData;
-    const half = tileData.prismHalf || 'left';
     const rot = (tileData.rotation || 0) * Math.PI / 180;
     const uv = getTileUV(col, row);
 
     const group = new THREE.Group();
 
-    // A triangular prism: a right triangle cross-section extruded along Z
-    // "left" half: slopes from bottom-left to top-center
-    // "right" half: slopes from bottom-right to top-center
-    // When two are placed together they form an A-frame
+    const w = TILE_WORLD_SIZE;  // width (X)
+    const h = TILE_WORLD_SIZE;  // height (Y)
+    const d = TILE_WORLD_SIZE;  // depth (Z)
 
-    const hw = TILE_WORLD_SIZE;    // width
-    const hh = TILE_WORLD_SIZE;    // height
-    const hd = TILE_WORLD_SIZE;    // depth
+    // Triangle cross-section: base at bottom, apex at top-center
+    // Vertices: bottom-left (0,0), bottom-right (w,0), top-center (w/2, h)
 
-    // Create the sloped face (the hypotenuse)
-    const slopeLen = Math.sqrt((hw / 2) * (hw / 2) + hh * hh);
-    const slopeAngle = Math.atan2(hh, hw / 2);
-
-    const slopeGeo = new THREE.PlaneGeometry(slopeLen, hd);
-    const slopeMat = makeTileMaterial();
-    const slopeMesh = new THREE.Mesh(slopeGeo, slopeMat);
-    setPlaneUV(slopeGeo, uv);
-    slopeMesh.castShadow = true;
-    slopeMesh.receiveShadow = true;
-
-    if (half === 'left') {
-      // Slope from bottom-left (0,0) to top-center (0.5, 1)
-      slopeMesh.rotation.z = -(Math.PI / 2 - slopeAngle);
-      slopeMesh.position.set(hw / 4, hh / 2, hd / 2);
-    } else {
-      // Slope from bottom-right (1,0) to top-center (0.5, 1)
-      slopeMesh.rotation.z = (Math.PI / 2 - slopeAngle);
-      slopeMesh.position.set(hw * 3 / 4, hh / 2, hd / 2);
-    }
-    group.add(slopeMesh);
-
-    // Bottom face
-    const bottomGeo = new THREE.PlaneGeometry(hw / 2, hd);
-    const bottomMat = makeTileMaterial();
-    const bottomMesh = new THREE.Mesh(bottomGeo, bottomMat);
-    setPlaneUV(bottomGeo, uv);
-    bottomMesh.rotation.x = Math.PI / 2;
-    bottomMesh.receiveShadow = true;
-
-    if (half === 'left') {
-      bottomMesh.position.set(hw / 4, 0, hd / 2);
-    } else {
-      bottomMesh.position.set(hw * 3 / 4, 0, hd / 2);
-    }
-    group.add(bottomMesh);
-
-    // Vertical face (the straight edge at center or outside)
-    const vertGeo = new THREE.PlaneGeometry(hd, hh);
-    const vertMat = makeTileMaterial();
-
-    // Inner vertical wall (at the center seam)
-    const vertMesh = new THREE.Mesh(vertGeo, vertMat);
-    setPlaneUV(vertGeo, uv);
-    vertMesh.rotation.y = Math.PI / 2;
-    vertMesh.castShadow = true;
-    vertMesh.receiveShadow = true;
-
-    if (half === 'left') {
-      vertMesh.position.set(hw / 2, hh / 2, hd / 2);
-    } else {
-      vertMesh.position.set(hw / 2, hh / 2, hd / 2);
-    }
-    group.add(vertMesh);
-
-    // Triangle end caps (front and back)
+    // --- Two triangular end caps (front z=0 and back z=d) ---
     for (let side = 0; side < 2; side++) {
       const triShape = new THREE.Shape();
-      if (half === 'left') {
-        triShape.moveTo(0, 0);
-        triShape.lineTo(hw / 2, 0);
-        triShape.lineTo(hw / 2, hh);
-        triShape.lineTo(0, 0);
-      } else {
-        triShape.moveTo(hw / 2, 0);
-        triShape.lineTo(hw, 0);
-        triShape.lineTo(hw / 2, hh);
-        triShape.lineTo(hw / 2, 0);
-      }
+      triShape.moveTo(0, 0);
+      triShape.lineTo(w, 0);
+      triShape.lineTo(w / 2, h);
+      triShape.lineTo(0, 0);
 
       const triGeo = new THREE.ShapeGeometry(triShape);
       const triMat = makeTileMaterial();
 
-      // Set UVs for triangle
+      // Map UVs to tile
       const triUvAttr = triGeo.attributes.uv;
       for (let i = 0; i < triUvAttr.count; i++) {
-        const px = triUvAttr.getX(i) / hw;
-        const py = triUvAttr.getY(i) / hh;
+        const px = triUvAttr.getX(i) / w;
+        const py = triUvAttr.getY(i) / h;
         triUvAttr.setXY(i,
           uv.u0 + (uv.u1 - uv.u0) * px,
           uv.v0 + (uv.v1 - uv.v0) * py
@@ -670,20 +605,56 @@
       if (side === 0) {
         triMesh.position.z = 0;
       } else {
-        triMesh.position.z = hd;
+        // Back face: flip and position
+        triMesh.position.z = d;
         triMesh.rotation.y = Math.PI;
-        triMesh.position.x = hw;
+        triMesh.position.x = w;
       }
       group.add(triMesh);
     }
+
+    // --- Bottom face (rectangle) ---
+    const bottomGeo = new THREE.PlaneGeometry(w, d);
+    const bottomMat = makeTileMaterial();
+    const bottomMesh = new THREE.Mesh(bottomGeo, bottomMat);
+    setPlaneUV(bottomGeo, uv);
+    bottomMesh.rotation.x = Math.PI / 2;
+    bottomMesh.position.set(w / 2, 0, d / 2);
+    bottomMesh.receiveShadow = true;
+    group.add(bottomMesh);
+
+    // --- Left slope face (from bottom-left edge to top-center) ---
+    const leftSlopeLen = Math.sqrt((w / 2) * (w / 2) + h * h);
+    const leftSlopeGeo = new THREE.PlaneGeometry(leftSlopeLen, d);
+    const leftSlopeMat = makeTileMaterial();
+    const leftSlopeMesh = new THREE.Mesh(leftSlopeGeo, leftSlopeMat);
+    setPlaneUV(leftSlopeGeo, uv);
+    leftSlopeMesh.castShadow = true;
+    leftSlopeMesh.receiveShadow = true;
+    // Angle the slope: rotate around Z to tilt, position at midpoint of left edge
+    const slopeAngle = Math.atan2(h, w / 2);
+    leftSlopeMesh.rotation.z = slopeAngle - Math.PI / 2;
+    leftSlopeMesh.position.set(w / 4, h / 2, d / 2);
+    group.add(leftSlopeMesh);
+
+    // --- Right slope face (from bottom-right edge to top-center) ---
+    const rightSlopeGeo = new THREE.PlaneGeometry(leftSlopeLen, d);
+    const rightSlopeMat = makeTileMaterial();
+    const rightSlopeMesh = new THREE.Mesh(rightSlopeGeo, rightSlopeMat);
+    setPlaneUV(rightSlopeGeo, uv);
+    rightSlopeMesh.castShadow = true;
+    rightSlopeMesh.receiveShadow = true;
+    rightSlopeMesh.rotation.z = -(slopeAngle - Math.PI / 2);
+    rightSlopeMesh.position.set(w * 3 / 4, h / 2, d / 2);
+    group.add(rightSlopeMesh);
 
     // Apply rotation around center
     group.position.set(x, y * TILE_WORLD_SIZE, z);
 
     if (rot !== 0) {
       const pivot = new THREE.Group();
-      pivot.position.set(x + hw / 2, y * TILE_WORLD_SIZE, z + hd / 2);
-      group.position.set(-hw / 2, 0, -hd / 2);
+      pivot.position.set(x + w / 2, y * TILE_WORLD_SIZE, z + d / 2);
+      group.position.set(-w / 2, 0, -d / 2);
       pivot.rotation.y = rot;
       pivot.add(group);
       scene.add(pivot);
@@ -692,6 +663,34 @@
 
     scene.add(group);
     return group;
+  }
+
+  // -- Side Plane (rotated 90° plane facing perpendicular direction) --
+  function createSidePlaneMesh(key, tileData) {
+    const parts = key.split(',');
+    const x = parseInt(parts[0]);
+    const z = parseInt(parts[1]);
+    const y = parseInt(parts[2]);
+
+    const { col, row } = tileData;
+    const rot = (tileData.rotation || 0) * Math.PI / 180;
+    const uv = getTileUV(col, row);
+
+    const geometry = new THREE.PlaneGeometry(TILE_WORLD_SIZE, TILE_WORLD_SIZE);
+    const material = makeTileMaterial();
+    const mesh = new THREE.Mesh(geometry, material);
+
+    setPlaneUV(geometry, uv);
+
+    // Default orientation: faces X direction (perpendicular to the wall's default Z-facing)
+    mesh.rotation.y = Math.PI / 2 + rot;
+    mesh.position.set(x + 0.5, y * TILE_WORLD_SIZE + 0.5, z + 0.5);
+
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+
+    scene.add(mesh);
+    return mesh;
   }
 
   // -- Wall (90-degree plane) -- Freestanding vertical plane
@@ -739,6 +738,9 @@
       case 'wall':
         mesh = createWallMesh(key, tileData);
         break;
+      case 'sideplane':
+        mesh = createSidePlaneMesh(key, tileData);
+        break;
       default:
         mesh = createFlatTileMesh(key, tileData);
         break;
@@ -779,7 +781,7 @@
     if (x < 0 || x >= GRID_SIZE || z < 0 || z >= GRID_SIZE) return;
 
     const shape = state.shape;
-    const face = shape === 'wall' || shape === 'block' || shape === 'prism' ? 'top' : state.face;
+    const face = shape === 'wall' || shape === 'block' || shape === 'prism' || shape === 'sideplane' ? 'top' : state.face;
     const key = tileKey(x, z, state.heightLevel, face + '_' + shape + '_' + state.rotation);
 
     const data = {
@@ -811,7 +813,7 @@
     if (x < 0 || x >= GRID_SIZE || z < 0 || z >= GRID_SIZE) return;
 
     // Try to erase any shape at this position
-    const shapes = ['tile', 'block', 'prism', 'wall'];
+    const shapes = ['tile', 'block', 'prism', 'wall', 'sideplane'];
     const rotations = [0, 90, 180, 270];
     const faces = ['top', 'front', 'left'];
 
@@ -986,7 +988,7 @@
 
   function updateShapeUI() {
     blockSizeRow.style.display = state.shape === 'block' ? 'flex' : 'none';
-    prismDirRow.style.display = state.shape === 'prism' ? 'flex' : 'none';
+    prismDirRow.style.display = 'none'; // Prism no longer needs half selection
   }
 
   shapeSelect.addEventListener('change', e => {
@@ -1080,6 +1082,27 @@
     });
   });
 
+  // Global directional light controls
+  document.getElementById('dir-color').addEventListener('input', e => {
+    dirLight.color.set(e.target.value);
+  });
+
+  document.getElementById('dir-intensity').addEventListener('input', e => {
+    const val = parseInt(e.target.value) / 100;
+    dirLight.intensity = val;
+    document.getElementById('dir-intensity-val').textContent = val.toFixed(1);
+  });
+
+  ['dir-x', 'dir-y', 'dir-z'].forEach(id => {
+    document.getElementById(id).addEventListener('change', () => {
+      dirLight.position.set(
+        parseFloat(document.getElementById('dir-x').value),
+        parseFloat(document.getElementById('dir-y').value),
+        parseFloat(document.getElementById('dir-z').value)
+      );
+    });
+  });
+
   // Add light buttons
   document.getElementById('btn-add-point').addEventListener('click', () => addLight('point'));
   document.getElementById('btn-add-spot').addEventListener('click', () => addLight('spot'));
@@ -1134,11 +1157,12 @@
     scene.add(light);
     lightData.threeLight = light;
 
-    // Create helper sphere to visualize the light
-    const helperGeo = new THREE.SphereGeometry(0.2, 8, 8);
+    // Create helper sphere to visualize the light (clickable/draggable)
+    const helperGeo = new THREE.SphereGeometry(0.3, 12, 12);
     const helperMat = new THREE.MeshBasicMaterial({ color: lightData.color });
     const helper = new THREE.Mesh(helperGeo, helperMat);
     helper.position.copy(light.position);
+    helper.userData.lightId = id; // Tag for raycasting identification
     scene.add(helper);
     lightData.helper = helper;
 
@@ -1309,6 +1333,94 @@
     });
   }
 
+  // ---- Light Dragging with Mouse ----
+  const lightDragState = {
+    active: false,
+    lightData: null,
+    dragPlane: new THREE.Plane(),
+    offset: new THREE.Vector3(),
+    intersection: new THREE.Vector3(),
+  };
+
+  function getLightHelpers() {
+    return state.userLights.map(l => l.helper).filter(Boolean);
+  }
+
+  canvas.addEventListener('mousedown', e => {
+    if (e.button !== 0) return;
+    // Check if clicking on a light helper sphere
+    const rect = canvas.getBoundingClientRect();
+    const mx = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    const my = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    const rc = new THREE.Raycaster();
+    rc.setFromCamera(new THREE.Vector2(mx, my), camera);
+
+    const helpers = getLightHelpers();
+    if (helpers.length === 0) return;
+
+    const hits = rc.intersectObjects(helpers);
+    if (hits.length > 0) {
+      e.stopPropagation();
+      e.preventDefault();
+
+      const hitHelper = hits[0].object;
+      const lightId = hitHelper.userData.lightId;
+      const ld = state.userLights.find(l => l.id === lightId);
+      if (!ld) return;
+
+      lightDragState.active = true;
+      lightDragState.lightData = ld;
+
+      // Create a drag plane perpendicular to camera at light position
+      const camDir = new THREE.Vector3();
+      camera.getWorldDirection(camDir);
+      lightDragState.dragPlane.setFromNormalAndCoplanarPoint(camDir, hitHelper.position);
+
+      // Calculate offset between intersection point and light position
+      rc.ray.intersectPlane(lightDragState.dragPlane, lightDragState.intersection);
+      lightDragState.offset.copy(hitHelper.position).sub(lightDragState.intersection);
+
+      canvas.style.cursor = 'grabbing';
+    }
+  }, true); // Use capture phase to intercept before tile placement
+
+  window.addEventListener('mousemove', e => {
+    if (!lightDragState.active) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const mx = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    const my = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    const rc = new THREE.Raycaster();
+    rc.setFromCamera(new THREE.Vector2(mx, my), camera);
+
+    const target = new THREE.Vector3();
+    if (rc.ray.intersectPlane(lightDragState.dragPlane, target)) {
+      target.add(lightDragState.offset);
+
+      const ld = lightDragState.lightData;
+      ld.x = Math.round(target.x * 2) / 2; // Snap to 0.5 grid
+      ld.y = Math.round(target.y * 2) / 2;
+      ld.z = Math.round(target.z * 2) / 2;
+
+      ld.threeLight.position.set(ld.x, ld.y, ld.z);
+      ld.helper.position.set(ld.x, ld.y, ld.z);
+      if (ld.threeLight.target) {
+        ld.threeLight.target.position.set(ld.x, 0, ld.z);
+      }
+
+      // Update the UI inputs if lighting panel is open
+      renderLightsList();
+    }
+  });
+
+  window.addEventListener('mouseup', e => {
+    if (lightDragState.active) {
+      lightDragState.active = false;
+      lightDragState.lightData = null;
+      canvas.style.cursor = '';
+    }
+  });
+
   // ---- Save / Load ----
   document.getElementById('btn-save').addEventListener('click', saveMap);
   document.getElementById('btn-load').addEventListener('click', () => {
@@ -1355,6 +1467,11 @@
       ambientColor: '#' + ambientLight.color.getHexString(),
       ambientIntensity: ambientLight.intensity,
       shadowsEnabled: renderer.shadowMap.enabled,
+      dirColor: '#' + dirLight.color.getHexString(),
+      dirIntensity: dirLight.intensity,
+      dirX: dirLight.position.x,
+      dirY: dirLight.position.y,
+      dirZ: dirLight.position.z,
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -1391,6 +1508,23 @@
     if (data.shadowsEnabled !== undefined) {
       renderer.shadowMap.enabled = data.shadowsEnabled;
       document.getElementById('toggle-shadows').checked = data.shadowsEnabled;
+    }
+
+    // Restore global directional light
+    if (data.dirColor) {
+      dirLight.color.set(data.dirColor);
+      document.getElementById('dir-color').value = data.dirColor;
+    }
+    if (data.dirIntensity !== undefined) {
+      dirLight.intensity = data.dirIntensity;
+      document.getElementById('dir-intensity').value = Math.round(data.dirIntensity * 100);
+      document.getElementById('dir-intensity-val').textContent = data.dirIntensity.toFixed(1);
+    }
+    if (data.dirX !== undefined) {
+      dirLight.position.set(data.dirX, data.dirY, data.dirZ);
+      document.getElementById('dir-x').value = data.dirX;
+      document.getElementById('dir-y').value = data.dirY;
+      document.getElementById('dir-z').value = data.dirZ;
     }
 
     // Restore user lights
