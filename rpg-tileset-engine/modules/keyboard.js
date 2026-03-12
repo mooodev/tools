@@ -8,13 +8,21 @@ import { setTool } from './toolbar.js';
 import { performUndo } from './undo.js';
 import { saveMap } from './saveload.js';
 import { getGridHelper } from './grid.js';
+import { camState, updateCamera } from './camera.js';
+import { camera } from './renderer.js';
+
+const PAN_SPEED = 0.8;
 
 function initKeyboard() {
   const heightSlider = document.getElementById('height-slider-tb');
   const lightingPanel = document.getElementById('lighting-panel');
 
+  const keysDown = {};
+
   window.addEventListener('keydown', e => {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+
+    keysDown[e.key] = true;
 
     switch (e.key.toLowerCase()) {
       case 'd': setTool('draw'); break;
@@ -60,7 +68,46 @@ function initKeyboard() {
       state.rotation = (state.rotation + 90) % 360;
       document.getElementById('rotation-select').value = state.rotation;
     }
+
+    // Arrow key map movement
+    if (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      e.preventDefault();
+      panCameraArrowKey(e.key);
+    }
   });
+
+  window.addEventListener('keyup', e => {
+    delete keysDown[e.key];
+  });
+}
+
+function panCameraArrowKey(key) {
+  // Calculate camera-relative right and forward directions on the XZ plane
+  const right = new THREE.Vector3();
+  const up = new THREE.Vector3(0, 1, 0);
+  camera.getWorldDirection(right).cross(up).normalize();
+
+  const forward = new THREE.Vector3();
+  camera.getWorldDirection(forward);
+  forward.y = 0;
+  forward.normalize();
+
+  switch (key) {
+    case 'ArrowUp':
+      camState.target.addScaledVector(forward, PAN_SPEED);
+      break;
+    case 'ArrowDown':
+      camState.target.addScaledVector(forward, -PAN_SPEED);
+      break;
+    case 'ArrowLeft':
+      camState.target.addScaledVector(right, -PAN_SPEED);
+      break;
+    case 'ArrowRight':
+      camState.target.addScaledVector(right, PAN_SPEED);
+      break;
+  }
+
+  updateCamera();
 }
 
 export { initKeyboard };

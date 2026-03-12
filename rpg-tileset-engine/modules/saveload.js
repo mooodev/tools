@@ -7,6 +7,7 @@ import { renderer, ambientLight, dirLight } from './renderer.js';
 import { removeTileMesh, createTileMesh, updateTileCount } from './tiles.js';
 import { addLight, removeLight } from './lighting.js';
 import { loadTileset } from './tileset.js';
+import { getOpts, setParticleType } from './particles.js';
 
 function saveMap() {
   const lightsData = state.userLights.map(l => ({
@@ -37,6 +38,7 @@ function saveMap() {
     dirY: dirLight.position.y,
     dirZ: dirLight.position.z,
     particleType: state.particleType || 'none',
+    particleOpts: getOpts(),
   };
 
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -101,13 +103,17 @@ function loadMap(data) {
     data.lights.forEach(lconf => addLight(lconf.type, lconf));
   }
 
-  // Restore particles
+  // Restore particles and particle options
+  if (data.particleOpts) {
+    const opts = getOpts();
+    Object.assign(opts, data.particleOpts);
+  }
   if (data.particleType && data.particleType !== 'none') {
     const particleSelect = document.getElementById('particle-select');
     if (particleSelect) {
       particleSelect.value = data.particleType;
-      particleSelect.dispatchEvent(new Event('change'));
     }
+    setParticleType(data.particleType);
   }
 
   if (data.tilesetSrc) {
