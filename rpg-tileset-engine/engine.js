@@ -18,6 +18,7 @@
     shape: 'tile',        // tile, block, prism, wall
     face: 'top',          // top, front, left
     heightLevel: 0,
+    layer: 0,             // 0 or 1 (two layers per height)
     rotation: 0,          // 0, 90, 180, 270 degrees
     tileW: 32,
     tileH: 32,
@@ -38,6 +39,12 @@
     tilesetRows: 0,
     selectedTile: null,   // { col, row }
 
+    // Multi-tile selection: array of {col, row} for arbitrary shape selection
+    selectedTiles: [],         // all selected tiles
+    multiSelectMode: 'single', // 'single', 'rect', 'free'
+    multiSelectStart: null,    // start of rect selection
+    multiSelectDragging: false,
+
     // Map data: key = "x,z,y,face" -> { col, row, shape, ... }
     mapTiles: {},
 
@@ -49,6 +56,10 @@
 
     // Hover
     hoverPos: null,
+
+    // Undo history
+    undoStack: [],  // array of { action, entries: [{key, oldData, newData}] }
+    maxUndoSteps: 50,
 
     // Lighting
     userLights: [],       // { id, type, color, intensity, x, y, z, ... }
@@ -323,21 +334,107 @@
       drawTilesetOverlay(overlay);
     });
 
-    // Click handler
+    // Multi-tile selection handlers
     tilesetContainer.style.cursor = 'crosshair';
-    tilesetContainer.onclick = e => {
-      const rect = img.getBoundingClientRect();
-      const scaleX = state.tilesetImage.width / rect.width;
-      const scaleY = state.tilesetImage.height / rect.height;
-      const px = (e.clientX - rect.left) * scaleX;
-      const py = (e.clientY - rect.top) * scaleY;
+
+    function getTileAtEvent(e) {
+      const r = img.getBoundingClientRect();
+      const scaleX = state.tilesetImage.width / r.width;
+      const scaleY = state.tilesetImage.height / r.height;
+      const px = (e.clientX - r.left) * scaleX;
+      const py = (e.clientY - r.top) * scaleY;
       const col = Math.floor(px / state.tileW);
       const row = Math.floor(py / state.tileH);
       if (col >= 0 && col < state.tilesetCols && row >= 0 && row < state.tilesetRows) {
-        state.selectedTile = { col, row };
+        return { col, row };
+      }
+      return null;
+    }
+
+    tilesetContainer.onmousedown = e => {
+      const tile = getTileAtEvent(e);
+      if (!tile) return;
+      e.preventDefault();
+
+      const mode = state.multiSelectMode;
+      if (mode === 'single') {
+        state.selectedTile = tile;
+        state.selectedTiles = [tile];
+        drawTilesetOverlay(overlay);
+        updatePreview();
+      } else if (mode === 'rect') {
+        state.multiSelectStart = tile;
+        state.multiSelectDragging = true;
+      } else if (mode === 'free') {
+        // Ctrl+click toggles individual tiles
+        if (e.ctrlKey || e.metaKey) {
+          const idx = state.selectedTiles.findIndex(t => t.col === tile.col && t.row === tile.row);
+          if (idx >= 0) {
+            state.selectedTiles.splice(idx, 1);
+          } else {
+            state.selectedTiles.push(tile);
+          }
+        } else {
+          state.multiSelectDragging = true;
+          state.selectedTiles = [tile];
+        }
+        state.selectedTile = state.selectedTiles[0] || null;
         drawTilesetOverlay(overlay);
         updatePreview();
       }
+    };
+
+    tilesetContainer.onmousemove = e => {
+      if (!state.multiSelectDragging) return;
+      const tile = getTileAtEvent(e);
+      if (!tile) return;
+
+      if (state.multiSelectMode === 'rect' && state.multiSelectStart) {
+        // Show live rect selection
+        const s = state.multiSelectStart;
+        const minC = Math.min(s.col, tile.col), maxC = Math.max(s.col, tile.col);
+        const minR = Math.min(s.row, tile.row), maxR = Math.max(s.row, tile.row);
+        state.selectedTiles = [];
+        for (let c = minC; c <= maxC; c++) {
+          for (let r = minR; r <= maxR; r++) {
+            state.selectedTiles.push({ col: c, row: r });
+          }
+        }
+        state.selectedTile = state.selectedTiles[0] || null;
+        drawTilesetOverlay(overlay);
+        updatePreview();
+      } else if (state.multiSelectMode === 'free') {
+        // Add tiles under the brush (freeform paint selection)
+        const exists = state.selectedTiles.some(t => t.col === tile.col && t.row === tile.row);
+        if (!exists) {
+          state.selectedTiles.push(tile);
+          state.selectedTile = state.selectedTiles[0] || null;
+          drawTilesetOverlay(overlay);
+          updatePreview();
+        }
+      }
+    };
+
+    tilesetContainer.onmouseup = e => {
+      if (state.multiSelectDragging && state.multiSelectMode === 'rect' && state.multiSelectStart) {
+        const tile = getTileAtEvent(e);
+        if (tile) {
+          const s = state.multiSelectStart;
+          const minC = Math.min(s.col, tile.col), maxC = Math.max(s.col, tile.col);
+          const minR = Math.min(s.row, tile.row), maxR = Math.max(s.row, tile.row);
+          state.selectedTiles = [];
+          for (let c = minC; c <= maxC; c++) {
+            for (let r = minR; r <= maxR; r++) {
+              state.selectedTiles.push({ col: c, row: r });
+            }
+          }
+          state.selectedTile = state.selectedTiles[0] || null;
+        }
+      }
+      state.multiSelectDragging = false;
+      state.multiSelectStart = null;
+      drawTilesetOverlay(overlay);
+      updatePreview();
     };
 
     document.getElementById('no-tileset-msg')?.remove();
@@ -368,24 +465,27 @@
       ctx.stroke();
     }
 
-    // Highlight selected
-    if (state.selectedTile) {
+    // Highlight all selected tiles
+    const tilesToHighlight = state.selectedTiles.length > 0 ? state.selectedTiles :
+      (state.selectedTile ? [state.selectedTile] : []);
+
+    tilesToHighlight.forEach(tile => {
       ctx.strokeStyle = '#e94560';
       ctx.lineWidth = 2;
       ctx.strokeRect(
-        state.selectedTile.col * tw + 1,
-        state.selectedTile.row * th + 1,
+        tile.col * tw + 1,
+        tile.row * th + 1,
         tw - 2,
         th - 2
       );
       ctx.fillStyle = 'rgba(233, 69, 96, 0.2)';
       ctx.fillRect(
-        state.selectedTile.col * tw,
-        state.selectedTile.row * th,
+        tile.col * tw,
+        tile.row * th,
         tw,
         th
       );
-    }
+    });
   }
 
   function updatePreview() {
@@ -393,21 +493,65 @@
     const ctx = previewCanvas.getContext('2d');
     const label = document.getElementById('preview-label');
 
-    ctx.clearRect(0, 0, 48, 48);
+    const tiles = state.selectedTiles.length > 0 ? state.selectedTiles :
+      (state.selectedTile ? [state.selectedTile] : []);
 
-    if (state.selectedTile && state.tilesetImage) {
+    if (tiles.length === 0 || !state.tilesetImage) {
+      previewCanvas.width = 48;
+      previewCanvas.height = 48;
+      ctx.clearRect(0, 0, 48, 48);
+      label.textContent = 'No tile selected';
+      return;
+    }
+
+    if (tiles.length === 1) {
+      previewCanvas.width = 48;
+      previewCanvas.height = 48;
       ctx.imageSmoothingEnabled = false;
+      ctx.clearRect(0, 0, 48, 48);
       ctx.drawImage(
         state.tilesetImage,
-        state.selectedTile.col * state.tileW,
-        state.selectedTile.row * state.tileH,
+        tiles[0].col * state.tileW,
+        tiles[0].row * state.tileH,
         state.tileW,
         state.tileH,
         0, 0, 48, 48
       );
-      label.textContent = `Tile (${state.selectedTile.col}, ${state.selectedTile.row})`;
+      label.textContent = `Tile (${tiles[0].col}, ${tiles[0].row})`;
     } else {
-      label.textContent = 'No tile selected';
+      // Multi-tile preview: show the selected area
+      let minC = Infinity, minR = Infinity, maxC = -Infinity, maxR = -Infinity;
+      tiles.forEach(t => {
+        if (t.col < minC) minC = t.col;
+        if (t.row < minR) minR = t.row;
+        if (t.col > maxC) maxC = t.col;
+        if (t.row > maxR) maxR = t.row;
+      });
+      const cols = maxC - minC + 1;
+      const rows = maxR - minR + 1;
+      const tileSize = Math.max(8, Math.min(48, Math.floor(96 / Math.max(cols, rows))));
+      previewCanvas.width = cols * tileSize;
+      previewCanvas.height = rows * tileSize;
+      ctx.imageSmoothingEnabled = false;
+      ctx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+
+      // Draw checkerboard for missing tiles
+      ctx.fillStyle = '#222';
+      ctx.fillRect(0, 0, previewCanvas.width, previewCanvas.height);
+
+      tiles.forEach(t => {
+        const dx = (t.col - minC) * tileSize;
+        const dy = (t.row - minR) * tileSize;
+        ctx.drawImage(
+          state.tilesetImage,
+          t.col * state.tileW,
+          t.row * state.tileH,
+          state.tileW,
+          state.tileH,
+          dx, dy, tileSize, tileSize
+        );
+      });
+      label.textContent = `${tiles.length} tiles selected`;
     }
   }
 
@@ -445,6 +589,14 @@
 
   // ---- 3D Shape Creation Functions ----
 
+  // Layer offset: second layer is slightly above first to prevent z-fighting
+  const LAYER_OFFSET = 0.01;
+
+  function getLayerFromKey(key) {
+    const match = key.match(/,L(\d+)$/);
+    return match ? parseInt(match[1]) : 0;
+  }
+
   // -- Flat Tile (original) --
   function createFlatTileMesh(key, tileData) {
     const parts = key.split(',');
@@ -452,6 +604,8 @@
     const z = parseInt(parts[1]);
     const y = parseInt(parts[2]);
     const face = parts[3].split('_')[0]; // Extract face from "face_shape_rotation"
+    const layer = getLayerFromKey(key);
+    const layerOff = layer * LAYER_OFFSET;
 
     const { col, row } = tileData;
     const uv = getTileUV(col, row);
@@ -462,12 +616,12 @@
 
     if (face === 'top') {
       mesh.rotation.x = -Math.PI / 2;
-      mesh.position.set(x + 0.5, y * TILE_WORLD_SIZE + 0.005, z + 0.5);
+      mesh.position.set(x + 0.5, y * TILE_WORLD_SIZE + 0.005 + layerOff, z + 0.5);
     } else if (face === 'front') {
-      mesh.position.set(x + 0.5, y * TILE_WORLD_SIZE + 0.5, z);
+      mesh.position.set(x + 0.5, y * TILE_WORLD_SIZE + 0.5, z + layerOff);
     } else if (face === 'left') {
       mesh.rotation.y = Math.PI / 2;
-      mesh.position.set(x, y * TILE_WORLD_SIZE + 0.5, z + 0.5);
+      mesh.position.set(x + layerOff, y * TILE_WORLD_SIZE + 0.5, z + 0.5);
     }
 
     setPlaneUV(geometry, uv);
@@ -550,7 +704,9 @@
       }
     });
 
-    group.position.set(x, y * TILE_WORLD_SIZE, z);
+    const layer = getLayerFromKey(key);
+    const layerOff = layer * LAYER_OFFSET;
+    group.position.set(x, y * TILE_WORLD_SIZE + layerOff, z);
     scene.add(group);
     return group;
   }
@@ -649,11 +805,13 @@
     group.add(rightSlopeMesh);
 
     // Apply rotation around center
-    group.position.set(x, y * TILE_WORLD_SIZE, z);
+    const layer = getLayerFromKey(key);
+    const layerOff = layer * LAYER_OFFSET;
+    group.position.set(x, y * TILE_WORLD_SIZE + layerOff, z);
 
     if (rot !== 0) {
       const pivot = new THREE.Group();
-      pivot.position.set(x + w / 2, y * TILE_WORLD_SIZE, z + d / 2);
+      pivot.position.set(x + w / 2, y * TILE_WORLD_SIZE + layerOff, z + d / 2);
       group.position.set(-w / 2, 0, -d / 2);
       pivot.rotation.y = rot;
       pivot.add(group);
@@ -682,9 +840,12 @@
 
     setPlaneUV(geometry, uv);
 
+    const layer = getLayerFromKey(key);
+    const layerOff = layer * LAYER_OFFSET;
+
     // Default orientation: faces X direction (perpendicular to the wall's default Z-facing)
     mesh.rotation.y = Math.PI / 2 + rot;
-    mesh.position.set(x + 0.5, y * TILE_WORLD_SIZE + 0.5, z + 0.5);
+    mesh.position.set(x + 0.5, y * TILE_WORLD_SIZE + 0.5 + layerOff, z + 0.5);
 
     mesh.castShadow = true;
     mesh.receiveShadow = true;
@@ -710,8 +871,11 @@
 
     setPlaneUV(geometry, uv);
 
+    const layer = getLayerFromKey(key);
+    const layerOff = layer * LAYER_OFFSET;
+
     // Place vertically centered on the tile
-    mesh.position.set(x + 0.5, y * TILE_WORLD_SIZE + 0.5, z + 0.5);
+    mesh.position.set(x + 0.5, y * TILE_WORLD_SIZE + 0.5 + layerOff, z + 0.5);
     mesh.rotation.y = rot;
 
     mesh.castShadow = true;
@@ -772,12 +936,14 @@
     }
   }
 
-  function tileKey(x, z, y, face) {
-    return `${x},${z},${y},${face}`;
+  function tileKey(x, z, y, face, layer) {
+    layer = layer !== undefined ? layer : state.layer;
+    return `${x},${z},${y},${face},L${layer}`;
   }
 
-  function placeTile(x, z) {
-    if (!state.selectedTile || !state.tilesetTexture) return;
+  function placeTile(x, z, undoEntries, tileOverride) {
+    const tile = tileOverride || state.selectedTile;
+    if (!tile || !state.tilesetTexture) return;
     if (x < 0 || x >= GRID_SIZE || z < 0 || z >= GRID_SIZE) return;
 
     const shape = state.shape;
@@ -785,8 +951,8 @@
     const key = tileKey(x, z, state.heightLevel, face + '_' + shape + '_' + state.rotation);
 
     const data = {
-      col: state.selectedTile.col,
-      row: state.selectedTile.row,
+      col: tile.col,
+      row: tile.row,
       shape: shape,
       rotation: state.rotation,
     };
@@ -801,6 +967,12 @@
       data.prismHalf = state.prismHalf;
     }
 
+    // Track undo
+    const oldData = state.mapTiles[key] ? { ...state.mapTiles[key] } : null;
+    if (undoEntries) {
+      undoEntries.push({ key, oldData, newData: { ...data } });
+    }
+
     // Remove existing tile at this position
     removeTileMesh(key);
 
@@ -809,33 +981,42 @@
     updateTileCount();
   }
 
-  function eraseTile(x, z) {
+  function eraseTile(x, z, undoEntries) {
     if (x < 0 || x >= GRID_SIZE || z < 0 || z >= GRID_SIZE) return;
 
-    // Try to erase any shape at this position
+    // Try to erase any shape at this position on both layers
     const shapes = ['tile', 'block', 'prism', 'wall', 'sideplane'];
     const rotations = [0, 90, 180, 270];
     const faces = ['top', 'front', 'left'];
+    const layers = [0, 1];
 
     let erased = false;
     for (const s of shapes) {
       for (const r of rotations) {
         for (const f of faces) {
-          const key = tileKey(x, z, state.heightLevel, f + '_' + s + '_' + r);
-          if (state.mapTiles[key]) {
-            removeTileMesh(key);
-            delete state.mapTiles[key];
-            erased = true;
+          for (const lay of layers) {
+            const key = tileKey(x, z, state.heightLevel, f + '_' + s + '_' + r, lay);
+            if (state.mapTiles[key]) {
+              if (undoEntries) {
+                undoEntries.push({ key, oldData: { ...state.mapTiles[key] }, newData: null });
+              }
+              removeTileMesh(key);
+              delete state.mapTiles[key];
+              erased = true;
+            }
           }
         }
       }
     }
 
-    // Also try legacy key format
-    const legacyKey = tileKey(x, z, state.heightLevel, state.face);
-    if (state.mapTiles[legacyKey]) {
-      removeTileMesh(legacyKey);
-      delete state.mapTiles[legacyKey];
+    // Also try legacy key formats (without layer suffix)
+    const legacyKey1 = `${x},${z},${state.heightLevel},${state.face}`;
+    if (state.mapTiles[legacyKey1]) {
+      if (undoEntries) {
+        undoEntries.push({ key: legacyKey1, oldData: { ...state.mapTiles[legacyKey1] }, newData: null });
+      }
+      removeTileMesh(legacyKey1);
+      delete state.mapTiles[legacyKey1];
       erased = true;
     }
 
@@ -848,19 +1029,72 @@
     const minZ = Math.min(z1, z2);
     const maxZ = Math.max(z1, z2);
 
+    const undoEntries = [];
     for (let x = minX; x <= maxX; x++) {
       for (let z = minZ; z <= maxZ; z++) {
         if (state.tool === 'erase') {
-          eraseTile(x, z);
+          eraseTile(x, z, undoEntries);
         } else {
-          placeTile(x, z);
+          placeTile(x, z, undoEntries);
         }
       }
     }
+    if (undoEntries.length > 0) {
+      pushUndo({ action: state.tool === 'erase' ? 'erase-rect' : 'fill-rect', entries: undoEntries });
+    }
+  }
+
+  // Place multiple selected tiles as a pattern starting at grid position (x, z)
+  function placeMultiTile(x, z, undoEntries) {
+    if (state.selectedTiles.length <= 1) {
+      // Single tile mode - use selected tile as before
+      placeTile(x, z, undoEntries);
+      return;
+    }
+
+    // Multi-tile: find bounding box of selection to determine offsets
+    let minCol = Infinity, minRow = Infinity;
+    state.selectedTiles.forEach(t => {
+      if (t.col < minCol) minCol = t.col;
+      if (t.row < minRow) minRow = t.row;
+    });
+
+    // Place each selected tile at its offset from the anchor (top-left)
+    state.selectedTiles.forEach(t => {
+      const dx = t.col - minCol;
+      const dz = t.row - minRow;
+      placeTile(x + dx, z + dz, undoEntries, { col: t.col, row: t.row });
+    });
   }
 
   function updateTileCount() {
     document.getElementById('info-tiles').textContent = `Tiles: ${Object.keys(state.mapTiles).length}`;
+  }
+
+  // ---- Undo System ----
+  function pushUndo(entry) {
+    if (entry.entries.length === 0) return;
+    state.undoStack.push(entry);
+    if (state.undoStack.length > state.maxUndoSteps) {
+      state.undoStack.shift();
+    }
+  }
+
+  function performUndo() {
+    if (state.undoStack.length === 0) return;
+    const entry = state.undoStack.pop();
+    // Reverse entries in reverse order
+    for (let i = entry.entries.length - 1; i >= 0; i--) {
+      const e = entry.entries[i];
+      removeTileMesh(e.key);
+      if (e.oldData) {
+        state.mapTiles[e.key] = e.oldData;
+        createTileMesh(e.key, e.oldData);
+      } else {
+        delete state.mapTiles[e.key];
+      }
+    }
+    updateTileCount();
   }
 
   // ---- Viewport Mouse Interaction ----
@@ -898,6 +1132,7 @@
   }
 
   let isDrawing = false;
+  let currentStrokeUndo = [];  // collect undo entries for current draw/erase stroke
 
   canvas.addEventListener('mousedown', e => {
     if (e.button !== 0) return;
@@ -910,10 +1145,13 @@
       state.rectStart = pos;
     } else if (state.tool === 'draw') {
       isDrawing = true;
-      placeTile(pos.x, pos.z);
+      currentStrokeUndo = [];
+      // Multi-tile placement: place selected tiles pattern starting at pos
+      placeMultiTile(pos.x, pos.z, currentStrokeUndo);
     } else if (state.tool === 'erase') {
       isDrawing = true;
-      eraseTile(pos.x, pos.z);
+      currentStrokeUndo = [];
+      eraseTile(pos.x, pos.z, currentStrokeUndo);
     }
   });
 
@@ -921,7 +1159,7 @@
     const pos = getGridPos(e);
     if (pos) {
       state.hoverPos = pos;
-      document.getElementById('info-pos').textContent = `Position: (${pos.x}, ${pos.z}) H:${state.heightLevel}`;
+      document.getElementById('info-pos').textContent = `Position: (${pos.x}, ${pos.z}) H:${state.heightLevel} L:${state.layer}`;
 
       // Update hover mesh
       hoverMesh.visible = true;
@@ -938,8 +1176,8 @@
 
       // Continuous drawing
       if (isDrawing) {
-        if (state.tool === 'draw') placeTile(pos.x, pos.z);
-        else if (state.tool === 'erase') eraseTile(pos.x, pos.z);
+        if (state.tool === 'draw') placeMultiTile(pos.x, pos.z, currentStrokeUndo);
+        else if (state.tool === 'erase') eraseTile(pos.x, pos.z, currentStrokeUndo);
       }
     } else {
       hoverMesh.visible = false;
@@ -955,6 +1193,11 @@
         fillRect(state.rectStart.x, state.rectStart.z, pos.x, pos.z);
       }
       state.rectStart = null;
+    }
+
+    if (isDrawing && currentStrokeUndo.length > 0) {
+      pushUndo({ action: state.tool, entries: currentStrokeUndo });
+      currentStrokeUndo = [];
     }
 
     isDrawing = false;
@@ -1034,6 +1277,39 @@
     state.showGrid = !state.showGrid;
     gridHelper.visible = state.showGrid;
     document.getElementById('btn-grid').classList.toggle('active', state.showGrid);
+  });
+
+  // ---- Undo Button ----
+  document.getElementById('btn-undo').addEventListener('click', () => performUndo());
+
+  // ---- Layer Selection ----
+  document.getElementById('layer-select').addEventListener('change', e => {
+    state.layer = parseInt(e.target.value);
+  });
+
+  // ---- Multi-Tile Selection Mode ----
+  const selBtns = {
+    single: document.getElementById('sel-single'),
+    rect: document.getElementById('sel-rect'),
+    free: document.getElementById('sel-free'),
+  };
+
+  function setSelectMode(mode) {
+    state.multiSelectMode = mode;
+    Object.keys(selBtns).forEach(m => selBtns[m].classList.toggle('active', m === mode));
+  }
+
+  selBtns.single.addEventListener('click', () => setSelectMode('single'));
+  selBtns.rect.addEventListener('click', () => setSelectMode('rect'));
+  selBtns.free.addEventListener('click', () => setSelectMode('free'));
+
+  document.getElementById('sel-clear').addEventListener('click', () => {
+    state.selectedTiles = [];
+    state.selectedTile = null;
+    // Re-render tileset overlay if loaded
+    const overlay = tilesetContainer.querySelector('canvas');
+    if (overlay) drawTilesetOverlay(overlay);
+    updatePreview();
   });
 
   document.getElementById('btn-clear').addEventListener('click', () => {
@@ -1260,11 +1536,11 @@
           <span class="intensity-val">${lightData.intensity.toFixed(1)}</span>
         </div>
         <div class="light-row">
-          <label>X:</label>
+          <label title="Left/Right">X:</label>
           <input type="number" value="${lightData.x}" step="0.5" data-id="${lightData.id}" data-prop="x">
-          <label>Y:</label>
+          <label title="Up/Down">Y:</label>
           <input type="number" value="${lightData.y}" step="0.5" data-id="${lightData.id}" data-prop="y">
-          <label>Z:</label>
+          <label title="Depth">Z:</label>
           <input type="number" value="${lightData.z}" step="0.5" data-id="${lightData.id}" data-prop="z">
         </div>
         ${lightData.type === 'point' || lightData.type === 'spot' ? `
@@ -1570,6 +1846,12 @@
         if (e.ctrlKey || e.metaKey) {
           e.preventDefault();
           saveMap();
+        }
+        break;
+      case 'z':
+        if (e.ctrlKey || e.metaKey) {
+          e.preventDefault();
+          performUndo();
         }
         break;
     }
