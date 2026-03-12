@@ -418,8 +418,9 @@
   <select id="shape-select">
     <option value="tile">Flat Tile</option>
     <option value="block">Block (Box)</option>
-    <option value="prism">Tri-Prism (A-Frame)</option>
-    <option value="wall">Wall (90&deg; Plane)</option>
+    <option value="prism">Tri-Prism (3D Triangle)</option>
+    <option value="wall">Wall (Plane)</option>
+    <option value="sideplane">Side Plane (90&deg;)</option>
   </select>
   <div class="toolbar-sep"></div>
   <span class="toolbar-label">Face:</span>
@@ -503,7 +504,7 @@
     <div id="info-bar">
       <span id="info-pos">Position: -</span>
       <span id="info-tiles">Tiles: 0</span>
-      <span>LMB: Place | RMB: Orbit | Scroll: Zoom | MMB: Pan</span>
+      <span>LMB: Place | RMB: Orbit | Scroll: Zoom | MMB: Pan | Drag light spheres to move</span>
     </div>
 
     <!-- Lighting Panel (overlay) -->
@@ -523,6 +524,26 @@
           <label>Shadows:</label>
           <input type="checkbox" id="toggle-shadows" checked>
           <span style="color:#aaa;">Enable</span>
+        </div>
+        <div class="light-item" style="margin-bottom:6px;">
+          <div class="light-header"><span><strong>Global Directional</strong></span></div>
+          <div class="light-row">
+            <label>Color:</label>
+            <input type="color" id="dir-color" value="#ffffff">
+          </div>
+          <div class="light-row">
+            <label>Intensity:</label>
+            <input type="range" id="dir-intensity" min="0" max="300" value="70">
+            <span id="dir-intensity-val">0.7</span>
+          </div>
+          <div class="light-row">
+            <label>X:</label>
+            <input type="number" id="dir-x" value="15" step="1" style="width:40px;">
+            <label>Y:</label>
+            <input type="number" id="dir-y" value="20" step="1" style="width:40px;">
+            <label>Z:</label>
+            <input type="number" id="dir-z" value="10" step="1" style="width:40px;">
+          </div>
         </div>
         <div id="lights-list"></div>
         <button class="add-light-btn" id="btn-add-point">+ Point Light</button>
