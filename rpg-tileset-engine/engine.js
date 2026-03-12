@@ -1,5 +1,6 @@
 // ============================================================
 // RPG Tileset Engine - Three.js based RPG Paper Maker style editor
+// Supports: Flat tiles, Blocks, Triangular Prisms, Walls, Lighting
 // ============================================================
 
 (function () {
@@ -14,11 +15,21 @@
   // ---- State ----
   const state = {
     tool: 'draw',         // draw, erase, rect
+    shape: 'tile',        // tile, block, prism, wall
     face: 'top',          // top, front, left
     heightLevel: 0,
+    rotation: 0,          // 0, 90, 180, 270 degrees
     tileW: 32,
     tileH: 32,
     showGrid: true,
+
+    // Block dimensions
+    blockW: 1,
+    blockH: 1,
+    blockD: 1,
+
+    // Prism half
+    prismHalf: 'left',    // left or right
 
     // Tileset
     tilesetImage: null,
@@ -27,10 +38,10 @@
     tilesetRows: 0,
     selectedTile: null,   // { col, row }
 
-    // Map data: key = "x,z,y,face" -> { col, row }
+    // Map data: key = "x,z,y,face" -> { col, row, shape, ... }
     mapTiles: {},
 
-    // Three.js tile meshes: same key -> mesh
+    // Three.js tile meshes: same key -> mesh or group
     tileMeshes: {},
 
     // Rect tool state
@@ -38,6 +49,10 @@
 
     // Hover
     hoverPos: null,
+
+    // Lighting
+    userLights: [],       // { id, type, color, intensity, x, y, z, ... }
+    nextLightId: 1,
   };
 
   // ---- Three.js Setup ----
@@ -46,6 +61,7 @@
   renderer.setPixelRatio(window.devicePixelRatio);
   renderer.setClearColor(0x1a1a2e);
   renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
   const scene = new THREE.Scene();
   scene.fog = new THREE.Fog(0x1a1a2e, 30, 80);
@@ -54,7 +70,7 @@
   camera.position.set(10, 12, 10);
   camera.lookAt(GRID_SIZE / 4, 0, GRID_SIZE / 4);
 
-  // Lights
+  // Default lights
   const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
   scene.add(ambientLight);
 
@@ -120,7 +136,7 @@
     const frontMat = new THREE.MeshBasicMaterial({ visible: false, side: THREE.DoubleSide });
     const frontPlane = new THREE.Mesh(frontGeo, frontMat);
     frontPlane.position.y = 10;
-    frontPlane.position.z = 0; // will be updated by hover
+    frontPlane.position.z = 0;
     scene.add(frontPlane);
     raycasterPlanes.front = frontPlane;
 
@@ -395,7 +411,7 @@
     }
   }
 
-  // ---- 3D Tile Mesh Creation ----
+  // ---- UV Helpers ----
   function getTileUV(col, row) {
     const cols = state.tilesetCols;
     const rows = state.tilesetRows;
@@ -407,9 +423,30 @@
     return { u0, u1, v0: 1 - v1, v1: 1 - v0 };
   }
 
-  function createTileMesh(key, tileData) {
-    if (!state.tilesetTexture) return;
+  function makeTileMaterial() {
+    return new THREE.MeshStandardMaterial({
+      map: state.tilesetTexture,
+      roughness: 0.8,
+      metalness: 0.0,
+      side: THREE.DoubleSide,
+      transparent: true,
+      alphaTest: 0.1,
+    });
+  }
 
+  function setPlaneUV(geometry, uv) {
+    const uvAttr = geometry.attributes.uv;
+    uvAttr.setXY(0, uv.u0, uv.v1); // top-left
+    uvAttr.setXY(1, uv.u1, uv.v1); // top-right
+    uvAttr.setXY(2, uv.u0, uv.v0); // bottom-left
+    uvAttr.setXY(3, uv.u1, uv.v0); // bottom-right
+    uvAttr.needsUpdate = true;
+  }
+
+  // ---- 3D Shape Creation Functions ----
+
+  // -- Flat Tile (original) --
+  function createFlatTileMesh(key, tileData) {
     const parts = key.split(',');
     const x = parseInt(parts[0]);
     const z = parseInt(parts[1]);
@@ -419,53 +456,316 @@
     const { col, row } = tileData;
     const uv = getTileUV(col, row);
 
-    let geometry, mesh;
-    const material = new THREE.MeshStandardMaterial({
-      map: state.tilesetTexture,
-      roughness: 0.8,
-      metalness: 0.0,
-      side: THREE.DoubleSide,
-      transparent: true,
-      alphaTest: 0.1,
-    });
+    const geometry = new THREE.PlaneGeometry(TILE_WORLD_SIZE, TILE_WORLD_SIZE);
+    const material = makeTileMaterial();
+    const mesh = new THREE.Mesh(geometry, material);
 
     if (face === 'top') {
-      geometry = new THREE.PlaneGeometry(TILE_WORLD_SIZE, TILE_WORLD_SIZE);
-      mesh = new THREE.Mesh(geometry, material);
       mesh.rotation.x = -Math.PI / 2;
       mesh.position.set(x + 0.5, y * TILE_WORLD_SIZE + 0.005, z + 0.5);
     } else if (face === 'front') {
-      geometry = new THREE.PlaneGeometry(TILE_WORLD_SIZE, TILE_WORLD_SIZE);
-      mesh = new THREE.Mesh(geometry, material);
       mesh.position.set(x + 0.5, y * TILE_WORLD_SIZE + 0.5, z);
     } else if (face === 'left') {
-      geometry = new THREE.PlaneGeometry(TILE_WORLD_SIZE, TILE_WORLD_SIZE);
-      mesh = new THREE.Mesh(geometry, material);
       mesh.rotation.y = Math.PI / 2;
       mesh.position.set(x, y * TILE_WORLD_SIZE + 0.5, z + 0.5);
     }
 
-    // Set UV coordinates
-    const uvAttr = geometry.attributes.uv;
-    uvAttr.setXY(0, uv.u0, uv.v1); // top-left
-    uvAttr.setXY(1, uv.u1, uv.v1); // top-right
-    uvAttr.setXY(2, uv.u0, uv.v0); // bottom-left
-    uvAttr.setXY(3, uv.u1, uv.v0); // bottom-right
-    uvAttr.needsUpdate = true;
+    setPlaneUV(geometry, uv);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+
+    scene.add(mesh);
+    return mesh;
+  }
+
+  // -- Block (Box) -- Textured box with tileable faces
+  function createBlockMesh(key, tileData) {
+    const parts = key.split(',');
+    const x = parseInt(parts[0]);
+    const z = parseInt(parts[1]);
+    const y = parseInt(parts[2]);
+
+    const { col, row } = tileData;
+    const bw = tileData.blockW || 1;
+    const bh = tileData.blockH || 1;
+    const bd = tileData.blockD || 1;
+    const uv = getTileUV(col, row);
+
+    const group = new THREE.Group();
+
+    // Build a box from 6 textured planes (so each face gets the tile texture)
+    const faces = [
+      // top
+      { w: bw, h: bd, pos: [bw / 2, bh, bd / 2], rot: [-Math.PI / 2, 0, 0] },
+      // bottom
+      { w: bw, h: bd, pos: [bw / 2, 0, bd / 2], rot: [Math.PI / 2, 0, 0] },
+      // front (+Z)
+      { w: bw, h: bh, pos: [bw / 2, bh / 2, bd], rot: [0, 0, 0] },
+      // back (-Z)
+      { w: bw, h: bh, pos: [bw / 2, bh / 2, 0], rot: [0, Math.PI, 0] },
+      // right (+X)
+      { w: bd, h: bh, pos: [bw, bh / 2, bd / 2], rot: [0, Math.PI / 2, 0] },
+      // left (-X)
+      { w: bd, h: bh, pos: [0, bh / 2, bd / 2], rot: [0, -Math.PI / 2, 0] },
+    ];
+
+    faces.forEach(f => {
+      // Tile the texture across the face
+      const tilesX = Math.ceil(f.w);
+      const tilesY = Math.ceil(f.h);
+
+      for (let tx = 0; tx < tilesX; tx++) {
+        for (let ty = 0; ty < tilesY; ty++) {
+          const pw = Math.min(1, f.w - tx);
+          const ph = Math.min(1, f.h - ty);
+
+          const geo = new THREE.PlaneGeometry(pw, ph);
+          const mat = makeTileMaterial();
+          const plane = new THREE.Mesh(geo, mat);
+
+          // Compute partial UV for edge tiles
+          const partialUV = {
+            u0: uv.u0,
+            u1: uv.u0 + (uv.u1 - uv.u0) * pw,
+            v0: uv.v0 + (uv.v1 - uv.v0) * (1 - ph),
+            v1: uv.v1,
+          };
+          setPlaneUV(geo, partialUV);
+
+          // Position within face
+          const lx = tx + pw / 2 - f.w / 2;
+          const ly = ty + ph / 2 - f.h / 2;
+          plane.position.set(lx, ly, 0);
+
+          const faceGroup = new THREE.Group();
+          faceGroup.add(plane);
+          faceGroup.position.set(f.pos[0], f.pos[1], f.pos[2]);
+          faceGroup.rotation.set(f.rot[0], f.rot[1], f.rot[2]);
+
+          plane.castShadow = true;
+          plane.receiveShadow = true;
+
+          group.add(faceGroup);
+        }
+      }
+    });
+
+    group.position.set(x, y * TILE_WORLD_SIZE, z);
+    scene.add(group);
+    return group;
+  }
+
+  // -- Triangular Prism (A-Frame half) --
+  function createPrismMesh(key, tileData) {
+    const parts = key.split(',');
+    const x = parseInt(parts[0]);
+    const z = parseInt(parts[1]);
+    const y = parseInt(parts[2]);
+
+    const { col, row } = tileData;
+    const half = tileData.prismHalf || 'left';
+    const rot = (tileData.rotation || 0) * Math.PI / 180;
+    const uv = getTileUV(col, row);
+
+    const group = new THREE.Group();
+
+    // A triangular prism: a right triangle cross-section extruded along Z
+    // "left" half: slopes from bottom-left to top-center
+    // "right" half: slopes from bottom-right to top-center
+    // When two are placed together they form an A-frame
+
+    const hw = TILE_WORLD_SIZE;    // width
+    const hh = TILE_WORLD_SIZE;    // height
+    const hd = TILE_WORLD_SIZE;    // depth
+
+    // Create the sloped face (the hypotenuse)
+    const slopeLen = Math.sqrt((hw / 2) * (hw / 2) + hh * hh);
+    const slopeAngle = Math.atan2(hh, hw / 2);
+
+    const slopeGeo = new THREE.PlaneGeometry(slopeLen, hd);
+    const slopeMat = makeTileMaterial();
+    const slopeMesh = new THREE.Mesh(slopeGeo, slopeMat);
+    setPlaneUV(slopeGeo, uv);
+    slopeMesh.castShadow = true;
+    slopeMesh.receiveShadow = true;
+
+    if (half === 'left') {
+      // Slope from bottom-left (0,0) to top-center (0.5, 1)
+      slopeMesh.rotation.z = -(Math.PI / 2 - slopeAngle);
+      slopeMesh.position.set(hw / 4, hh / 2, hd / 2);
+    } else {
+      // Slope from bottom-right (1,0) to top-center (0.5, 1)
+      slopeMesh.rotation.z = (Math.PI / 2 - slopeAngle);
+      slopeMesh.position.set(hw * 3 / 4, hh / 2, hd / 2);
+    }
+    group.add(slopeMesh);
+
+    // Bottom face
+    const bottomGeo = new THREE.PlaneGeometry(hw / 2, hd);
+    const bottomMat = makeTileMaterial();
+    const bottomMesh = new THREE.Mesh(bottomGeo, bottomMat);
+    setPlaneUV(bottomGeo, uv);
+    bottomMesh.rotation.x = Math.PI / 2;
+    bottomMesh.receiveShadow = true;
+
+    if (half === 'left') {
+      bottomMesh.position.set(hw / 4, 0, hd / 2);
+    } else {
+      bottomMesh.position.set(hw * 3 / 4, 0, hd / 2);
+    }
+    group.add(bottomMesh);
+
+    // Vertical face (the straight edge at center or outside)
+    const vertGeo = new THREE.PlaneGeometry(hd, hh);
+    const vertMat = makeTileMaterial();
+
+    // Inner vertical wall (at the center seam)
+    const vertMesh = new THREE.Mesh(vertGeo, vertMat);
+    setPlaneUV(vertGeo, uv);
+    vertMesh.rotation.y = Math.PI / 2;
+    vertMesh.castShadow = true;
+    vertMesh.receiveShadow = true;
+
+    if (half === 'left') {
+      vertMesh.position.set(hw / 2, hh / 2, hd / 2);
+    } else {
+      vertMesh.position.set(hw / 2, hh / 2, hd / 2);
+    }
+    group.add(vertMesh);
+
+    // Triangle end caps (front and back)
+    for (let side = 0; side < 2; side++) {
+      const triShape = new THREE.Shape();
+      if (half === 'left') {
+        triShape.moveTo(0, 0);
+        triShape.lineTo(hw / 2, 0);
+        triShape.lineTo(hw / 2, hh);
+        triShape.lineTo(0, 0);
+      } else {
+        triShape.moveTo(hw / 2, 0);
+        triShape.lineTo(hw, 0);
+        triShape.lineTo(hw / 2, hh);
+        triShape.lineTo(hw / 2, 0);
+      }
+
+      const triGeo = new THREE.ShapeGeometry(triShape);
+      const triMat = makeTileMaterial();
+
+      // Set UVs for triangle
+      const triUvAttr = triGeo.attributes.uv;
+      for (let i = 0; i < triUvAttr.count; i++) {
+        const px = triUvAttr.getX(i) / hw;
+        const py = triUvAttr.getY(i) / hh;
+        triUvAttr.setXY(i,
+          uv.u0 + (uv.u1 - uv.u0) * px,
+          uv.v0 + (uv.v1 - uv.v0) * py
+        );
+      }
+      triUvAttr.needsUpdate = true;
+
+      const triMesh = new THREE.Mesh(triGeo, triMat);
+      triMesh.castShadow = true;
+      triMesh.receiveShadow = true;
+
+      if (side === 0) {
+        triMesh.position.z = 0;
+      } else {
+        triMesh.position.z = hd;
+        triMesh.rotation.y = Math.PI;
+        triMesh.position.x = hw;
+      }
+      group.add(triMesh);
+    }
+
+    // Apply rotation around center
+    group.position.set(x, y * TILE_WORLD_SIZE, z);
+
+    if (rot !== 0) {
+      const pivot = new THREE.Group();
+      pivot.position.set(x + hw / 2, y * TILE_WORLD_SIZE, z + hd / 2);
+      group.position.set(-hw / 2, 0, -hd / 2);
+      pivot.rotation.y = rot;
+      pivot.add(group);
+      scene.add(pivot);
+      return pivot;
+    }
+
+    scene.add(group);
+    return group;
+  }
+
+  // -- Wall (90-degree plane) -- Freestanding vertical plane
+  function createWallMesh(key, tileData) {
+    const parts = key.split(',');
+    const x = parseInt(parts[0]);
+    const z = parseInt(parts[1]);
+    const y = parseInt(parts[2]);
+
+    const { col, row } = tileData;
+    const rot = (tileData.rotation || 0) * Math.PI / 180;
+    const uv = getTileUV(col, row);
+
+    const geometry = new THREE.PlaneGeometry(TILE_WORLD_SIZE, TILE_WORLD_SIZE);
+    const material = makeTileMaterial();
+    const mesh = new THREE.Mesh(geometry, material);
+
+    setPlaneUV(geometry, uv);
+
+    // Place vertically centered on the tile
+    mesh.position.set(x + 0.5, y * TILE_WORLD_SIZE + 0.5, z + 0.5);
+    mesh.rotation.y = rot;
 
     mesh.castShadow = true;
     mesh.receiveShadow = true;
 
     scene.add(mesh);
+    return mesh;
+  }
+
+  // ---- Unified Tile Mesh Creation ----
+  function createTileMesh(key, tileData) {
+    if (!state.tilesetTexture) return;
+
+    const shape = tileData.shape || 'tile';
+
+    let mesh;
+    switch (shape) {
+      case 'block':
+        mesh = createBlockMesh(key, tileData);
+        break;
+      case 'prism':
+        mesh = createPrismMesh(key, tileData);
+        break;
+      case 'wall':
+        mesh = createWallMesh(key, tileData);
+        break;
+      default:
+        mesh = createFlatTileMesh(key, tileData);
+        break;
+    }
+
     state.tileMeshes[key] = mesh;
   }
 
   function removeTileMesh(key) {
-    const mesh = state.tileMeshes[key];
-    if (mesh) {
-      scene.remove(mesh);
-      mesh.geometry.dispose();
-      mesh.material.dispose();
+    const obj = state.tileMeshes[key];
+    if (obj) {
+      // Dispose recursively
+      obj.traverse(child => {
+        if (child.geometry) child.geometry.dispose();
+        if (child.material) {
+          if (Array.isArray(child.material)) {
+            child.material.forEach(m => m.dispose());
+          } else {
+            child.material.dispose();
+          }
+        }
+      });
+      if (obj.parent) {
+        obj.parent.remove(obj);
+      } else {
+        scene.remove(obj);
+      }
       delete state.tileMeshes[key];
     }
   }
@@ -478,10 +778,28 @@
     if (!state.selectedTile || !state.tilesetTexture) return;
     if (x < 0 || x >= GRID_SIZE || z < 0 || z >= GRID_SIZE) return;
 
-    const key = tileKey(x, z, state.heightLevel, state.face);
-    const data = { col: state.selectedTile.col, row: state.selectedTile.row };
+    const shape = state.shape;
+    const face = shape === 'wall' || shape === 'block' || shape === 'prism' ? 'top' : state.face;
+    const key = tileKey(x, z, state.heightLevel, face + '_' + shape + '_' + state.rotation);
 
-    // Remove existing tile at this position/face
+    const data = {
+      col: state.selectedTile.col,
+      row: state.selectedTile.row,
+      shape: shape,
+      rotation: state.rotation,
+    };
+
+    if (shape === 'block') {
+      data.blockW = state.blockW;
+      data.blockH = state.blockH;
+      data.blockD = state.blockD;
+    }
+
+    if (shape === 'prism') {
+      data.prismHalf = state.prismHalf;
+    }
+
+    // Remove existing tile at this position
     removeTileMesh(key);
 
     state.mapTiles[key] = data;
@@ -492,10 +810,34 @@
   function eraseTile(x, z) {
     if (x < 0 || x >= GRID_SIZE || z < 0 || z >= GRID_SIZE) return;
 
-    const key = tileKey(x, z, state.heightLevel, state.face);
-    removeTileMesh(key);
-    delete state.mapTiles[key];
-    updateTileCount();
+    // Try to erase any shape at this position
+    const shapes = ['tile', 'block', 'prism', 'wall'];
+    const rotations = [0, 90, 180, 270];
+    const faces = ['top', 'front', 'left'];
+
+    let erased = false;
+    for (const s of shapes) {
+      for (const r of rotations) {
+        for (const f of faces) {
+          const key = tileKey(x, z, state.heightLevel, f + '_' + s + '_' + r);
+          if (state.mapTiles[key]) {
+            removeTileMesh(key);
+            delete state.mapTiles[key];
+            erased = true;
+          }
+        }
+      }
+    }
+
+    // Also try legacy key format
+    const legacyKey = tileKey(x, z, state.heightLevel, state.face);
+    if (state.mapTiles[legacyKey]) {
+      removeTileMesh(legacyKey);
+      delete state.mapTiles[legacyKey];
+      erased = true;
+    }
+
+    if (erased) updateTileCount();
   }
 
   function fillRect(x1, z1, x2, z2) {
@@ -637,6 +979,39 @@
   toolBtns.erase.addEventListener('click', () => setTool('erase'));
   toolBtns.rect.addEventListener('click', () => setTool('rect'));
 
+  // ---- Shape Selection ----
+  const shapeSelect = document.getElementById('shape-select');
+  const blockSizeRow = document.getElementById('block-size-row');
+  const prismDirRow = document.getElementById('prism-dir-row');
+
+  function updateShapeUI() {
+    blockSizeRow.style.display = state.shape === 'block' ? 'flex' : 'none';
+    prismDirRow.style.display = state.shape === 'prism' ? 'flex' : 'none';
+  }
+
+  shapeSelect.addEventListener('change', e => {
+    state.shape = e.target.value;
+    updateShapeUI();
+  });
+
+  document.getElementById('block-w').addEventListener('change', e => {
+    state.blockW = Math.max(1, Math.min(10, parseInt(e.target.value) || 1));
+  });
+  document.getElementById('block-h').addEventListener('change', e => {
+    state.blockH = Math.max(1, Math.min(10, parseInt(e.target.value) || 1));
+  });
+  document.getElementById('block-d').addEventListener('change', e => {
+    state.blockD = Math.max(1, Math.min(10, parseInt(e.target.value) || 1));
+  });
+
+  document.getElementById('prism-half').addEventListener('change', e => {
+    state.prismHalf = e.target.value;
+  });
+
+  document.getElementById('rotation-select').addEventListener('change', e => {
+    state.rotation = parseInt(e.target.value);
+  });
+
   document.getElementById('face-select').addEventListener('change', e => {
     state.face = e.target.value;
     updateRaycastPlanes();
@@ -666,6 +1041,274 @@
     updateTileCount();
   });
 
+  // ============================================================
+  // LIGHTING SYSTEM
+  // ============================================================
+
+  const lightingPanel = document.getElementById('lighting-panel');
+  const lightsList = document.getElementById('lights-list');
+
+  // Light helper visualization objects
+  const lightHelpers = {};
+
+  document.getElementById('btn-lighting').addEventListener('click', () => {
+    lightingPanel.classList.toggle('visible');
+  });
+
+  document.getElementById('btn-close-lighting').addEventListener('click', () => {
+    lightingPanel.classList.remove('visible');
+  });
+
+  // Ambient light controls
+  document.getElementById('ambient-color').addEventListener('input', e => {
+    ambientLight.color.set(e.target.value);
+  });
+
+  document.getElementById('ambient-intensity').addEventListener('input', e => {
+    const val = parseInt(e.target.value) / 100;
+    ambientLight.intensity = val;
+    document.getElementById('ambient-val').textContent = val.toFixed(1);
+  });
+
+  document.getElementById('toggle-shadows').addEventListener('change', e => {
+    renderer.shadowMap.enabled = e.target.checked;
+    // Need to update all materials
+    scene.traverse(child => {
+      if (child.material) {
+        child.material.needsUpdate = true;
+      }
+    });
+  });
+
+  // Add light buttons
+  document.getElementById('btn-add-point').addEventListener('click', () => addLight('point'));
+  document.getElementById('btn-add-spot').addEventListener('click', () => addLight('spot'));
+  document.getElementById('btn-add-dir').addEventListener('click', () => addLight('directional'));
+
+  function addLight(type, config) {
+    const id = state.nextLightId++;
+    const lightData = {
+      id,
+      type,
+      color: (config && config.color) || '#ffffff',
+      intensity: (config && config.intensity) || 1.0,
+      x: (config && config.x) || GRID_SIZE / 4,
+      y: (config && config.y) || 5,
+      z: (config && config.z) || GRID_SIZE / 4,
+      castShadow: (config && config.castShadow !== undefined) ? config.castShadow : true,
+      distance: (config && config.distance) || 20,
+      angle: (config && config.angle) || 45,
+      penumbra: (config && config.penumbra) || 0.3,
+      threeLight: null,
+      helper: null,
+    };
+
+    // Create the Three.js light
+    let light;
+    switch (type) {
+      case 'point':
+        light = new THREE.PointLight(lightData.color, lightData.intensity, lightData.distance);
+        break;
+      case 'spot':
+        light = new THREE.SpotLight(lightData.color, lightData.intensity, lightData.distance, lightData.angle * Math.PI / 180, lightData.penumbra);
+        light.target.position.set(lightData.x, 0, lightData.z);
+        scene.add(light.target);
+        break;
+      case 'directional':
+        light = new THREE.DirectionalLight(lightData.color, lightData.intensity);
+        light.shadow.mapSize.set(1024, 1024);
+        light.shadow.camera.left = -20;
+        light.shadow.camera.right = 20;
+        light.shadow.camera.top = 20;
+        light.shadow.camera.bottom = -20;
+        break;
+    }
+
+    light.position.set(lightData.x, lightData.y, lightData.z);
+    light.castShadow = lightData.castShadow;
+
+    if (light.shadow) {
+      light.shadow.mapSize.set(1024, 1024);
+    }
+
+    scene.add(light);
+    lightData.threeLight = light;
+
+    // Create helper sphere to visualize the light
+    const helperGeo = new THREE.SphereGeometry(0.2, 8, 8);
+    const helperMat = new THREE.MeshBasicMaterial({ color: lightData.color });
+    const helper = new THREE.Mesh(helperGeo, helperMat);
+    helper.position.copy(light.position);
+    scene.add(helper);
+    lightData.helper = helper;
+
+    state.userLights.push(lightData);
+    renderLightsList();
+
+    return lightData;
+  }
+
+  function removeLight(id) {
+    const idx = state.userLights.findIndex(l => l.id === id);
+    if (idx === -1) return;
+
+    const lightData = state.userLights[idx];
+
+    // Remove Three.js light
+    scene.remove(lightData.threeLight);
+    if (lightData.threeLight.target) {
+      scene.remove(lightData.threeLight.target);
+    }
+    if (lightData.threeLight.shadow && lightData.threeLight.shadow.map) {
+      lightData.threeLight.shadow.map.dispose();
+    }
+    lightData.threeLight.dispose();
+
+    // Remove helper
+    if (lightData.helper) {
+      scene.remove(lightData.helper);
+      lightData.helper.geometry.dispose();
+      lightData.helper.material.dispose();
+    }
+
+    state.userLights.splice(idx, 1);
+    renderLightsList();
+  }
+
+  function updateLight(id, prop, value) {
+    const lightData = state.userLights.find(l => l.id === id);
+    if (!lightData) return;
+
+    lightData[prop] = value;
+    const light = lightData.threeLight;
+
+    switch (prop) {
+      case 'color':
+        light.color.set(value);
+        if (lightData.helper) lightData.helper.material.color.set(value);
+        break;
+      case 'intensity':
+        light.intensity = value;
+        break;
+      case 'x':
+      case 'y':
+      case 'z':
+        light.position.set(lightData.x, lightData.y, lightData.z);
+        if (lightData.helper) lightData.helper.position.copy(light.position);
+        if (light.target) light.target.position.set(lightData.x, 0, lightData.z);
+        break;
+      case 'distance':
+        if (light.distance !== undefined) light.distance = value;
+        break;
+      case 'angle':
+        if (light.angle !== undefined) light.angle = value * Math.PI / 180;
+        break;
+      case 'penumbra':
+        if (light.penumbra !== undefined) light.penumbra = value;
+        break;
+      case 'castShadow':
+        light.castShadow = value;
+        break;
+    }
+  }
+
+  function renderLightsList() {
+    lightsList.innerHTML = '';
+
+    state.userLights.forEach(lightData => {
+      const item = document.createElement('div');
+      item.className = 'light-item';
+
+      const typeLabel = lightData.type.charAt(0).toUpperCase() + lightData.type.slice(1);
+
+      item.innerHTML = `
+        <div class="light-header">
+          <span><strong>${typeLabel} #${lightData.id}</strong></span>
+          <button class="btn-small danger" data-remove="${lightData.id}">Del</button>
+        </div>
+        <div class="light-row">
+          <label>Color:</label>
+          <input type="color" value="${lightData.color}" data-id="${lightData.id}" data-prop="color">
+        </div>
+        <div class="light-row">
+          <label>Intensity:</label>
+          <input type="range" min="0" max="500" value="${Math.round(lightData.intensity * 100)}" data-id="${lightData.id}" data-prop="intensity">
+          <span class="intensity-val">${lightData.intensity.toFixed(1)}</span>
+        </div>
+        <div class="light-row">
+          <label>X:</label>
+          <input type="number" value="${lightData.x}" step="0.5" data-id="${lightData.id}" data-prop="x">
+          <label>Y:</label>
+          <input type="number" value="${lightData.y}" step="0.5" data-id="${lightData.id}" data-prop="y">
+          <label>Z:</label>
+          <input type="number" value="${lightData.z}" step="0.5" data-id="${lightData.id}" data-prop="z">
+        </div>
+        ${lightData.type === 'point' || lightData.type === 'spot' ? `
+        <div class="light-row">
+          <label>Distance:</label>
+          <input type="range" min="1" max="100" value="${lightData.distance}" data-id="${lightData.id}" data-prop="distance">
+          <span>${lightData.distance}</span>
+        </div>
+        ` : ''}
+        ${lightData.type === 'spot' ? `
+        <div class="light-row">
+          <label>Angle:</label>
+          <input type="range" min="5" max="90" value="${lightData.angle}" data-id="${lightData.id}" data-prop="angle">
+          <span>${lightData.angle}&deg;</span>
+        </div>
+        <div class="light-row">
+          <label>Penumbra:</label>
+          <input type="range" min="0" max="100" value="${Math.round(lightData.penumbra * 100)}" data-id="${lightData.id}" data-prop="penumbra">
+          <span>${lightData.penumbra.toFixed(2)}</span>
+        </div>
+        ` : ''}
+        <div class="light-row">
+          <label>Shadow:</label>
+          <input type="checkbox" ${lightData.castShadow ? 'checked' : ''} data-id="${lightData.id}" data-prop="castShadow">
+        </div>
+      `;
+
+      lightsList.appendChild(item);
+    });
+
+    // Bind events
+    lightsList.querySelectorAll('[data-remove]').forEach(btn => {
+      btn.addEventListener('click', () => removeLight(parseInt(btn.dataset.remove)));
+    });
+
+    lightsList.querySelectorAll('input[data-id]').forEach(input => {
+      const id = parseInt(input.dataset.id);
+      const prop = input.dataset.prop;
+
+      const handler = () => {
+        let value;
+        if (input.type === 'checkbox') {
+          value = input.checked;
+        } else if (input.type === 'color') {
+          value = input.value;
+        } else if (prop === 'intensity') {
+          value = parseInt(input.value) / 100;
+          const span = input.nextElementSibling;
+          if (span) span.textContent = value.toFixed(1);
+        } else if (prop === 'penumbra') {
+          value = parseInt(input.value) / 100;
+          const span = input.nextElementSibling;
+          if (span) span.textContent = value.toFixed(2);
+        } else if (prop === 'distance' || prop === 'angle') {
+          value = parseInt(input.value);
+          const span = input.nextElementSibling;
+          if (span) span.textContent = prop === 'angle' ? value + '\u00B0' : value;
+        } else {
+          value = parseFloat(input.value);
+        }
+        updateLight(id, prop, value);
+      };
+
+      input.addEventListener('input', handler);
+      input.addEventListener('change', handler);
+    });
+  }
+
   // ---- Save / Load ----
   document.getElementById('btn-save').addEventListener('click', saveMap);
   document.getElementById('btn-load').addEventListener('click', () => {
@@ -688,12 +1331,30 @@
   });
 
   function saveMap() {
+    // Serialize lights (without Three.js refs)
+    const lightsData = state.userLights.map(l => ({
+      type: l.type,
+      color: l.color,
+      intensity: l.intensity,
+      x: l.x,
+      y: l.y,
+      z: l.z,
+      castShadow: l.castShadow,
+      distance: l.distance,
+      angle: l.angle,
+      penumbra: l.penumbra,
+    }));
+
     const data = {
-      version: 1,
+      version: 2,
       tileW: state.tileW,
       tileH: state.tileH,
       tilesetSrc: state.tilesetImage ? state.tilesetImage.src : null,
       tiles: state.mapTiles,
+      lights: lightsData,
+      ambientColor: '#' + ambientLight.color.getHexString(),
+      ambientIntensity: ambientLight.intensity,
+      shadowsEnabled: renderer.shadowMap.enabled,
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -709,8 +1370,33 @@
     Object.keys(state.tileMeshes).forEach(removeTileMesh);
     state.mapTiles = {};
 
+    // Clear user lights
+    while (state.userLights.length > 0) {
+      removeLight(state.userLights[0].id);
+    }
+
     if (data.tileW) document.getElementById('tile-w').value = data.tileW;
     if (data.tileH) document.getElementById('tile-h').value = data.tileH;
+
+    // Restore lighting
+    if (data.ambientColor) {
+      ambientLight.color.set(data.ambientColor);
+      document.getElementById('ambient-color').value = data.ambientColor;
+    }
+    if (data.ambientIntensity !== undefined) {
+      ambientLight.intensity = data.ambientIntensity;
+      document.getElementById('ambient-intensity').value = Math.round(data.ambientIntensity * 100);
+      document.getElementById('ambient-val').textContent = data.ambientIntensity.toFixed(1);
+    }
+    if (data.shadowsEnabled !== undefined) {
+      renderer.shadowMap.enabled = data.shadowsEnabled;
+      document.getElementById('toggle-shadows').checked = data.shadowsEnabled;
+    }
+
+    // Restore user lights
+    if (data.lights) {
+      data.lights.forEach(lconf => addLight(lconf.type, lconf));
+    }
 
     if (data.tilesetSrc) {
       loadTileset(data.tilesetSrc);
@@ -743,6 +1429,9 @@
         gridHelper.visible = state.showGrid;
         document.getElementById('btn-grid').classList.toggle('active', state.showGrid);
         break;
+      case 'l':
+        lightingPanel.classList.toggle('visible');
+        break;
       case 's':
         if (e.ctrlKey || e.metaKey) {
           e.preventDefault();
@@ -759,6 +1448,16 @@
     if (e.key === '-') {
       heightSlider.value = Math.max(0, state.heightLevel - 1);
       heightSlider.dispatchEvent(new Event('input'));
+    }
+
+    // Rotation with Q/W
+    if (e.key.toLowerCase() === 'q') {
+      state.rotation = (state.rotation + 270) % 360;
+      document.getElementById('rotation-select').value = state.rotation;
+    }
+    if (e.key.toLowerCase() === 'w') {
+      state.rotation = (state.rotation + 90) % 360;
+      document.getElementById('rotation-select').value = state.rotation;
     }
   });
 

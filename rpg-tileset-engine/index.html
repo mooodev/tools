@@ -26,6 +26,7 @@
       border-bottom: 2px solid #0f3460;
       z-index: 10;
       flex-shrink: 0;
+      flex-wrap: wrap;
     }
 
     #toolbar h1 {
@@ -253,6 +254,155 @@
       border-radius: 3px;
       font-size: 11px;
     }
+
+    /* Shape config panel */
+    #shape-config {
+      padding: 6px 10px;
+      background: #0f3460;
+      border-top: 1px solid #1a1a5e;
+      font-size: 11px;
+    }
+
+    #shape-config .config-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 0;
+    }
+
+    #shape-config label {
+      font-size: 11px;
+      color: #aaa;
+      min-width: 50px;
+    }
+
+    #shape-config input[type="number"] {
+      width: 45px;
+      padding: 2px 4px;
+      background: #1a1a2e;
+      border: 1px solid #1a1a5e;
+      color: #e0e0e0;
+      border-radius: 3px;
+      font-size: 11px;
+      text-align: center;
+    }
+
+    #shape-config select {
+      flex: 1;
+      min-width: 60px;
+    }
+
+    /* Lighting panel */
+    #lighting-panel {
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      width: 240px;
+      background: rgba(22, 33, 62, 0.95);
+      border: 1px solid #0f3460;
+      border-radius: 6px;
+      font-size: 11px;
+      z-index: 20;
+      display: none;
+    }
+
+    #lighting-panel.visible { display: block; }
+
+    #lighting-panel .panel-header {
+      padding: 6px 10px;
+      background: #0f3460;
+      border-radius: 6px 6px 0 0;
+      font-weight: bold;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: move;
+    }
+
+    #lighting-panel .panel-body {
+      padding: 8px 10px;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+
+    #lighting-panel .light-item {
+      padding: 6px;
+      margin-bottom: 4px;
+      background: #1a1a2e;
+      border-radius: 4px;
+      border: 1px solid #1a1a5e;
+    }
+
+    #lighting-panel .light-item .light-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 4px;
+    }
+
+    #lighting-panel .light-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 2px 0;
+    }
+
+    #lighting-panel .light-row label {
+      min-width: 55px;
+      color: #aaa;
+    }
+
+    #lighting-panel input[type="range"] {
+      flex: 1;
+      accent-color: #e94560;
+    }
+
+    #lighting-panel input[type="color"] {
+      width: 28px;
+      height: 22px;
+      border: 1px solid #1a1a5e;
+      border-radius: 3px;
+      background: none;
+      cursor: pointer;
+      padding: 0;
+    }
+
+    #lighting-panel input[type="number"] {
+      width: 45px;
+      padding: 2px 4px;
+      background: #1a1a2e;
+      border: 1px solid #1a1a5e;
+      color: #e0e0e0;
+      border-radius: 3px;
+      font-size: 11px;
+      text-align: center;
+    }
+
+    .btn-small {
+      padding: 2px 8px;
+      background: #0f3460;
+      color: #e0e0e0;
+      border: 1px solid #1a1a5e;
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 10px;
+    }
+    .btn-small:hover { background: #1a1a5e; }
+    .btn-small.danger { background: #8b1a2e; }
+    .btn-small.danger:hover { background: #a52030; }
+
+    .add-light-btn {
+      width: 100%;
+      padding: 4px;
+      margin-top: 4px;
+      background: #0f3460;
+      color: #e0e0e0;
+      border: 1px solid #1a1a5e;
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 11px;
+    }
+    .add-light-btn:hover { background: #1a1a5e; }
   </style>
 </head>
 <body>
@@ -263,6 +413,14 @@
   <button class="toolbar-btn active" id="btn-draw" title="Draw tiles (D)">Draw</button>
   <button class="toolbar-btn" id="btn-erase" title="Erase tiles (E)">Erase</button>
   <button class="toolbar-btn" id="btn-rect" title="Rectangle fill (R)">Rect</button>
+  <div class="toolbar-sep"></div>
+  <span class="toolbar-label">Shape:</span>
+  <select id="shape-select">
+    <option value="tile">Flat Tile</option>
+    <option value="block">Block (Box)</option>
+    <option value="prism">Tri-Prism (A-Frame)</option>
+    <option value="wall">Wall (90&deg; Plane)</option>
+  </select>
   <div class="toolbar-sep"></div>
   <span class="toolbar-label">Face:</span>
   <select id="face-select">
@@ -275,7 +433,16 @@
   <input type="range" id="height-slider-tb" min="0" max="10" value="0" style="width:80px;accent-color:#e94560;">
   <span id="height-val">0</span>
   <div class="toolbar-sep"></div>
+  <span class="toolbar-label">Rotation:</span>
+  <select id="rotation-select" title="Rotation for walls and prisms">
+    <option value="0">0&deg;</option>
+    <option value="90">90&deg;</option>
+    <option value="180">180&deg;</option>
+    <option value="270">270&deg;</option>
+  </select>
+  <div class="toolbar-sep"></div>
   <button class="toolbar-btn" id="btn-grid" title="Toggle grid (G)">Grid</button>
+  <button class="toolbar-btn" id="btn-lighting" title="Toggle lighting panel (L)">Lights</button>
   <button class="toolbar-btn" id="btn-clear" title="Clear all tiles">Clear</button>
   <div class="toolbar-sep"></div>
   <button class="toolbar-btn" id="btn-save" title="Save map (Ctrl+S)">Save</button>
@@ -306,6 +473,23 @@
       </div>
     </div>
 
+    <!-- Shape Configuration -->
+    <div id="shape-config">
+      <div class="config-row" id="block-size-row" style="display:none;">
+        <label>Size:</label>
+        <input type="number" id="block-w" value="1" min="1" max="10" title="Width"> x
+        <input type="number" id="block-h" value="1" min="1" max="10" title="Height"> x
+        <input type="number" id="block-d" value="1" min="1" max="10" title="Depth">
+      </div>
+      <div class="config-row" id="prism-dir-row" style="display:none;">
+        <label>Prism:</label>
+        <select id="prism-half">
+          <option value="left">Left Half</option>
+          <option value="right">Right Half</option>
+        </select>
+      </div>
+    </div>
+
     <div id="selected-preview">
       <canvas id="preview-canvas" width="48" height="48"></canvas>
       <span id="preview-label">No tile selected</span>
@@ -320,6 +504,31 @@
       <span id="info-pos">Position: -</span>
       <span id="info-tiles">Tiles: 0</span>
       <span>LMB: Place | RMB: Orbit | Scroll: Zoom | MMB: Pan</span>
+    </div>
+
+    <!-- Lighting Panel (overlay) -->
+    <div id="lighting-panel">
+      <div class="panel-header">
+        <span>Lighting</span>
+        <button class="btn-small" id="btn-close-lighting">X</button>
+      </div>
+      <div class="panel-body">
+        <div class="light-row">
+          <label>Ambient:</label>
+          <input type="color" id="ambient-color" value="#ffffff">
+          <input type="range" id="ambient-intensity" min="0" max="200" value="60" title="Intensity">
+          <span id="ambient-val">0.6</span>
+        </div>
+        <div class="light-row" style="margin-bottom:6px;">
+          <label>Shadows:</label>
+          <input type="checkbox" id="toggle-shadows" checked>
+          <span style="color:#aaa;">Enable</span>
+        </div>
+        <div id="lights-list"></div>
+        <button class="add-light-btn" id="btn-add-point">+ Point Light</button>
+        <button class="add-light-btn" id="btn-add-spot">+ Spot Light</button>
+        <button class="add-light-btn" id="btn-add-dir">+ Directional Light</button>
+      </div>
     </div>
   </div>
 </div>
