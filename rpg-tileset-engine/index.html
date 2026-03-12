@@ -290,6 +290,87 @@
 
     #lighting-panel.visible { display: flex; flex-direction: column; }
 
+    /* Particle options panel */
+    #particle-panel {
+      position: absolute;
+      top: 6px;
+      right: 80px;
+      width: 260px;
+      max-height: calc(100vh - 80px);
+      background: rgba(22, 33, 62, 0.97);
+      border: 1px solid #0f3460;
+      border-radius: 6px;
+      font-size: 11px;
+      z-index: 20;
+      display: none;
+      overflow: hidden;
+    }
+
+    #particle-panel.visible { display: flex; flex-direction: column; }
+
+    #particle-panel .panel-header {
+      padding: 5px 8px;
+      background: #0f3460;
+      border-radius: 6px 6px 0 0;
+      font-weight: bold;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+    }
+
+    #particle-panel .panel-body {
+      padding: 6px 8px;
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    #particle-panel .light-section {
+      padding: 5px;
+      margin-bottom: 4px;
+      background: #1a1a2e;
+      border-radius: 4px;
+      border: 1px solid #1a1a5e;
+    }
+
+    #particle-panel .light-section-title {
+      font-weight: bold;
+      font-size: 10px;
+      margin-bottom: 3px;
+      color: #e94560;
+    }
+
+    #particle-panel .light-row {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 1px 0;
+      flex-wrap: wrap;
+    }
+
+    #particle-panel .light-row label {
+      min-width: 42px;
+      color: #aaa;
+      font-size: 10px;
+    }
+
+    #particle-panel input[type="range"] {
+      flex: 1;
+      min-width: 50px;
+      accent-color: #e94560;
+      height: 14px;
+    }
+
+    #particle-panel input[type="color"] {
+      width: 24px;
+      height: 20px;
+      border: 1px solid #1a1a5e;
+      border-radius: 3px;
+      background: none;
+      cursor: pointer;
+      padding: 0;
+    }
+
     #lighting-panel .panel-header {
       padding: 5px 8px;
       background: #0f3460;
@@ -493,6 +574,7 @@
     <option value="snow">Snow</option>
     <option value="fog">Fog</option>
   </select>
+  <button class="toolbar-btn" id="btn-particle-opts" title="Particle options">FX Opts</button>
   <div class="toolbar-sep"></div>
   <button class="toolbar-btn" id="btn-save" title="Save map (Ctrl+S)">Save</button>
   <button class="toolbar-btn" id="btn-load" title="Load map">Load</button>
@@ -565,7 +647,7 @@
     <div id="info-bar">
       <span id="info-pos">Position: -</span>
       <span id="info-tiles">Tiles: 0</span>
-      <span>LMB: Place | RMB: Orbit | Scroll: Zoom | MMB: Pan | Ctrl+Z: Undo</span>
+      <span>LMB: Place | RMB: Orbit | Scroll: Zoom | MMB/Arrows: Pan | Ctrl+Z: Undo</span>
     </div>
 
     <!-- Lighting Panel (overlay) -->
@@ -601,11 +683,11 @@
             <span id="dir-intensity-val" style="min-width:24px;">0.7</span>
           </div>
           <div class="light-row">
-            <label style="min-width:14px;">X</label>
+            <label style="min-width:14px;" title="Left/Right">X</label>
             <input type="number" id="dir-x" value="15" step="1">
-            <label style="min-width:14px;">Y</label>
+            <label style="min-width:14px;" title="Height (vertical)">H</label>
             <input type="number" id="dir-y" value="20" step="1">
-            <label style="min-width:14px;">Z</label>
+            <label style="min-width:14px;" title="Forward/Back">Z</label>
             <input type="number" id="dir-z" value="10" step="1">
           </div>
         </div>
@@ -614,6 +696,56 @@
         <button class="add-light-btn" id="btn-add-point">+ Point Light</button>
         <button class="add-light-btn" id="btn-add-spot">+ Spot Light</button>
         <button class="add-light-btn" id="btn-add-dir">+ Directional Light</button>
+      </div>
+    </div>
+
+    <!-- Particle Options Panel (overlay) -->
+    <div id="particle-panel">
+      <div class="panel-header">
+        <span>Particle Options</span>
+        <button class="btn-small" id="btn-close-particles">X</button>
+      </div>
+      <div class="panel-body">
+        <div class="light-section">
+          <div class="light-section-title">General</div>
+          <div class="light-row">
+            <label>Color:</label>
+            <input type="color" id="particle-color" value="#99ccff">
+          </div>
+          <div class="light-row">
+            <label>Size:</label>
+            <input type="range" id="particle-size" min="1" max="100" value="5" style="flex:1;">
+            <span id="particle-size-val" style="min-width:30px;">0.05</span>
+          </div>
+          <div class="light-row">
+            <label>Opacity:</label>
+            <input type="range" id="particle-opacity" min="5" max="100" value="60" style="flex:1;">
+            <span id="particle-opacity-val" style="min-width:30px;">0.60</span>
+          </div>
+          <div class="light-row">
+            <label>Count:</label>
+            <input type="range" id="particle-count" min="100" max="10000" value="3000" step="100" style="flex:1;">
+            <span id="particle-count-val" style="min-width:36px;">3000</span>
+          </div>
+        </div>
+        <div class="light-section">
+          <div class="light-section-title">Motion</div>
+          <div class="light-row">
+            <label>Speed:</label>
+            <input type="range" id="particle-speed" min="1" max="200" value="100" style="flex:1;">
+            <span id="particle-speed-val" style="min-width:30px;">1.0x</span>
+          </div>
+          <div class="light-row">
+            <label>Area:</label>
+            <input type="range" id="particle-area" min="5" max="100" value="30" style="flex:1;">
+            <span id="particle-area-val" style="min-width:30px;">30</span>
+          </div>
+          <div class="light-row">
+            <label>Height:</label>
+            <input type="range" id="particle-height" min="3" max="60" value="20" style="flex:1;">
+            <span id="particle-height-val" style="min-width:30px;">20</span>
+          </div>
+        </div>
       </div>
     </div>
   </div>

@@ -205,25 +205,29 @@ function placeMultiTile(x, z, undoEntries) {
     return;
   }
 
-  let minCol = Infinity, minRow = Infinity;
+  let minCol = Infinity, minRow = Infinity, maxRow = -Infinity;
   state.selectedTiles.forEach(t => {
     if (t.col < minCol) minCol = t.col;
     if (t.row < minRow) minRow = t.row;
+    if (t.row > maxRow) maxRow = t.row;
   });
+  const rowSpan = maxRow - minRow;
 
   if (state.shape === 'tile' && state.face === 'front') {
     // For front face: col offset = X, row offset = height (Y)
+    // Invert rows so top of tileset = top of wall (highest Y)
     state.selectedTiles.forEach(t => {
       const dx = t.col - minCol;
       const dy = t.row - minRow;
-      placeFrontLeftTile(x + dx, z, state.heightLevel + dy, undoEntries, { col: t.col, row: t.row });
+      placeFrontLeftTile(x + dx, z, state.heightLevel + rowSpan - dy, undoEntries, { col: t.col, row: t.row });
     });
   } else if (state.shape === 'tile' && state.face === 'left') {
     // For left face: col offset = Z, row offset = height (Y)
+    // Invert rows so top of tileset = top of wall (highest Y)
     state.selectedTiles.forEach(t => {
       const dz = t.col - minCol;
       const dy = t.row - minRow;
-      placeFrontLeftTile(x, z + dz, state.heightLevel + dy, undoEntries, { col: t.col, row: t.row });
+      placeFrontLeftTile(x, z + dz, state.heightLevel + rowSpan - dy, undoEntries, { col: t.col, row: t.row });
     });
   } else {
     // Top face and 3D shapes: col offset = X, row offset = Z (horizontal tiling)

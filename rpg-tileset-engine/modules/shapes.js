@@ -39,10 +39,10 @@ function createFlatTileMesh(key, tileData) {
     mesh.rotation.x = -Math.PI / 2;
     mesh.position.set(x + 0.5, y * TILE_WORLD_SIZE + 0.005 + layerOff, z + 0.5);
   } else if (face === 'front') {
-    mesh.position.set(x + 0.5, y * TILE_WORLD_SIZE + 0.5, z + layerOff);
+    mesh.position.set(x + 0.5, y * TILE_WORLD_SIZE + 0.5, z + 0.5 + layerOff);
   } else if (face === 'left') {
     mesh.rotation.y = Math.PI / 2;
-    mesh.position.set(x + layerOff, y * TILE_WORLD_SIZE + 0.5, z + 0.5);
+    mesh.position.set(x + 0.5 + layerOff, y * TILE_WORLD_SIZE + 0.5, z + 0.5);
   }
 
   setPlaneUV(geometry, uv);

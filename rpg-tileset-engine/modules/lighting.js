@@ -146,11 +146,11 @@ function renderLightsList() {
         <span class="intensity-val" style="min-width:24px;">${lightData.intensity.toFixed(1)}</span>
       </div>
       <div class="light-row">
-        <label style="min-width:14px;">X</label>
+        <label style="min-width:14px;" title="Left/Right">X</label>
         <input type="number" value="${lightData.x}" step="0.5" data-id="${lightData.id}" data-prop="x" style="width:38px;">
-        <label style="min-width:14px;">Y</label>
+        <label style="min-width:14px;" title="Height (vertical)">H</label>
         <input type="number" value="${lightData.y}" step="0.5" data-id="${lightData.id}" data-prop="y" style="width:38px;">
-        <label style="min-width:14px;">Z</label>
+        <label style="min-width:14px;" title="Forward/Back">Z</label>
         <input type="number" value="${lightData.z}" step="0.5" data-id="${lightData.id}" data-prop="z" style="width:38px;">
       </div>
       ${lightData.type === 'point' || lightData.type === 'spot' ? `
