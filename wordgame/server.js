@@ -504,6 +504,13 @@ setInterval(async () => {
     let changed = false;
 
     for (const [playerId, entry] of Object.entries(cooldownNotifyData)) {
+        // Clean up old notified entries (older than 25 hours)
+        if (entry.notified && entry.expiresAt + 3600000 < now) {
+            delete cooldownNotifyData[playerId];
+            changed = true;
+            continue;
+        }
+
         if (entry.notified || entry.expiresAt > now) continue;
 
         // All cooldowns expired — send notification
