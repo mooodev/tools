@@ -531,14 +531,10 @@ function launchDuelGame(data) {
         puzzle = { difficulty: puzzleData.difficulty, categories: puzzleData.categories };
         puzzleIndex = puzzleData.puzzleIndex || 0;
     } else {
-        // Fallback: resolve locally, excluding bonus puzzles
-        const bonusThemes = (typeof BONUS_WORD_PUZZLES !== 'undefined' && Array.isArray(BONUS_WORD_PUZZLES))
-            ? new Set(BONUS_WORD_PUZZLES.map(bp => bp.categories[0] && bp.categories[0].theme))
-            : new Set();
-        const puzzles = WORD_PUZZLES.filter(p =>
-            p.difficulty === difficulty &&
-            !(p.categories[0] && bonusThemes.has(p.categories[0].theme))
-        );
+        // Fallback: resolve locally from daily puzzles pool
+        const puzzles = (typeof DAILY_PUZZLES !== 'undefined' && Array.isArray(DAILY_PUZZLES))
+            ? DAILY_PUZZLES.filter(p => p.difficulty === difficulty)
+            : [];
         const idx = puzzleData.puzzleIndex % puzzles.length;
         puzzleIndex = idx;
         puzzle = puzzles[idx];

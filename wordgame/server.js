@@ -596,13 +596,13 @@ setInterval(async () => {
 // =============================================
 // LOAD PUZZLES FOR SERVER-SIDE DUEL RESOLUTION
 // =============================================
-// Parse words.js to get base puzzles (no bonus) so the server can send
+// Parse dailypuzzlewords.js to get daily puzzles for duels so the server can send
 // the actual puzzle data to both duel players, avoiding any client-side
 // desync caused by different bonus unlock states or GitHub fetch results.
 let SERVER_PUZZLES = [];
 try {
-    const wordsFile = fs.readFileSync(path.join(__dirname, 'public', 'words.js'), 'utf8');
-    const match = wordsFile.match(/(?:const|let|var)\s+WORD_PUZZLES\s*=\s*/);
+    const wordsFile = fs.readFileSync(path.join(__dirname, 'public', 'dailypuzzlewords.js'), 'utf8');
+    const match = wordsFile.match(/(?:const|let|var)\s+DAILY_PUZZLES\s*=\s*/);
     if (match) {
         const dataStart = match.index + match[0].length;
         let depth = 0, inStr = false, strCh = '', esc = false, end = -1;
