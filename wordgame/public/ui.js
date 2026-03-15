@@ -564,6 +564,7 @@ function showResultScreen(won, stars, xpGain, coinsGain, elapsed, leveledUp, new
     }
     if (typeof isDuel !== 'undefined' && isDuel) {
         addActionBtn('Ещё дуэль', () => showDuelDiffPicker());
+        addActionBtn('В меню', () => { refreshHome(); showScreen('start-screen'); }, false);
     } else if (isEndless) {
         addActionBtn('Следующий раунд', () => launchEndless());
     } else if (wasWeeklyPuzzle) {

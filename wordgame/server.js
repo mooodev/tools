@@ -547,10 +547,12 @@ setInterval(async () => {
 // =============================================
 // DUEL MATCHMAKING
 // =============================================
-const duelQueue = [];        // Players waiting for a match
+const duelQueue = [];        // Players waiting for a match (legacy)
 const activeduels = {};      // roomId → duel state
+const duelLobbies = {};      // roomId → lobby state (waiting rooms)
 const BOT_WAIT_MS = 10000;   // 10 seconds before bot
 const DUEL_MAX_AGE_MS = 10 * 60 * 1000; // 10 minutes max duel lifetime
+const DUEL_LOBBY_TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes lobby timeout
 
 const BOT_NAMES = [
     'Умник', 'Мастер слов', 'Знаток', 'Лингвист', 'Эрудит',
@@ -561,7 +563,7 @@ function generateRoomId() {
     return 'duel_' + crypto.randomBytes(6).toString('hex');
 }
 
-// Periodic cleanup of abandoned/stale duels (issue #6)
+// Periodic cleanup of abandoned/stale duels and lobbies
 const duelCleanupInterval = setInterval(() => {
     const now = Date.now();
     for (const [roomId, duel] of Object.entries(activeduels)) {
@@ -573,11 +575,155 @@ const duelCleanupInterval = setInterval(() => {
             console.log(`Cleaned up stale duel: ${roomId}`);
         }
     }
-}, 60 * 1000); // Check every minute
+    // Cleanup expired lobbies
+    for (const [roomId, lobby] of Object.entries(duelLobbies)) {
+        if (now - lobby.createdAt > DUEL_LOBBY_TIMEOUT_MS) {
+            if (lobby.creatorSocket && lobby.creatorSocket.connected) {
+                lobby.creatorSocket.emit('duel:lobby-expired', { roomId });
+            }
+            delete duelLobbies[roomId];
+            io.emit('duel:lobbies-updated', getPublicLobbies());
+            console.log(`Cleaned up expired lobby: ${roomId}`);
+        }
+    }
+}, 10 * 1000); // Check every 10 seconds
+
+// Helper: get public lobby list
+function getPublicLobbies() {
+    return Object.values(duelLobbies).map(l => ({
+        roomId: l.roomId,
+        creatorName: l.creatorName,
+        creatorLevel: l.creatorLevel,
+        isBet: l.isBet,
+        betAmount: l.betAmount,
+        createdAt: l.createdAt,
+        difficulty: l.difficulty
+    }));
+}
 
 io.on('connection', (socket) => {
     let currentRoom = null;
     let botTimeout = null;
+
+    // ---- DUEL LOBBY EVENTS ----
+    socket.on('duel:create-lobby', (data) => {
+        const roomId = generateRoomId();
+        const lobby = {
+            roomId,
+            creatorSocket: socket,
+            creatorId: data.playerId,
+            creatorName: data.playerName || 'Игрок',
+            creatorLevel: data.playerLevel || 1,
+            difficulty: data.difficulty || 'hard',
+            isBet: !!data.isBet,
+            betAmount: data.isBet ? (Number(data.betAmount) || 10) : 0,
+            createdAt: Date.now()
+        };
+        duelLobbies[roomId] = lobby;
+        socket.emit('duel:lobby-created', { roomId, lobby: getPublicLobbies().find(l => l.roomId === roomId) });
+        io.emit('duel:lobbies-updated', getPublicLobbies());
+    });
+
+    socket.on('duel:cancel-lobby', (data) => {
+        const { roomId } = data || {};
+        if (roomId && duelLobbies[roomId]) {
+            delete duelLobbies[roomId];
+            io.emit('duel:lobbies-updated', getPublicLobbies());
+        }
+    });
+
+    socket.on('duel:get-lobbies', () => {
+        socket.emit('duel:lobbies-updated', getPublicLobbies());
+    });
+
+    socket.on('duel:join-lobby', (data) => {
+        const { roomId, playerId, playerName, playerLevel } = data;
+        const lobby = duelLobbies[roomId];
+        if (!lobby) {
+            socket.emit('duel:lobby-error', { error: 'Комната не найдена или истекла' });
+            return;
+        }
+        if (lobby.creatorId === playerId) {
+            socket.emit('duel:lobby-error', { error: 'Нельзя присоединиться к своей комнате' });
+            return;
+        }
+
+        // Remove lobby from list
+        delete duelLobbies[roomId];
+        io.emit('duel:lobbies-updated', getPublicLobbies());
+
+        // Create actual duel
+        const puzzleData = {
+            difficulty: lobby.difficulty,
+            puzzleIndex: Math.floor(Math.random() * 100)
+        };
+
+        const duelState = {
+            roomId,
+            puzzle: puzzleData,
+            players: {
+                [lobby.creatorSocket.id]: {
+                    socketId: lobby.creatorSocket.id,
+                    socket: lobby.creatorSocket,
+                    playerId: lobby.creatorId,
+                    playerName: lobby.creatorName,
+                    playerLevel: lobby.creatorLevel,
+                    difficulty: lobby.difficulty,
+                    solved: 0,
+                    finished: false,
+                    won: false,
+                    time: 0
+                },
+                [socket.id]: {
+                    socketId: socket.id,
+                    socket,
+                    playerId,
+                    playerName: playerName || 'Игрок',
+                    playerLevel: playerLevel || 1,
+                    difficulty: lobby.difficulty,
+                    solved: 0,
+                    finished: false,
+                    won: false,
+                    time: 0
+                }
+            },
+            startTime: Date.now(),
+            isBot: false,
+            botIntervals: [],
+            isBet: lobby.isBet,
+            betAmount: lobby.betAmount
+        };
+
+        activeduels[roomId] = duelState;
+        lobby.creatorSocket.join(roomId);
+        socket.join(roomId);
+        currentRoom = roomId;
+
+        // Notify both players
+        lobby.creatorSocket.emit('duel:matched', {
+            roomId,
+            puzzle: puzzleData,
+            isBet: lobby.isBet,
+            betAmount: lobby.betAmount,
+            opponent: {
+                name: playerName || 'Игрок',
+                level: playerLevel || 1,
+                isBot: false
+            }
+        });
+
+        socket.emit('duel:matched', {
+            roomId,
+            puzzle: puzzleData,
+            isBet: lobby.isBet,
+            betAmount: lobby.betAmount,
+            opponent: {
+                name: lobby.creatorName,
+                level: lobby.creatorLevel,
+                isBot: false
+            }
+        });
+    });
 
     socket.on('duel:find', (data) => {
         const playerInfo = {
@@ -586,7 +732,7 @@ io.on('connection', (socket) => {
             playerId: data.playerId,
             playerName: data.playerName || 'Игрок',
             playerLevel: data.playerLevel || 1,
-            difficulty: data.difficulty || 'medium'
+            difficulty: data.difficulty || 'hard'
         };
 
         // Try to match with someone in queue with same difficulty
@@ -784,6 +930,14 @@ io.on('connection', (socket) => {
         }
         clearTimeout(botTimeout);
 
+        // Clean up any lobbies created by this socket
+        for (const [roomId, lobby] of Object.entries(duelLobbies)) {
+            if (lobby.creatorSocket === socket) {
+                delete duelLobbies[roomId];
+                io.emit('duel:lobbies-updated', getPublicLobbies());
+            }
+        }
+
         // Handle active duel disconnect
         if (currentRoom && activeduels[currentRoom]) {
             const duel = activeduels[currentRoom];
@@ -831,12 +985,11 @@ function startBotAI(roomId, difficulty) {
     // Bot solve intervals based on difficulty
     const intervals = {
         easy:   { min: 6000,  max: 12000 },
-        medium: { min: 8000,  max: 18000 },
-        hard:   { min: 12000, max: 25000 },
+        hard:   { min: 10000, max: 22000 },
         expert: { min: 18000, max: 35000 }
     };
 
-    const range = intervals[difficulty] || intervals.medium;
+    const range = intervals[difficulty] || intervals.hard;
     let botSolved = 0;
     const maxCategories = 4;
 
@@ -936,7 +1089,9 @@ function resolveDuel(roomId) {
         loserTime: loser ? loser[1].time : 0,
         loserStars: loser ? loser[1].stars || 0 : 0,
         isDraw: !finishers.length || (finishers.length === 2 && finishers[0][1].time === finishers[1][1].time),
-        isBot: duel.isBot
+        isBot: duel.isBot,
+        isBet: duel.isBet || false,
+        betAmount: duel.betAmount || 0
     };
 
     io.to(roomId).emit('duel:result', result);

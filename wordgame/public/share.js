@@ -67,7 +67,7 @@ function generateShareCard() {
 
         // Difficulty badge
         const diff = DIFF_META[difficulty];
-        const diffColors = { easy: '#34d399', medium: '#fbbf24', hard: '#fb923c', expert: '#f87171' };
+        const diffColors = { easy: '#34d399', hard: '#fb923c', expert: '#f87171' };
         const puzzleNum = isEndless ? 'Бесконечный' : `Паззл #${puzzleIndex + 1}`;
         ctx.font = '600 16px Inter, sans-serif';
         ctx.fillStyle = diffColors[difficulty] || '#8888a0';

@@ -1870,3 +1870,254 @@ body.style-retro .card.selected { background: #4a3060; border-color: var(--accen
 body.style-gold .card { background: linear-gradient(135deg, #2a2415, #1a1a10); border: 1px solid rgba(249,223,109,0.2); }
 body.style-gold .card.selected { background: linear-gradient(135deg, #3a3020, #2a2510); border-color: var(--gold); box-shadow: 0 0 10px rgba(249,223,109,0.2); }
 
+/* ==============================
+   DUEL BUTTON — WAITING STATE (green)
+   ============================== */
+.duel-mode-btn.duel-waiting {
+    border-color: rgba(52,211,153,0.5);
+    background: rgba(52,211,153,0.1);
+    color: #34d399;
+    animation: duelWaitingPulse 2s ease-in-out infinite;
+}
+.duel-mode-btn.duel-waiting:hover {
+    border-color: #34d399;
+    box-shadow: 0 0 20px rgba(52,211,153,0.25);
+}
+@keyframes duelWaitingPulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(52,211,153,0.2); }
+    50% { box-shadow: 0 0 15px 3px rgba(52,211,153,0.15); }
+}
+
+/* ==============================
+   DUEL LOBBY
+   ============================== */
+#duel-lobby-container {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.duel-lobby-rules {
+    background: rgba(124,106,246,0.08);
+    border: 1px solid rgba(124,106,246,0.2);
+    border-radius: var(--radius-sm);
+    padding: 10px 14px;
+    font-size: 12px;
+    color: var(--text-dim);
+    line-height: 1.5;
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+}
+.duel-lobby-rules-icon {
+    font-size: 16px;
+    flex-shrink: 0;
+    color: var(--accent);
+}
+
+.duel-create-btn {
+    background: var(--error) !important;
+    border-color: var(--error) !important;
+    color: #fff !important;
+    font-size: 15px !important;
+    padding: 14px !important;
+}
+
+.duel-lobby-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-dim);
+    padding-top: 4px;
+}
+
+.duel-lobbies-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+    min-height: 80px;
+}
+
+.duel-lobbies-empty {
+    text-align: center;
+    padding: 30px 20px;
+    color: var(--text-dim);
+    font-size: 13px;
+}
+
+.duel-lobby-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--surface);
+    border: 1.5px solid var(--surface-3);
+    border-radius: var(--radius-sm);
+    padding: 12px 14px;
+    transition: all 0.2s;
+}
+.duel-lobby-card:hover {
+    border-color: var(--accent);
+}
+
+.duel-lobby-player {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 1;
+    min-width: 0;
+}
+
+.duel-lobby-avatar {
+    font-size: 28px;
+    flex-shrink: 0;
+}
+
+.duel-lobby-info {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+}
+
+.duel-lobby-name {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.duel-lobby-meta {
+    font-size: 11px;
+    color: var(--text-dim);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.duel-lobby-bet {
+    color: var(--coin);
+    font-weight: 600;
+}
+
+.duel-lobby-friendly {
+    color: #34d399;
+    font-weight: 600;
+}
+
+.duel-join-btn {
+    flex-shrink: 0;
+    padding: 8px 16px !important;
+    font-size: 12px !important;
+}
+
+/* ==============================
+   CREATE DUEL DIALOG
+   ============================== */
+.duel-create-dialog {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    width: 100%;
+}
+
+.duel-create-title {
+    font-size: 20px;
+    font-weight: 800;
+    text-align: center;
+}
+
+.duel-create-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.duel-create-label {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-dim);
+}
+
+.duel-create-options {
+    display: flex;
+    gap: 8px;
+}
+
+.duel-option-btn {
+    flex: 1;
+    padding: 12px 8px;
+    border: 1.5px solid var(--surface-3);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--text);
+    font: 600 13px/1 'Inter', sans-serif;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+}
+.duel-option-btn.active {
+    border-color: var(--accent);
+    background: rgba(124,106,246,0.15);
+    color: var(--accent);
+}
+
+.duel-bet-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.duel-bet-amounts {
+    display: flex;
+    gap: 8px;
+}
+
+.duel-bet-btn {
+    flex: 1;
+    padding: 10px 4px;
+    border: 1.5px solid var(--surface-3);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--text);
+    font: 700 14px/1 'Inter', sans-serif;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+}
+.duel-bet-btn.active {
+    border-color: var(--coin);
+    background: rgba(251,191,36,0.1);
+    color: var(--coin);
+}
+
+.duel-bet-info {
+    font-size: 12px;
+    color: var(--text-dim);
+}
+
+.duel-create-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-top: 8px;
+}
+
+/* ==============================
+   DUEL RESULT BET INFO
+   ============================== */
+.duel-result-bet {
+    font-size: 14px;
+    font-weight: 700;
+    padding: 6px 0;
+    color: var(--coin);
+}
+.duel-matched-bet {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-dim);
+    text-align: center;
+}
+
