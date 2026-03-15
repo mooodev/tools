@@ -42,6 +42,12 @@ async function submitToLeaderboard() {
     const id = ensurePlayerId();
     const name = getPlayerName();
 
+    // Resolve avatar icon for leaderboard
+    const avatarItem = save.equippedAvatar && typeof SHOP_ITEMS !== 'undefined'
+        ? SHOP_ITEMS.find(i => i.id === save.equippedAvatar)
+        : null;
+    const avatarIcon = avatarItem ? avatarItem.icon : null;
+
     try {
         await fetch('/api/leaderboard', {
             method: 'POST',
@@ -49,6 +55,7 @@ async function submitToLeaderboard() {
             body: JSON.stringify({
                 id,
                 name,
+                avatar: avatarIcon,
                 xp: (save.level - 1) * 200 + save.xp,
                 level: save.level,
                 totalStars: calcTotalStars(),
@@ -137,9 +144,14 @@ async function refreshLeaderboard(sort) {
             case 'duels':  statValue = `${player.duelWins || 0} побед`; break;
         }
 
+        const avatarHtml = player.avatar
+            ? `<span class="lb-avatar">${player.avatar}</span>`
+            : `<span class="lb-avatar">&#128100;</span>`;
+
         html += `
             <div class="lb-row ${isMe ? 'lb-me' : ''}">
                 <div class="lb-rank">${medal || rank}</div>
+                ${avatarHtml}
                 <div class="lb-player">
                     <div class="lb-name">${escapeHtml(player.name)}</div>
                     <div class="lb-stat-sub">${player.totalWins} побед &middot; ${player.totalGames} игр</div>
@@ -186,9 +198,14 @@ async function renderWeeklySpeedLeaderboard(content) {
         const isMe = player.id === myId;
         const medal = rank === 1 ? '&#129351;' : rank === 2 ? '&#129352;' : rank === 3 ? '&#129353;' : '';
 
+        const wAvatarHtml = player.avatar
+            ? `<span class="lb-avatar">${player.avatar}</span>`
+            : `<span class="lb-avatar">&#128100;</span>`;
+
         html += `
             <div class="lb-row ${isMe ? 'lb-me' : ''}">
                 <div class="lb-rank">${medal || rank}</div>
+                ${wAvatarHtml}
                 <div class="lb-player">
                     <div class="lb-name">${escapeHtml(player.name)}</div>
                 </div>

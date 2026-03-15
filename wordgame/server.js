@@ -135,7 +135,7 @@ let weeklySpeedData = loadWeeklySpeedSync();
 // LEADERBOARD API
 // =============================================
 app.post('/api/leaderboard', async (req, res) => {
-    const { id, name, xp, level, totalStars, bestStreak, currentStreak,
+    const { id, name, avatar, xp, level, totalStars, bestStreak, currentStreak,
             dailyStreak, totalWins, totalGames, perfectGames, duelWins,
             categoriesFound, dailyPuzzlesTotal, weeklyPuzzlesTotal } = req.body;
 
@@ -146,6 +146,7 @@ app.post('/api/leaderboard', async (req, res) => {
     leaderboardData.players[id] = {
         id,
         name: String(name).slice(0, 20),
+        avatar: avatar ? String(avatar).slice(0, 20) : null,
         xp: Number(xp) || 0,
         level: Number(level) || 1,
         totalStars: Number(totalStars) || 0,
@@ -441,6 +442,100 @@ app.get('/api/bonus-unlock/:id', async (req, res) => {
         res.status(500).json({ error: 'Internal server error' });
     }
 });
+
+// =============================================
+// COOLDOWN NOTIFICATIONS
+// =============================================
+const COOLDOWN_NOTIFY_FILE = path.join(DATA_DIR, 'cooldown_notify.json');
+
+let cooldownNotifyData = {};
+try {
+    ensureDataDirSync();
+    if (fs.existsSync(COOLDOWN_NOTIFY_FILE)) {
+        cooldownNotifyData = JSON.parse(fs.readFileSync(COOLDOWN_NOTIFY_FILE, 'utf8'));
+    }
+} catch (e) { cooldownNotifyData = {}; }
+
+const COOLDOWN_MESSAGES = [
+    '🧩 Новые паззлы уже ждут тебя! Время поломать голову!',
+    '🔓 Все таймеры сброшены! Покажи, на что способен!',
+    '🧠 Готов к новым словесным головоломкам? Паззлы снова доступны!',
+    '⚡ Перерыв окончен — паззлы разблокированы! Многие не справляются с этими уровнями... А ты?',
+    '🎯 Паззлы снова открыты! Сможешь побить свой рекорд?',
+    '🔥 Новые паззлы доступны! Только 30% игроков проходят всё без ошибок — попробуй!',
+    '💡 Таймеры обнулились! Время показать свои навыки!',
+    '🏆 Паззлы разблокированы! Каждый новый паззл — шанс заработать звёзды!',
+];
+
+app.post('/api/cooldown-notify', async (req, res) => {
+    const { playerId, chatId, cooldowns } = req.body;
+    if (!playerId || !chatId || !cooldowns) {
+        return res.status(400).json({ error: 'playerId, chatId, and cooldowns required' });
+    }
+
+    // Find the latest cooldown expiry among all difficulties
+    let maxExpiry = 0;
+    for (const ts of Object.values(cooldowns)) {
+        if (ts > maxExpiry) maxExpiry = ts;
+    }
+
+    if (maxExpiry <= Date.now()) {
+        return res.json({ ok: true, scheduled: false });
+    }
+
+    cooldownNotifyData[playerId] = {
+        chatId: Number(chatId),
+        expiresAt: maxExpiry,
+        notified: false
+    };
+
+    try {
+        await atomicWriteJSON(COOLDOWN_NOTIFY_FILE, cooldownNotifyData);
+    } catch (e) {
+        console.error('Error saving cooldown notify:', e.message);
+    }
+
+    res.json({ ok: true, scheduled: true });
+});
+
+// Check cooldown notifications every 60 seconds
+setInterval(async () => {
+    const now = Date.now();
+    let changed = false;
+
+    for (const [playerId, entry] of Object.entries(cooldownNotifyData)) {
+        if (entry.notified || entry.expiresAt > now) continue;
+
+        // All cooldowns expired — send notification
+        entry.notified = true;
+        changed = true;
+
+        // Only send if bot is available
+        try {
+            const botModule = require('./bot');
+            if (botModule && botModule.bot) {
+                const msg = COOLDOWN_MESSAGES[Math.floor(Math.random() * COOLDOWN_MESSAGES.length)];
+                const WEBAPP_URL = process.env.WEBAPP_URL || 'https://your-domain.com';
+                await botModule.bot.sendMessage(entry.chatId, msg, {
+                    reply_markup: {
+                        inline_keyboard: [
+                            [{ text: '🎮 Играть', web_app: { url: WEBAPP_URL } }]
+                        ]
+                    }
+                });
+                console.log(`Cooldown notification sent to ${entry.chatId}`);
+            }
+        } catch (e) {
+            console.warn(`Failed to send cooldown notification to ${entry.chatId}:`, e.message);
+        }
+    }
+
+    if (changed) {
+        try {
+            await atomicWriteJSON(COOLDOWN_NOTIFY_FILE, cooldownNotifyData);
+        } catch (e) { /* ignore */ }
+    }
+}, 60 * 1000);
 
 // =============================================
 // DUEL MATCHMAKING
