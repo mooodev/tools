@@ -602,8 +602,19 @@ function showResultScreen(won, stars, xpGain, coinsGain, elapsed, leveledUp, new
         }
         addActionBtn('В меню', () => { refreshHome(); showScreen('start-screen'); }, !nextDiff);
     } else {
-        addActionBtn('Играть ещё', () => launchGame(difficulty));
-        addActionBtn('В меню', () => { refreshHome(); showScreen('start-screen'); }, false);
+        // After winning, the current difficulty may be on cooldown — find an available one
+        const currentOnCooldown = won && getPuzzleCooldownRemaining(difficulty) > 0;
+        if (currentOnCooldown) {
+            const altDiff = findNextAvailableDifficulty(null);
+            if (altDiff) {
+                const altMeta = DIFF_META[altDiff];
+                addActionBtn(`Играть ещё (${altMeta.label})`, () => launchGame(altDiff));
+            }
+            addActionBtn('В меню', () => { refreshHome(); showScreen('start-screen'); }, !altDiff);
+        } else {
+            addActionBtn('Играть ещё', () => launchGame(difficulty));
+            addActionBtn('В меню', () => { refreshHome(); showScreen('start-screen'); }, false);
+        }
     }
 
     showScreen('result-screen');

@@ -500,7 +500,7 @@ let _lockedCategory = null;
 // =============================================
 // END ROUND — SCORING & ACHIEVEMENTS
 // =============================================
-function endRound(won) {
+async function endRound(won) {
     const elapsed = getElapsed();
     const meta = DIFF_META[difficulty];
     let xpGain = 0;
@@ -609,10 +609,10 @@ function endRound(won) {
     // Track whether this was a weekly puzzle (before resetting flag)
     const wasWeeklyPuzzle = typeof isWeeklyPuzzleMode !== 'undefined' && isWeeklyPuzzleMode;
 
-    // Handle weekly puzzle completion
+    // Handle weekly puzzle completion (await speed submission so rank is available for result screen)
     if (wasWeeklyPuzzle) {
         if (won) {
-            completeWeeklyPuzzle(stars, elapsed);
+            await completeWeeklyPuzzle(stars, elapsed);
         }
         isWeeklyPuzzleMode = false;
     }
