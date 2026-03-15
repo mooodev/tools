@@ -14,8 +14,8 @@ const DIFF_META = {
     expert: { label: 'Эксперт',   short: 'Эксперт', attempts: 2, baseXP: 400, coinMult: 5, color: 'expert' },
 };
 
-const HINT_REVEAL_COST = 20;
-const HINT_REMOVE_COST = 15;
+const HINT_REVEAL_COST = 35;
+const HINT_REMOVE_COST = 25;
 
 // =============================================
 // XP / LEVELS / STARS
@@ -66,7 +66,7 @@ const ACHIEVEMENTS = [
 const DEFAULT_SAVE = {
     xp: 0,
     level: 1,
-    coins: 50,
+    coins: 30,
     totalGames: 0,
     totalWins: 0,
     perfectGames: 0,
@@ -101,6 +101,13 @@ const DEFAULT_SAVE = {
     playerId: null,
     playerName: null,
     duelWins: 0,
+    // Puzzle cooldowns — { easy: timestamp, medium: timestamp, ... }
+    puzzleCooldowns: {},
+    // Shop — cosmetics
+    shopPurchased: [],       // array of item IDs
+    equippedAvatar: null,
+    equippedBackground: null,
+    equippedCardStyle: null,
 };
 
 // =============================================

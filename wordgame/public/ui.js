@@ -65,26 +65,60 @@ function refreshHome() {
         const puzzles = WORD_PUZZLES.filter(p => p.difficulty === key);
         if (!puzzles.length) continue;
         const completed = puzzles.filter((_, i) => save.completedPuzzles[`${key}_${i}`] !== undefined).length;
-        let starHtml = '';
-        puzzles.forEach((_, i) => {
-            const s = save.completedPuzzles[`${key}_${i}`];
-            if (s !== undefined) {
-                starHtml += `<span class="puzzle-star puzzle-star-${s}">&#9733;</span>`;
-            }
-        });
-        const starDisplay = starHtml || '—';
+
+        const cooldownMs = getPuzzleCooldownRemaining(key);
+        const onCooldown = cooldownMs > 0;
 
         const btn = document.createElement('button');
-        btn.className = 'diff-btn';
-        btn.innerHTML = `
-            <span class="diff-left"><span class="diff-dot ${key}"></span>${meta.label}</span>
-            <span class="diff-info">
-                <span class="diff-stars">${starDisplay}</span>
-                <span class="diff-attempts">${completed}/${puzzles.length}</span>
-            </span>`;
-        btn.onclick = () => launchGame(key);
+        btn.className = 'diff-btn' + (onCooldown ? ' cooldown' : '');
+        if (onCooldown) {
+            btn.innerHTML = `
+                <span class="diff-left"><span class="diff-dot ${key}"></span>${meta.label}</span>
+                <span class="diff-info">
+                    <span class="diff-cooldown-timer" data-diff="${key}">&#128274; ${formatCooldownTime(cooldownMs)}</span>
+                </span>`;
+            btn.disabled = true;
+        } else {
+            btn.innerHTML = `
+                <span class="diff-left"><span class="diff-dot ${key}"></span>${meta.label}</span>
+                <span class="diff-info">
+                    <span class="diff-attempts">${completed}/${puzzles.length}</span>
+                </span>`;
+            btn.onclick = () => launchGame(key);
+        }
         grid.appendChild(btn);
     }
+
+    // Start cooldown timers
+    startCooldownTimers();
+}
+
+// =============================================
+// COOLDOWN TIMERS (update every second)
+// =============================================
+let _cooldownInterval = null;
+
+function startCooldownTimers() {
+    clearInterval(_cooldownInterval);
+    const hasAnyCooldown = Object.keys(DIFF_META).some(k => getPuzzleCooldownRemaining(k) > 0);
+    if (!hasAnyCooldown) return;
+
+    _cooldownInterval = setInterval(() => {
+        let anyActive = false;
+        document.querySelectorAll('.diff-cooldown-timer').forEach(el => {
+            const diff = el.dataset.diff;
+            const remaining = getPuzzleCooldownRemaining(diff);
+            if (remaining > 0) {
+                el.innerHTML = `&#128274; ${formatCooldownTime(remaining)}`;
+                anyActive = true;
+            } else {
+                // Cooldown expired — refresh the home screen
+                clearInterval(_cooldownInterval);
+                refreshHome();
+            }
+        });
+        if (!anyActive) clearInterval(_cooldownInterval);
+    }, 1000);
 }
 
 // =============================================
@@ -541,6 +575,156 @@ function showResultScreen(won, stars, xpGain, coinsGain, elapsed, leveledUp, new
 }
 
 // =============================================
+// SHOP — Cosmetics catalog
+// =============================================
+const SHOP_ITEMS = [
+    // Avatars
+    { id: 'avatar_cat',     type: 'avatar',     icon: '&#128049;', name: 'Котик',        price: 50 },
+    { id: 'avatar_fox',     type: 'avatar',     icon: '&#129418;', name: 'Лисичка',      price: 50 },
+    { id: 'avatar_robot',   type: 'avatar',     icon: '&#129302;', name: 'Робот',         price: 75 },
+    { id: 'avatar_alien',   type: 'avatar',     icon: '&#128125;', name: 'Пришелец',      price: 100 },
+    { id: 'avatar_crown',   type: 'avatar',     icon: '&#128081;', name: 'Корона',        price: 150 },
+    { id: 'avatar_fire',    type: 'avatar',     icon: '&#128293;', name: 'Огонь',         price: 200 },
+    // Backgrounds
+    { id: 'bg_stars',       type: 'background',  icon: '&#127775;', name: 'Звёзды',       price: 80 },
+    { id: 'bg_ocean',       type: 'background',  icon: '&#127754;', name: 'Океан',        price: 80 },
+    { id: 'bg_forest',      type: 'background',  icon: '&#127795;', name: 'Лес',          price: 100 },
+    { id: 'bg_sunset',      type: 'background',  icon: '&#127749;', name: 'Закат',        price: 120 },
+    { id: 'bg_galaxy',      type: 'background',  icon: '&#127756;', name: 'Галактика',    price: 200 },
+    { id: 'bg_neon',        type: 'background',  icon: '&#128161;', name: 'Неон',         price: 250 },
+    // Card styles
+    { id: 'style_gradient', type: 'cardstyle',   icon: '&#127912;', name: 'Градиент',     price: 100 },
+    { id: 'style_glass',    type: 'cardstyle',   icon: '&#128142;', name: 'Стекло',       price: 120 },
+    { id: 'style_retro',    type: 'cardstyle',   icon: '&#127926;', name: 'Ретро',        price: 150 },
+    { id: 'style_gold',     type: 'cardstyle',   icon: '&#129689;', name: 'Золото',       price: 300 },
+];
+
+const SHOP_TYPE_LABELS = {
+    avatar: 'Аватарки',
+    background: 'Фоны',
+    cardstyle: 'Стиль карточек',
+};
+
+const SHOP_EQUIP_KEY = {
+    avatar: 'equippedAvatar',
+    background: 'equippedBackground',
+    cardstyle: 'equippedCardStyle',
+};
+
+function isShopItemOwned(itemId) {
+    return save.shopPurchased && save.shopPurchased.includes(itemId);
+}
+
+function isShopItemEquipped(item) {
+    const key = SHOP_EQUIP_KEY[item.type];
+    return save[key] === item.id;
+}
+
+function buyShopItem(item) {
+    if (isShopItemOwned(item.id)) return false;
+    if (save.coins < item.price) {
+        showMsg('Недостаточно монет!', 'error');
+        return false;
+    }
+    save.coins -= item.price;
+    if (!save.shopPurchased) save.shopPurchased = [];
+    save.shopPurchased.push(item.id);
+    // Auto-equip on purchase
+    save[SHOP_EQUIP_KEY[item.type]] = item.id;
+    writeSave(save);
+    SFX.coin();
+    haptic(15);
+    return true;
+}
+
+function equipShopItem(item) {
+    const key = SHOP_EQUIP_KEY[item.type];
+    if (save[key] === item.id) {
+        // Unequip
+        save[key] = null;
+    } else {
+        save[key] = item.id;
+    }
+    writeSave(save);
+    haptic(5);
+}
+
+function handleShopItemClick(item) {
+    if (isShopItemOwned(item.id)) {
+        equipShopItem(item);
+    } else {
+        if (buyShopItem(item)) {
+            showToast(item.icon, `${item.name} куплен!`);
+        }
+    }
+    renderShop();
+    refreshProfile();
+    applyCosmetics();
+}
+
+function renderShop() {
+    const container = $('shop-container');
+    if (!container) return;
+
+    let html = `<div class="shop-coins-bar"><span class="coin-icon">&#9679;</span> ${save.coins} монет</div>`;
+
+    for (const [type, label] of Object.entries(SHOP_TYPE_LABELS)) {
+        html += `<div class="shop-category-title">${label}</div><div class="shop-grid">`;
+        const items = SHOP_ITEMS.filter(i => i.type === type);
+        items.forEach(item => {
+            const owned = isShopItemOwned(item.id);
+            const equipped = isShopItemEquipped(item);
+            let statusHtml = '';
+            if (equipped) {
+                statusHtml = '<span class="shop-item-equipped-label">&#10003; Надето</span>';
+            } else if (owned) {
+                statusHtml = '<span class="shop-item-status">Куплено</span>';
+            } else {
+                statusHtml = `<span class="shop-item-price"><span class="coin-icon">&#9679;</span> ${item.price}</span>`;
+            }
+            html += `
+                <div class="shop-item ${equipped ? 'equipped' : owned ? 'owned' : ''}" data-item-id="${item.id}">
+                    <span class="shop-item-icon">${item.icon}</span>
+                    <span class="shop-item-name">${item.name}</span>
+                    ${statusHtml}
+                </div>`;
+        });
+        html += '</div>';
+    }
+
+    container.innerHTML = html;
+
+    // Bind click handlers
+    container.querySelectorAll('.shop-item').forEach(el => {
+        const itemId = el.dataset.itemId;
+        const item = SHOP_ITEMS.find(i => i.id === itemId);
+        if (item) el.onclick = () => handleShopItemClick(item);
+    });
+}
+
+function applyCosmetics() {
+    // Apply avatar
+    const avatarEls = [document.getElementById('home-avatar'), document.getElementById('p-avatar')];
+    const avatarItem = save.equippedAvatar && SHOP_ITEMS.find(i => i.id === save.equippedAvatar);
+    avatarEls.forEach(el => {
+        if (el) el.innerHTML = avatarItem ? avatarItem.icon : '&#128100;';
+    });
+
+    // Apply background
+    const body = document.body;
+    body.classList.remove('bg-stars', 'bg-ocean', 'bg-forest', 'bg-sunset', 'bg-galaxy', 'bg-neon');
+    if (save.equippedBackground) {
+        body.classList.add(save.equippedBackground.replace('bg_', 'bg-'));
+    }
+
+    // Apply card style
+    body.classList.remove('style-gradient', 'style-glass', 'style-retro', 'style-gold');
+    if (save.equippedCardStyle) {
+        body.classList.add(save.equippedCardStyle.replace('style_', 'style-'));
+    }
+}
+
+// =============================================
 // PROFILE SCREEN
 // =============================================
 function refreshProfile() {
@@ -564,6 +748,10 @@ function refreshProfile() {
 
     // Daily panel
     renderDailyPanel();
+
+    // Shop
+    renderShop();
+    applyCosmetics();
 
     // Achievement list
     const achList = $('ach-list');
@@ -776,6 +964,7 @@ function initApp() {
     checkDailyReset();
     initEventListeners();
     refreshHome();
+    applyCosmetics();
 
     // Show toast for new bonus unlock
     if (bonusJustUnlocked) {

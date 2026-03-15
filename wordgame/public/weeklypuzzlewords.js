@@ -266,6 +266,11 @@ function launchWeeklyPuzzle() {
     const weekly = getWeeklyPuzzle();
     isWeeklyPuzzleMode = true;
 
+    // Also set weekly challenge flag so daily.js tracks completion
+    if (typeof isWeeklyChallenge !== 'undefined') {
+        isWeeklyChallenge = true;
+    }
+
     // Override puzzle selection
     puzzle = weekly.puzzle;
     difficulty = weekly.puzzle.difficulty;

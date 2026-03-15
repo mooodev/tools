@@ -66,7 +66,39 @@ function updateTimerDisplay() {
 // =============================================
 // LAUNCH GAME
 // =============================================
+const PUZZLE_COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+function getPuzzleCooldownRemaining(diff) {
+    if (!save.puzzleCooldowns || !save.puzzleCooldowns[diff]) return 0;
+    const remaining = save.puzzleCooldowns[diff] - Date.now();
+    return remaining > 0 ? remaining : 0;
+}
+
+function formatCooldownTime(ms) {
+    const totalSec = Math.ceil(ms / 1000);
+    const h = Math.floor(totalSec / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
+    const s = totalSec % 60;
+    if (h > 0) return `${h}ч ${String(m).padStart(2, '0')}м`;
+    return `${m}м ${String(s).padStart(2, '0')}с`;
+}
+
+function setPuzzleCooldown(diff) {
+    if (!save.puzzleCooldowns) save.puzzleCooldowns = {};
+    save.puzzleCooldowns[diff] = Date.now() + PUZZLE_COOLDOWN_MS;
+    writeSave(save);
+}
+
 function launchGame(diff, idx) {
+    // Check cooldown (skip for archive replays via idx)
+    if (idx === undefined) {
+        const remaining = getPuzzleCooldownRemaining(diff);
+        if (remaining > 0) {
+            showMsg(`Доступно через ${formatCooldownTime(remaining)}`, 'warn');
+            return;
+        }
+    }
+
     difficulty = diff;
     isEndless = false;
     const puzzles = WORD_PUZZLES.filter(p => p.difficulty === diff);
@@ -401,7 +433,7 @@ function cleanupWinReview() {
 // =============================================
 // LOCKED CATEGORY ON LOSS — pay coins to reveal
 // =============================================
-const REVEAL_CATEGORY_COST = 15;
+const REVEAL_CATEGORY_COST = 25;
 
 function revealLockedCategory() {
     if (save.coins < REVEAL_CATEGORY_COST) {
@@ -451,8 +483,8 @@ function endRound(won) {
         if (elapsed < 60) xpGain += 50;
         else if (elapsed < 120) xpGain += 25;
 
-        // Coins calculation
-        coinsGain = 10 + (maxMist - mistakesMade) * 5;
+        // Coins calculation (tighter economy)
+        coinsGain = 5 + (maxMist - mistakesMade) * 3;
         coinsGain *= meta.coinMult;
 
         // Apply daily streak bonus
@@ -470,11 +502,12 @@ function endRound(won) {
         if (hintsUsedThisRound === 0) noHintWins++;
         else noHintWins = 0;
 
-        // Save puzzle completion
+        // Save puzzle completion & set 24h cooldown
         if (!isEndless) {
             const key = `${difficulty}_${puzzleIndex}`;
             const prev = save.completedPuzzles[key] || 0;
             if (stars > prev) save.completedPuzzles[key] = stars;
+            setPuzzleCooldown(difficulty);
         } else {
             save.endlessWins++;
         }
