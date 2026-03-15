@@ -209,7 +209,7 @@ function isWeeklyPuzzleCompleted() {
 /**
  * Mark weekly puzzle as completed and submit speed to leaderboard.
  */
-function completeWeeklyPuzzle(stars, elapsed) {
+async function completeWeeklyPuzzle(stars, elapsed) {
     const weekId = getWeekId();
     save.weeklyPuzzleWeekId = weekId;
     save.weeklyPuzzleCompleted = true;
@@ -217,9 +217,9 @@ function completeWeeklyPuzzle(stars, elapsed) {
     save.weeklyPuzzlesTotal = (save.weeklyPuzzlesTotal || 0) + 1;
     writeSave(save);
 
-    // Submit speed to weekly leaderboard
+    // Submit speed to weekly leaderboard and wait for rank
     if (elapsed !== undefined) {
-        submitWeeklySpeed(weekId, elapsed);
+        return submitWeeklySpeed(weekId, elapsed);
     }
 }
 
