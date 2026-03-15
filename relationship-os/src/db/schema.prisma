@@ -1,0 +1,145 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+enum PairStatus {
+  WAITING
+  ACTIVE
+  PAUSED
+  INACTIVE
+}
+
+enum ChallengeStatus {
+  ACTIVE
+  COMPLETED
+  EXPIRED
+}
+
+model User {
+  id              Int       @id @default(autoincrement())
+  telegramId      BigInt    @unique
+  username        String?
+  firstName       String
+  gender          Gender
+  pairId          Int?
+  pair            Pair?     @relation(fields: [pairId], references: [id])
+  onboardingStep  Int       @default(0)
+  onboardingDone  Boolean   @default(false)
+  attachmentType  String?   // ANXIOUS | AVOIDANT | SECURE
+  loveLanguage    String?   // WORDS | ACTS | GIFTS | TIME | TOUCH
+  conflictStyle   String?   // SOLVER | AVOIDER | EXPRESSIVE | THINKER
+  stressLevel     Int       @default(3)
+  stressUpdatedAt DateTime?
+  lastActiveAt    DateTime  @default(now())
+  timezone        String    @default("Europe/Moscow")
+  pausedAt        DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  cycle           Cycle?
+  dailyLogs       DailyLog[]
+  sentRelays      RelayMessage[]  @relation("SentRelays")
+  stressLogs      StressLog[]
+
+  @@index([pairId])
+}
+
+model Pair {
+  id          Int        @id @default(autoincrement())
+  inviteCode  String     @unique
+  status      PairStatus @default(WAITING)
+  users       User[]
+  dayCount    Int        @default(0)
+  points      Int        @default(0)
+  level       Int        @default(1)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  challenges  PairChallenge[]
+  relayQueue  RelayQueue[]
+
+  @@index([inviteCode])
+}
+
+model Cycle {
+  id              Int      @id @default(autoincrement())
+  userId          Int      @unique
+  user            User     @relation(fields: [userId], references: [id])
+  lastPeriodStart DateTime
+  cycleLength     Int      @default(28)
+  periodLength    Int      @default(5)
+  isIrregular     Boolean  @default(false)
+  updatedAt       DateTime @updatedAt
+}
+
+model DailyLog {
+  id            Int      @id @default(autoincrement())
+  userId        Int
+  user          User     @relation(fields: [userId], references: [id])
+  date          DateTime @db.Date
+  mood          Int?     // 1-5
+  energy        Int?     // 1-5
+  stressLevel   Int?     // 1-5
+  needsSupport  Boolean  @default(false)
+  noteToPartner String?
+
+  @@unique([userId, date])
+  @@index([userId, date])
+}
+
+model StressLog {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  level     Int
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+model RelayMessage {
+  id          Int      @id @default(autoincrement())
+  fromUserId  Int
+  fromUser    User     @relation("SentRelays", fields: [fromUserId], references: [id])
+  questionKey String
+  text        String
+  sentAt      DateTime @default(now())
+  delivered   Boolean  @default(false)
+  skipped     Boolean  @default(false)
+}
+
+model RelayQueue {
+  id          Int      @id @default(autoincrement())
+  pairId      Int
+  pair        Pair     @relation(fields: [pairId], references: [id])
+  questionKey String
+  askedAt     DateTime @default(now())
+  answeredAt  DateTime?
+  expiredAt   DateTime?
+
+  @@index([pairId])
+}
+
+model PairChallenge {
+  id           Int             @id @default(autoincrement())
+  pairId       Int
+  pair         Pair            @relation(fields: [pairId], references: [id])
+  challengeKey String
+  status       ChallengeStatus @default(ACTIVE)
+  startedAt    DateTime        @default(now())
+  guyDone      Boolean         @default(false)
+  girlDone     Boolean         @default(false)
+  completedAt  DateTime?
+
+  @@index([pairId])
+}
