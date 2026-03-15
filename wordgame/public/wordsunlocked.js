@@ -64,7 +64,7 @@ const BONUS_WORD_PUZZLES = [
   // MEDIUM
  // --- Новые medium паззлы ---
   {
-    difficulty: "medium",
+    difficulty: "hard",
     categories: [
       { theme: "ПОРОДЫ КОШЕК", words: ["СИАМСКАЯ", "ПЕРСИДСКАЯ", "СФИНКС", "МЕЙН-КУН"], color: "#f9df6d" },
       { theme: "БОЕВЫЕ ИСКУССТВА", words: ["КАРАТЕ", "ДЗЮДО", "ТХЭКВОНДО", "АЙКИДО"], color: "#a0c35a" },
@@ -73,7 +73,7 @@ const BONUS_WORD_PUZZLES = [
     ]
   },
   {
-    difficulty: "medium",
+    difficulty: "hard",
     categories: [
       { theme: "РУССКИЕ ХУДОЖНИКИ", words: ["РЕПИН", "ШИШКИН", "АЙВАЗОВСКИЙ", "ЛЕВИТАН"], color: "#f9df6d" },
       { theme: "ВИДЫ ШОКОЛАДА", words: ["ГОРЬКИЙ", "МОЛОЧНЫЙ", "БЕЛЫЙ", "РУБИНОВЫЙ"], color: "#a0c35a" },
@@ -82,7 +82,7 @@ const BONUS_WORD_PUZZLES = [
     ]
   },
   {
-    difficulty: "medium",
+    difficulty: "hard",
     categories: [
       { theme: "СТОЛИЦЫ ЕВРОПЫ", words: ["БЕРЛИН", "МАДРИД", "ВЕНА", "ПРАГА"], color: "#f9df6d" },
       { theme: "ОТТЕНКИ СИНЕГО", words: ["ГОЛУБОЙ", "ЛАЗУРНЫЙ", "ИНДИГО", "БИРЮЗОВЫЙ"], color: "#a0c35a" },
@@ -91,7 +91,7 @@ const BONUS_WORD_PUZZLES = [
     ]
   },
   {
-    difficulty: "medium",
+    difficulty: "hard",
     categories: [
       { theme: "ВИДЫ ЭНЕРГИИ", words: ["СОЛНЕЧНАЯ", "ВЕТРОВАЯ", "АТОМНАЯ", "ТЕПЛОВАЯ"], color: "#f9df6d" },
       { theme: "ТАНЦЕВАЛЬНЫЕ СТИЛИ", words: ["БРЕЙК", "ФЛАМЕНКО", "ХАСТЛ", "ЧЕЧЁТКА"], color: "#a0c35a" },
@@ -100,7 +100,7 @@ const BONUS_WORD_PUZZLES = [
     ]
   },
   {
-    difficulty: "medium",
+    difficulty: "hard",
     categories: [
       { theme: "ВИДЫ ТЕАТРА", words: ["ОПЕРА", "БАЛЕТ", "МЮЗИКЛ", "ПАНТОМИМА"], color: "#f9df6d" },
       { theme: "ВИДЫ ХЛЕБА", words: ["БАГЕТ", "ЛАВАШ", "ЧИАБАТТА", "КАРАВАЙ"], color: "#a0c35a" },
@@ -109,7 +109,7 @@ const BONUS_WORD_PUZZLES = [
     ]
   },
   {
-    difficulty: "medium",
+    difficulty: "hard",
     categories: [
       { theme: "ВИДЫ ВИНА", words: ["МЕРЛО", "КАБЕРНЕ", "РИСЛИНГ", "ШАРДОНЕ"], color: "#f9df6d" },
       { theme: "ОСТРОВНЫЕ СТРАНЫ", words: ["ЯПОНИЯ", "КУБА", "МАДАГАСКАР", "ИСЛАНДИЯ"], color: "#a0c35a" },
@@ -118,7 +118,7 @@ const BONUS_WORD_PUZZLES = [
     ]
   },
   {
-    difficulty: "medium",
+    difficulty: "hard",
     categories: [
       { theme: "ОРГАНЫ ЧЕЛОВЕКА", words: ["ПЕЧЕНЬ", "ПОЧКА", "ЛЁГКОЕ", "СЕЛЕЗЁНКА"], color: "#f9df6d" },
       { theme: "ВИДЫ ЗАМКОВ", words: ["НАВЕСНОЙ", "ВРЕЗНОЙ", "КОДОВЫЙ", "ЭЛЕКТРОННЫЙ"], color: "#a0c35a" },
@@ -127,7 +127,7 @@ const BONUS_WORD_PUZZLES = [
     ]
   },
   {
-    difficulty: "medium",
+    difficulty: "hard",
     categories: [
       { theme: "ВИДЫ БУМАГИ", words: ["КАРТОН", "ПЕРГАМЕНТ", "КАЛЬКА", "ВАТМАН"], color: "#f9df6d" },
       { theme: "ДУХОВЫЕ ИНСТРУМЕНТЫ", words: ["ФЛЕЙТА", "ТРУБА", "КЛАРНЕТ", "САКСОФОН"], color: "#a0c35a" },
@@ -136,7 +136,7 @@ const BONUS_WORD_PUZZLES = [
     ]
   },
   {
-    difficulty: "medium",
+    difficulty: "hard",
     categories: [
       { theme: "ГОРНЫЕ ПОРОДЫ", words: ["ГРАНИТ", "МРАМОР", "БАЗАЛЬТ", "СЛАНЕЦ"], color: "#f9df6d" },
       { theme: "ПУСТЫНИ", words: ["САХАРА", "ГОБИ", "КАЛАХАРИ", "АТАКАМА"], color: "#a0c35a" },

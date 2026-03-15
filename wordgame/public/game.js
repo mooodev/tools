@@ -161,7 +161,7 @@ function launchGame(diff, idx) {
 }
 
 function launchEndless() {
-    difficulty = ['easy', 'medium', 'hard', 'expert'][Math.floor(Math.random() * 4)];
+    difficulty = ['easy', 'hard', 'expert'][Math.floor(Math.random() * 3)];
     isEndless = true;
     const puzzles = WORD_PUZZLES.filter(p => p.difficulty === difficulty);
     puzzleIndex = Math.floor(Math.random() * puzzles.length);
@@ -596,7 +596,7 @@ async function endRound(won) {
     if (won && combo >= 4 && unlockAch(save, 'combo_4'))                           newAchs.push('combo_4');
 
     // Check all-difficulty achievements
-    for (const [dk, achId] of [['easy','all_easy'],['medium','all_medium'],['hard','all_hard'],['expert','all_expert']]) {
+    for (const [dk, achId] of [['easy','all_easy'],['hard','all_hard'],['expert','all_expert']]) {
         if (!hasAch(save, achId)) {
             const total = WORD_PUZZLES.filter(p => p.difficulty === dk).length;
             const done = WORD_PUZZLES.filter((p, i) => p.difficulty === dk && (save.completedPuzzles[`${dk}_${i}`] || 0) > 0).length;

@@ -9,7 +9,6 @@ const SAVE_KEY = 'svyazi_save_v2';
 
 const DIFF_META = {
     easy:   { label: 'Лёгкий',   short: 'Лёгкий',  attempts: 5, baseXP: 50,  coinMult: 1, color: 'easy' },
-    medium: { label: 'Средний',   short: 'Средний', attempts: 4, baseXP: 100, coinMult: 2, color: 'medium' },
     hard:   { label: 'Трудный',   short: 'Трудный', attempts: 3, baseXP: 200, coinMult: 3, color: 'hard' },
     expert: { label: 'Эксперт',   short: 'Эксперт', attempts: 2, baseXP: 400, coinMult: 5, color: 'expert' },
 };
@@ -46,7 +45,6 @@ const ACHIEVEMENTS = [
     { id: 'streak_5',   icon: '&#9889;',   name: 'Не остановить',     desc: 'Победная серия из 5 раундов' },
     { id: 'streak_10',  icon: '&#127775;', name: 'Легенда',           desc: 'Победная серия из 10 раундов' },
     { id: 'all_easy',   icon: '&#127807;', name: 'Лёгкая прогулка',   desc: 'Пройди все лёгкие паззлы' },
-    { id: 'all_medium', icon: '&#128170;', name: 'Уверенный игрок',   desc: 'Пройди все средние паззлы' },
     { id: 'all_hard',   icon: '&#129504;', name: 'Мастер связей',     desc: 'Пройди все трудные паззлы' },
     { id: 'all_expert', icon: '&#128142;', name: 'Гений',             desc: 'Пройди все экспертные паззлы' },
     { id: 'speed_60',   icon: '&#9201;',   name: 'Молния',            desc: 'Выиграй раунд менее чем за 60 секунд' },
@@ -101,7 +99,7 @@ const DEFAULT_SAVE = {
     playerId: null,
     playerName: null,
     duelWins: 0,
-    // Puzzle cooldowns — { easy: timestamp, medium: timestamp, ... }
+    // Puzzle cooldowns — { easy: timestamp, hard: timestamp, ... }
     puzzleCooldowns: {},
     // Shop — cosmetics
     shopPurchased: [],       // array of item IDs

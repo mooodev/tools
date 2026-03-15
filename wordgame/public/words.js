@@ -1,7 +1,7 @@
 /**
  * Словарь для игры "Связи"
  * Каждый набор содержит 4 категории по 4 слова.
- * difficulty: "easy" | "medium" | "hard" | "expert"
+ * difficulty: "easy" | "hard" | "expert"
  */
 const WORD_PUZZLES = [
 
@@ -88,7 +88,7 @@ const WORD_PUZZLES = [
   // ========================
 
   {
-    difficulty: "medium",
+    difficulty: "hard",
     categories: [
       { theme: "ЕДИНИЦЫ ИЗМЕРЕНИЯ", words: ["МЕТР", "ЛИТР", "ГРАММ", "СЕКУНДА"], color: "#f9df6d" },
       { theme: "СТОЛИЦЫ", words: ["ПАРИЖ", "ТОКИО", "ЛОНДОН", "КАИР"], color: "#a0c35a" },
@@ -97,7 +97,7 @@ const WORD_PUZZLES = [
     ]
   },
   {
-    difficulty: "medium",
+    difficulty: "hard",
     categories: [
       { theme: "ЖАНРЫ КИНО", words: ["КОМЕДИЯ", "ТРИЛЛЕР", "ДРАМА", "ХОРРОР"], color: "#f9df6d" },
       { theme: "ПРИПРАВЫ", words: ["ПЕРЕЦ", "КОРИЦА", "БАЗИЛИК", "УКРОП"], color: "#a0c35a" },
@@ -106,7 +106,7 @@ const WORD_PUZZLES = [
     ]
   },
   {
-    difficulty: "medium",
+    difficulty: "hard",
     categories: [
       { theme: "МЕТАЛЛЫ", words: ["ЗОЛОТО", "СЕРЕБРО", "МЕДЬ", "ПЛАТИНА"], color: "#f9df6d" },
       { theme: "ВИДЫ СПОРТА НА ЛЬДУ", words: ["ХОККЕЙ", "КЁРЛИНГ", "БОБСЛЕЙ", "ШОРТ-ТРЕК"], color: "#a0c35a" },
@@ -115,7 +115,7 @@ const WORD_PUZZLES = [
     ]
   },
   {
-    difficulty: "medium",
+    difficulty: "hard",
     categories: [
       { theme: "ТИПЫ ЖИЛЬЯ", words: ["КВАРТИРА", "КОТТЕДЖ", "ВИЛЛА", "СТУДИЯ"], color: "#f9df6d" },
       { theme: "КАРТОЧНЫЕ МАСТИ", words: ["ПИКИ", "ЧЕРВИ", "БУБНЫ", "ТРЕФЫ"], color: "#a0c35a" },
@@ -124,7 +124,7 @@ const WORD_PUZZLES = [
     ]
   },
   {
-    difficulty: "medium",
+    difficulty: "hard",
     categories: [
       { theme: "ЯЗЫКИ МИРА", words: ["ХИНДИ", "АРАБСКИЙ", "СУАХИЛИ", "ЯПОНСКИЙ"], color: "#f9df6d" },
       { theme: "КОСТИ ЧЕЛОВЕКА", words: ["РЕБРО", "КЛЮЧИЦА", "ЛОПАТКА", "БЕДРО"], color: "#a0c35a" },
@@ -133,7 +133,7 @@ const WORD_PUZZLES = [
     ]
   },
   {
-    difficulty: "medium",
+    difficulty: "hard",
     categories: [
       { theme: "ГОРЫ", words: ["ЭЛЬБРУС", "МОНБЛАН", "ЭВЕРЕСТ", "КИЛИМАНДЖАРО"], color: "#f9df6d" },
       { theme: "СТИХИИ", words: ["ОГОНЬ", "ВОДА", "ЗЕМЛЯ", "ВОЗДУХ"], color: "#a0c35a" },
@@ -142,7 +142,7 @@ const WORD_PUZZLES = [
     ]
   },
   {
-    difficulty: "medium",
+    difficulty: "hard",
     categories: [
       { theme: "РУССКИЕ ПИСАТЕЛИ", words: ["ТОЛСТОЙ", "ЧЕХОВ", "ДОСТОЕВСКИЙ", "ГОГОЛЬ"], color: "#f9df6d" },
       { theme: "МИФИЧЕСКИЕ СУЩЕСТВА", words: ["ДРАКОН", "ЕДИНОРОГ", "ГРИФОН", "ФЕНИКС"], color: "#a0c35a" },
@@ -151,7 +151,7 @@ const WORD_PUZZLES = [
     ]
   },
   {
-    difficulty: "medium",
+    difficulty: "hard",
     categories: [
       { theme: "ОРГАНЫ ЧУВСТВ", words: ["ЗРЕНИЕ", "СЛУХ", "ВКУС", "ОБОНЯНИЕ"], color: "#f9df6d" },
       { theme: "СПЕЦИИ", words: ["КУРКУМА", "ПАПРИКА", "ШАФРАН", "КАРДАМОН"], color: "#a0c35a" },

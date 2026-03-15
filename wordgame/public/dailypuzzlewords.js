@@ -41,7 +41,7 @@ const DAILY_PUZZLES = [
 
   // Day 4
   {
-    difficulty: "medium",
+    difficulty: "hard",
     categories: [
       { theme: "ПТИЦЫ", words: ["ВОРОНА", "ГОЛУБЬ", "СИНИЦА", "СОКОЛ"], color: "#f9df6d" },
       { theme: "МЕТАЛЛЫ", words: ["ЗОЛОТО", "СЕРЕБРО", "МЕДЬ", "ЖЕЛЕЗО"], color: "#a0c35a" },
@@ -63,7 +63,7 @@ const DAILY_PUZZLES = [
 
   // Day 6
   {
-    difficulty: "medium",
+    difficulty: "hard",
     categories: [
       { theme: "МОРЯ", words: ["ЧЁРНОЕ", "КРАСНОЕ", "БЕЛОЕ", "ЖЁЛТОЕ"], color: "#f9df6d" },
       { theme: "КУХНЯ", words: ["ПЛИТА", "ДУХОВКА", "МОЙКА", "ХОЛОДИЛЬНИК"], color: "#a0c35a" },
@@ -85,7 +85,7 @@ const DAILY_PUZZLES = [
 
   // Day 8
   {
-    difficulty: "medium",
+    difficulty: "hard",
     categories: [
       { theme: "ПРОФЕССИИ", words: ["ВРАЧ", "ПОВАР", "ПИЛОТ", "АКТЁР"], color: "#f9df6d" },
       { theme: "КОСМОС", words: ["ЗВЕЗДА", "КОМЕТА", "ЛУНА", "СПУТНИК"], color: "#a0c35a" },
@@ -107,7 +107,7 @@ const DAILY_PUZZLES = [
 
   // Day 10
   {
-    difficulty: "medium",
+    difficulty: "hard",
     categories: [
       { theme: "РЕКИ РОССИИ", words: ["ВОЛГА", "ОБЬ", "ЛЕНА", "ЕНИСЕЙ"], color: "#f9df6d" },
       { theme: "СПЕЦИИ", words: ["ПЕРЕЦ", "КОРИЦА", "ИМБИРЬ", "КУРКУМА"], color: "#a0c35a" },
@@ -129,7 +129,7 @@ const DAILY_PUZZLES = [
 
   // Day 12
   {
-    difficulty: "medium",
+    difficulty: "hard",
     categories: [
       { theme: "ПИСАТЕЛИ", words: ["ПУШКИН", "ТОЛСТОЙ", "ЧЕХОВ", "ГОГОЛЬ"], color: "#f9df6d" },
       { theme: "НОТЫ", words: ["ДО", "РЕ", "МИ", "СОЛЬ"], color: "#a0c35a" },
@@ -151,7 +151,7 @@ const DAILY_PUZZLES = [
 
   // Day 14
   {
-    difficulty: "medium",
+    difficulty: "hard",
     categories: [
       { theme: "ШАХМАТЫ", words: ["КОРОЛЬ", "ФЕРЗЬ", "ЛАДЬЯ", "КОНЬ"], color: "#f9df6d" },
       { theme: "МАТЕРИАЛЫ", words: ["ДЕРЕВО", "КАМЕНЬ", "СТЕКЛО", "ПЛАСТИК"], color: "#a0c35a" },
@@ -173,7 +173,7 @@ const DAILY_PUZZLES = [
 
   // Day 16
   {
-    difficulty: "medium",
+    difficulty: "hard",
     categories: [
       { theme: "ГОРЫ", words: ["ЭЛЬБРУС", "ЭВЕРЕСТ", "АЛЬПЫ", "УРАЛ"], color: "#f9df6d" },
       { theme: "ПРИПРАВЫ", words: ["СОЛЬ", "САХАР", "УКСУС", "ГОРЧИЦА"], color: "#a0c35a" },
@@ -195,7 +195,7 @@ const DAILY_PUZZLES = [
 
   // Day 18
   {
-    difficulty: "medium",
+    difficulty: "hard",
     categories: [
       { theme: "ЯЗЫКИ", words: ["РУССКИЙ", "АНГЛИЙСКИЙ", "ЯПОНСКИЙ", "ИСПАНСКИЙ"], color: "#f9df6d" },
       { theme: "МУЗЫКАЛЬНЫЕ ГРУППЫ", words: ["БИТЛЗ", "КИНО", "НИРВАНА", "КВИН"], color: "#a0c35a" },
@@ -217,7 +217,7 @@ const DAILY_PUZZLES = [
 
   // Day 20
   {
-    difficulty: "medium",
+    difficulty: "hard",
     categories: [
       { theme: "ОЗЁРА", words: ["БАЙКАЛ", "ОНЕЖСКОЕ", "ЛАДОЖСКОЕ", "КАСПИЙ"], color: "#f9df6d" },
       { theme: "ПРЯНОСТИ ВОСТОКА", words: ["ШАФРАН", "КАРДАМОН", "БАДЬЯН", "ГВОЗДИКА"], color: "#a0c35a" },
@@ -239,7 +239,7 @@ const DAILY_PUZZLES = [
 
   // Day 22
   {
-    difficulty: "medium",
+    difficulty: "hard",
     categories: [
       { theme: "ЕДИНИЦЫ ИЗМЕРЕНИЯ", words: ["МЕТР", "ЛИТР", "КИЛОГРАММ", "СЕКУНДА"], color: "#f9df6d" },
       { theme: "ВИДЫ ИСКУССТВА", words: ["ЖИВОПИСЬ", "СКУЛЬПТУРА", "АРХИТЕКТУРА", "ГРАФИКА"], color: "#a0c35a" },
@@ -261,7 +261,7 @@ const DAILY_PUZZLES = [
 
   // Day 24
   {
-    difficulty: "medium",
+    difficulty: "hard",
     categories: [
       { theme: "РУССКИЕ ЦАРИ", words: ["ПЁТР", "ИВАН", "НИКОЛАЙ", "АЛЕКСАНДР"], color: "#f9df6d" },
       { theme: "ВИДЫ ЧАЯ", words: ["ЗЕЛЁНЫЙ", "ЧЁРНЫЙ", "БЕЛЫЙ", "УЛУН"], color: "#a0c35a" },
@@ -283,7 +283,7 @@ const DAILY_PUZZLES = [
 
   // Day 26
   {
-    difficulty: "medium",
+    difficulty: "hard",
     categories: [
       { theme: "МУЛЬТФИЛЬМЫ", words: ["МАША", "ЛУНТИК", "ФИКСИКИ", "СМЕШАРИКИ"], color: "#f9df6d" },
       { theme: "МУЗЫКА ОРКЕСТРА", words: ["ВИОЛОНЧЕЛЬ", "ТРУБА", "АРФА", "ФАГОТ"], color: "#a0c35a" },
@@ -305,7 +305,7 @@ const DAILY_PUZZLES = [
 
   // Day 28
   {
-    difficulty: "medium",
+    difficulty: "hard",
     categories: [
       { theme: "ВИДЫ КОФЕ", words: ["ЛАТТЕ", "КАПУЧИНО", "ЭСПРЕССО", "АМЕРИКАНО"], color: "#f9df6d" },
       { theme: "ГОРНЫЕ ПОРОДЫ", words: ["ГРАНИТ", "МРАМОР", "БАЗАЛЬТ", "СЛАНЕЦ"], color: "#a0c35a" },
@@ -327,7 +327,7 @@ const DAILY_PUZZLES = [
 
   // Day 30
   {
-    difficulty: "medium",
+    difficulty: "hard",
     categories: [
       { theme: "ФИЛОСОФЫ", words: ["ПЛАТОН", "АРИСТОТЕЛЬ", "СОКРАТ", "КАНТ"], color: "#f9df6d" },
       { theme: "ВИДЫ ОТДЫХА", words: ["ПОХОД", "РЫБАЛКА", "ПИКНИК", "БАНЯ"], color: "#a0c35a" },

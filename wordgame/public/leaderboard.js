@@ -127,10 +127,6 @@ async function refreshLeaderboard(sort) {
         return;
     }
 
-    const sortLabels = {
-        xp: 'Уровень', streak: 'Стрик', duels: 'Дуэли'
-    };
-
     let html = '';
     data.players.forEach((player, i) => {
         const rank = i + 1;
@@ -140,7 +136,6 @@ async function refreshLeaderboard(sort) {
         let statValue = '';
         switch (currentLeaderboardSort) {
             case 'xp':     statValue = `Ур. ${player.level} (${player.xp} XP)`; break;
-            case 'streak': statValue = `${player.bestStreak} подряд`; break;
             case 'duels':  statValue = `${player.duelWins || 0} побед`; break;
         }
 
