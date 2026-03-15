@@ -540,20 +540,22 @@ function endRound(won) {
         if (hintsUsedThisRound === 0) noHintWins++;
         else noHintWins = 0;
 
-        // Save puzzle completion & set 24h cooldown
-        if (!isEndless) {
+        // Save puzzle completion & set 24h cooldown (skip for weekly puzzles — they have separate tracking)
+        const _isWeekly = typeof isWeeklyPuzzleMode !== 'undefined' && isWeeklyPuzzleMode;
+        if (!isEndless && !_isWeekly) {
             const key = `${difficulty}_${puzzleIndex}`;
             const prev = save.completedPuzzles[key] || 0;
             if (stars > prev) save.completedPuzzles[key] = stars;
             setPuzzleCooldown(difficulty);
-        } else {
+        } else if (isEndless) {
             save.endlessWins++;
         }
     } else {
         save.currentStreak = 0;
         noHintWins = 0;
-        // Mark puzzle as attempted (0 stars) so it appears in archive
-        if (!isEndless) {
+        // Mark puzzle as attempted (0 stars) so it appears in archive (skip for weekly puzzles)
+        const _isWeeklyLoss = typeof isWeeklyPuzzleMode !== 'undefined' && isWeeklyPuzzleMode;
+        if (!isEndless && !_isWeeklyLoss) {
             const key = `${difficulty}_${puzzleIndex}`;
             if (save.completedPuzzles[key] === undefined) {
                 save.completedPuzzles[key] = 0;
@@ -604,9 +606,14 @@ function endRound(won) {
         }
     }
 
+    // Track whether this was a weekly puzzle (before resetting flag)
+    const wasWeeklyPuzzle = typeof isWeeklyPuzzleMode !== 'undefined' && isWeeklyPuzzleMode;
+
     // Handle weekly puzzle completion
-    if (won && typeof isWeeklyPuzzleMode !== 'undefined' && isWeeklyPuzzleMode) {
-        completeWeeklyPuzzle(stars, elapsed);
+    if (wasWeeklyPuzzle) {
+        if (won) {
+            completeWeeklyPuzzle(stars, elapsed);
+        }
         isWeeklyPuzzleMode = false;
     }
 
@@ -631,10 +638,10 @@ function endRound(won) {
         coinsGain
     });
 
-    // Calculate puzzle progress info
+    // Calculate puzzle progress info (not for weekly puzzles)
     let puzzleProgress = null;
     let difficultyCompleted = false;
-    if (!isEndless && won) {
+    if (!isEndless && !wasWeeklyPuzzle && won) {
         const puzzlesForDiff = WORD_PUZZLES.filter(p => p.difficulty === difficulty);
         const totalForDiff = puzzlesForDiff.length;
         const completedForDiff = puzzlesForDiff.filter((_, i) =>
@@ -645,5 +652,5 @@ function endRound(won) {
     }
 
     // Delegate to UI
-    showResultScreen(won, stars, xpGain, coinsGain, elapsed, leveledUp, newLevel, newAchs, dailyResult, puzzleProgress, difficultyCompleted);
+    showResultScreen(won, stars, xpGain, coinsGain, elapsed, leveledUp, newLevel, newAchs, dailyResult, puzzleProgress, difficultyCompleted, wasWeeklyPuzzle);
 }

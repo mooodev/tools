@@ -414,7 +414,7 @@ function showCombo(n) {
 // =============================================
 // RESULT SCREEN
 // =============================================
-function showResultScreen(won, stars, xpGain, coinsGain, elapsed, leveledUp, newLevel, newAchs, dailyResult, puzzleProgress, difficultyCompleted) {
+function showResultScreen(won, stars, xpGain, coinsGain, elapsed, leveledUp, newLevel, newAchs, dailyResult, puzzleProgress, difficultyCompleted, wasWeeklyPuzzle) {
     $('res-icon').textContent = won ? '🎉' : '😔';
     $('res-title').textContent = won ? 'Победа!' : 'Не повезло';
 
@@ -539,16 +539,16 @@ function showResultScreen(won, stars, xpGain, coinsGain, elapsed, leveledUp, new
     const resDuel = $('res-duel');
     if (resDuel) resDuel.innerHTML = '';
 
-    // Difficulty completion congratulations
+    // Difficulty completion congratulations (not for weekly puzzles)
     const diffCompleteEl = $('res-diff-complete');
     if (diffCompleteEl) diffCompleteEl.innerHTML = '';
-    if (won && difficultyCompleted && diffCompleteEl) {
+    if (won && difficultyCompleted && !wasWeeklyPuzzle && diffCompleteEl) {
         const meta = DIFF_META[difficulty];
         diffCompleteEl.innerHTML = `
             <div class="diff-complete-banner">
                 <div class="diff-complete-icon">&#127881;</div>
                 <div class="diff-complete-title">Поздравляем!</div>
-                <div class="diff-complete-desc">Ты прошёл все паззлы уровня «${meta.label}»!</div>
+                <div class="diff-complete-desc">Вы решили ${meta.label.toLowerCase()} пазл! Все паззлы уровня «${meta.label}» пройдены!</div>
             </div>`;
     }
 
@@ -566,6 +566,27 @@ function showResultScreen(won, stars, xpGain, coinsGain, elapsed, leveledUp, new
         addActionBtn('Ещё дуэль', () => showDuelDiffPicker());
     } else if (isEndless) {
         addActionBtn('Следующий раунд', () => launchEndless());
+    } else if (wasWeeklyPuzzle) {
+        // Weekly puzzle finished — offer to play regular game
+        if (won) {
+            // Find any available regular difficulty to play
+            const availableDiff = findNextAvailableDifficulty(null);
+            if (availableDiff) {
+                const availMeta = DIFF_META[availableDiff];
+                addActionBtn(`Играть ещё (${availMeta.label})`, () => launchGame(availableDiff));
+            } else {
+                const actMsg = document.createElement('div');
+                actMsg.className = 'res-all-done-msg';
+                actMsg.textContent = 'Все обычные паззлы пройдены! Возвращайся, когда откроются новые.';
+                actEl.appendChild(actMsg);
+            }
+        } else {
+            // Lost weekly puzzle — can retry
+            addActionBtn('Попробовать снова', () => {
+                if (typeof launchWeeklyPuzzle === 'function') launchWeeklyPuzzle();
+            });
+        }
+        addActionBtn('В меню', () => { refreshHome(); showScreen('start-screen'); }, false);
     } else if (won && difficultyCompleted) {
         // All puzzles of this difficulty completed — find another available difficulty
         const nextDiff = findNextAvailableDifficulty(difficulty);
