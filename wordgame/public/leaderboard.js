@@ -85,7 +85,8 @@ let lastLeaderboardMyRank = -1;
 
 async function fetchLeaderboard(sort = 'xp') {
     try {
-        const res = await fetch(`/api/leaderboard?sort=${sort}&limit=50`);
+        const myId = ensurePlayerId();
+        const res = await fetch(`/api/leaderboard?sort=${sort}&limit=10&playerId=${encodeURIComponent(myId)}`);
         const data = await res.json();
         return data;
     } catch (e) {
@@ -120,30 +121,24 @@ async function refreshLeaderboard(sort) {
     const data = await fetchLeaderboard(currentLeaderboardSort);
     const myId = ensurePlayerId();
     lastLeaderboardData = data;
-    lastLeaderboardMyRank = data.players.findIndex(p => p.id === myId) + 1;
+    lastLeaderboardMyRank = data.myRank || (data.players.findIndex(p => p.id === myId) + 1);
 
     if (!data.players.length) {
         content.innerHTML = '<div class="lb-empty">Пока нет игроков. Будь первым!</div>';
         return;
     }
 
-    let html = '';
-    data.players.forEach((player, i) => {
-        const rank = i + 1;
-        const isMe = player.id === myId;
+    function renderLeaderboardRow(player, rank, isMe) {
         const medal = rank === 1 ? '&#129351;' : rank === 2 ? '&#129352;' : rank === 3 ? '&#129353;' : '';
-
         let statValue = '';
         switch (currentLeaderboardSort) {
             case 'xp':     statValue = `Ур. ${player.level} (${player.xp} XP)`; break;
             case 'duels':  statValue = `${player.duelWins || 0} побед`; break;
         }
-
         const avatarHtml = player.avatar
             ? `<span class="lb-avatar">${player.avatar}</span>`
             : `<span class="lb-avatar">&#128100;</span>`;
-
-        html += `
+        return `
             <div class="lb-row ${isMe ? 'lb-me' : ''}">
                 <div class="lb-rank">${medal || rank}</div>
                 ${avatarHtml}
@@ -153,7 +148,23 @@ async function refreshLeaderboard(sort) {
                 </div>
                 <div class="lb-value">${statValue}</div>
             </div>`;
+    }
+
+    let html = '';
+    const myInTop = data.players.some(p => p.id === myId);
+
+    data.players.forEach((player, i) => {
+        html += renderLeaderboardRow(player, i + 1, player.id === myId);
     });
+
+    // If player is not in top 10, show separator and their position
+    if (!myInTop && data.myRank > 0) {
+        html += '<div class="lb-separator">···</div>';
+        const myEntry = data.myEntry || leaderboardData;
+        if (data.myEntry) {
+            html += renderLeaderboardRow(data.myEntry, data.myRank, true);
+        }
+    }
 
     content.innerHTML = html;
 }
@@ -163,7 +174,8 @@ async function refreshLeaderboard(sort) {
 // =============================================
 async function fetchWeeklySpeedLeaderboard(weekId) {
     try {
-        const res = await fetch(`/api/weekly-speed?weekId=${weekId}&limit=50`);
+        const myId = ensurePlayerId();
+        const res = await fetch(`/api/weekly-speed?weekId=${weekId}&limit=10&playerId=${encodeURIComponent(myId)}`);
         return await res.json();
     } catch (e) {
         console.warn('Weekly speed fetch failed:', e.message);
@@ -187,17 +199,12 @@ async function renderWeeklySpeedLeaderboard(content) {
         return;
     }
 
-    let html = '<div class="lb-weekly-header">&#9889; Скорость прохождения недельного паззла</div>';
-    data.players.forEach((player, i) => {
-        const rank = i + 1;
-        const isMe = player.id === myId;
+    function renderWeeklyRow(player, rank, isMe) {
         const medal = rank === 1 ? '&#129351;' : rank === 2 ? '&#129352;' : rank === 3 ? '&#129353;' : '';
-
         const wAvatarHtml = player.avatar
             ? `<span class="lb-avatar">${player.avatar}</span>`
             : `<span class="lb-avatar">&#128100;</span>`;
-
-        html += `
+        return `
             <div class="lb-row ${isMe ? 'lb-me' : ''}">
                 <div class="lb-rank">${medal || rank}</div>
                 ${wAvatarHtml}
@@ -206,7 +213,19 @@ async function renderWeeklySpeedLeaderboard(content) {
                 </div>
                 <div class="lb-value">${formatSpeedTime(player.time)}</div>
             </div>`;
+    }
+
+    let html = '<div class="lb-weekly-header">&#9889; Скорость прохождения недельного паззла</div>';
+    const myInWeekly = data.players.some(p => p.id === myId);
+
+    data.players.forEach((player, i) => {
+        html += renderWeeklyRow(player, i + 1, player.id === myId);
     });
+
+    if (!myInWeekly && data.myRank > 0 && data.myEntry) {
+        html += '<div class="lb-separator">···</div>';
+        html += renderWeeklyRow(data.myEntry, data.myRank, true);
+    }
 
     content.innerHTML = html;
 }

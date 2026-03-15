@@ -1254,6 +1254,15 @@ body {
     text-align: right;
 }
 
+.lb-separator {
+    text-align: center;
+    font-size: 20px;
+    color: var(--text-dim);
+    padding: 4px 0;
+    letter-spacing: 4px;
+    opacity: 0.6;
+}
+
 .lb-weekly-header {
     text-align: center;
     font-size: 14px;
