@@ -2199,3 +2199,27 @@ body.style-gold .card.selected { background: linear-gradient(135deg, #3a3020, #2
     padding: 14px !important;
 }
 
+/* ==============================
+   DUEL COUNTDOWN OVERLAY (5-sec timer after opponent solves)
+   ============================== */
+.duel-countdown-overlay {
+    position: absolute;
+    top: 8px;
+    right: 12px;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 50;
+    pointer-events: none;
+}
+.duel-countdown-num {
+    font-size: 32px;
+    font-weight: 900;
+    color: var(--error);
+    text-shadow: 0 0 20px rgba(248,113,113,0.6);
+    animation: countdownPulse 1s ease-in-out infinite;
+}
+@keyframes countdownPulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.2); opacity: 0.8; }
+}

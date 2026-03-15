@@ -31,6 +31,10 @@ function connectDuelSocket() {
         console.log('Duel socket connected');
         // Check for pending duels on reconnect
         duelSocket.emit('duel:check-pending', { playerId: ensurePlayerId() });
+        // Restore duel button state
+        if (duelMyLobbyId) {
+            updateDuelButtonState(true);
+        }
     });
 
     duelSocket.on('duel:searching', (data) => {
@@ -47,6 +51,7 @@ function connectDuelSocket() {
         // If I was in lobby waiting, clear it
         if (duelMyLobbyId) {
             duelMyLobbyId = null;
+            updateDuelButtonState(false);
         }
 
         renderDuelMatched(data);
@@ -58,6 +63,10 @@ function connectDuelSocket() {
 
     duelSocket.on('duel:opponent-finished', (data) => {
         showOpponentFinished(data);
+        // If opponent won, start countdown UI
+        if (data.won && data.countdown && !duelFinished) {
+            startDuelCountdown(data.countdown);
+        }
     });
 
     duelSocket.on('duel:opponent-disconnected', () => {
@@ -75,11 +84,13 @@ function connectDuelSocket() {
     duelSocket.on('duel:result', (data) => {
         duelResult = data;
         clearDuelInactivityTracking();
+        clearDuelCountdown();
         showDuelResult(data);
     });
 
     duelSocket.on('duel:lobby-created', (data) => {
         duelMyLobbyId = data.roomId;
+        updateDuelButtonState(true);
         // When on duel-pick-screen, show the cancel button state
         if (_currentScreen === 'duel-pick-screen') {
             renderDuelLobbyScreen();
@@ -120,6 +131,8 @@ function connectDuelSocket() {
     // My lobby was cancelled by me (or I got notified)
     duelSocket.on('duel:lobby-cancelled', (data) => {
         showToast('&#128683;', `${data.creatorName} отменил дуэль`);
+        duelMyLobbyId = null;
+        updateDuelButtonState(false);
         showDuelLobby();
     });
 
@@ -181,6 +194,7 @@ function renderDuelLobbyScreen() {
                 duelSocket.emit('duel:cancel-lobby', { roomId: duelMyLobbyId, playerId: ensurePlayerId() });
             }
             duelMyLobbyId = null;
+            updateDuelButtonState(false);
             renderDuelLobbyScreen();
         };
     } else {
@@ -431,6 +445,10 @@ function showDuelChallengeAlert(data) {
 // =============================================
 function setupDuelBeforeUnload() {
     window.addEventListener('beforeunload', (e) => {
+        // If in an active duel, notify server that player is leaving
+        if (isDuel && !duelFinished && duelSocket && duelRoomId) {
+            duelSocket.emit('duel:leave', { roomId: duelRoomId });
+        }
         if (duelMyLobbyId) {
             e.preventDefault();
             e.returnValue = 'У вас открытая дуэль. Если кто-то примет вызов, вам придёт уведомление в Telegram. У вас будет 2 минуты чтобы принять, иначе вы проиграете.';
@@ -704,8 +722,45 @@ function updateOpponentProgress(solved) {
 
 function showOpponentFinished(data) {
     if (data.won) {
-        showMsg('Соперник закончил!', 'warn');
+        showMsg('Соперник решил! Успей за 5 сек!', 'warn');
     }
+}
+
+// 5-second countdown after opponent solves
+let duelCountdownInterval = null;
+function startDuelCountdown(seconds) {
+    clearDuelCountdown();
+    let remaining = seconds;
+
+    // Show countdown overlay
+    let overlay = document.getElementById('duel-countdown-overlay');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'duel-countdown-overlay';
+        overlay.className = 'duel-countdown-overlay';
+        document.getElementById('game-screen').appendChild(overlay);
+    }
+    overlay.innerHTML = `<div class="duel-countdown-num">${remaining}</div>`;
+    overlay.style.display = 'flex';
+
+    duelCountdownInterval = setInterval(() => {
+        remaining--;
+        if (remaining <= 0) {
+            clearDuelCountdown();
+            return;
+        }
+        const numEl = overlay.querySelector('.duel-countdown-num');
+        if (numEl) numEl.textContent = remaining;
+    }, 1000);
+}
+
+function clearDuelCountdown() {
+    if (duelCountdownInterval) {
+        clearInterval(duelCountdownInterval);
+        duelCountdownInterval = null;
+    }
+    const overlay = document.getElementById('duel-countdown-overlay');
+    if (overlay) overlay.style.display = 'none';
 }
 
 // =============================================
@@ -784,6 +839,28 @@ function showDuelResult(data) {
     isDuel = false;
     duelBetInfo = null;
 }
+
+// Explicitly leave a duel (back button, menu, app close)
+function leaveDuel() {
+    if (!isDuel || !duelSocket || !duelRoomId) return;
+    duelSocket.emit('duel:leave', { roomId: duelRoomId });
+    clearDuelInactivityTracking();
+    clearDuelCountdown();
+    hideDuelOverlay();
+    isDuel = false;
+    duelFinished = true;
+    duelBetInfo = null;
+}
+
+// Handle app visibility change — if player hides the app during duel, leave
+function setupDuelVisibilityHandler() {
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden && isDuel && !duelFinished) {
+            leaveDuel();
+        }
+    });
+}
+setupDuelVisibilityHandler();
 
 function formatDuelTime(seconds) {
     if (!seconds || seconds >= 999) return '--:--';

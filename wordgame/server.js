@@ -603,6 +603,7 @@ const BOT_WAIT_MS = 10000;   // 10 seconds before bot
 const DUEL_MAX_AGE_MS = 10 * 60 * 1000; // 10 minutes max duel lifetime
 const DUEL_ACCEPT_TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes for creator to accept after someone joins
 const DUEL_INACTIVITY_MS = 2 * 60 * 1000; // 2 minutes inactivity = auto-lose
+const DUEL_FINISH_COUNTDOWN_MS = 5000; // 5 seconds for opponent to finish after first solver
 
 const BOT_NAMES = [
     'Умник', 'Мастер слов', 'Знаток', 'Лингвист', 'Эрудит',
@@ -621,8 +622,19 @@ const duelCleanupInterval = setInterval(() => {
             if (duel.botIntervals) {
                 duel.botIntervals.forEach(t => clearTimeout(t));
             }
+            if (duel.finishCountdownTimer) {
+                clearTimeout(duel.finishCountdownTimer);
+            }
             delete activeduels[roomId];
             console.log(`Cleaned up stale duel: ${roomId}`);
+        }
+    }
+    // Cleanup stale lobbies (open for too long without anyone joining)
+    for (const [roomId, lobby] of Object.entries(duelLobbies)) {
+        if (!lobby.pendingJoin && now - lobby.createdAt > DUEL_MAX_AGE_MS) {
+            delete duelLobbies[roomId];
+            io.emit('duel:lobbies-updated', getPublicLobbies());
+            console.log(`Cleaned up stale lobby: ${roomId}`);
         }
     }
     // Cleanup pending duels (where someone joined but creator hasn't appeared)
@@ -697,6 +709,28 @@ function getPublicLobbies() {
         }));
 }
 
+// Helper: close all open lobbies for a player (when they start a new duel)
+function closePlayerLobbies(playerId, excludeRoomId) {
+    for (const [roomId, lobby] of Object.entries(duelLobbies)) {
+        if (roomId === excludeRoomId) continue;
+        if (lobby.creatorId === playerId) {
+            // Notify joiner if someone was waiting
+            if (lobby.pendingJoin && lobby.joinerSocket && lobby.joinerSocket.connected) {
+                lobby.joinerSocket.emit('duel:lobby-cancelled', { roomId, creatorName: lobby.creatorName });
+            }
+            delete duelLobbies[roomId];
+        }
+    }
+    io.emit('duel:lobbies-updated', getPublicLobbies());
+}
+
+// Helper: check if player is in any active duel
+function isPlayerInActiveDuel(playerId) {
+    return Object.values(activeduels).some(d =>
+        Object.values(d.players).some(p => p.playerId === playerId && !p.finished)
+    );
+}
+
 io.on('connection', (socket) => {
     socket._duelRoom = null; // Track current duel room on socket
     let currentRoom = null;
@@ -704,19 +738,20 @@ io.on('connection', (socket) => {
 
     // ---- DUEL LOBBY EVENTS ----
     socket.on('duel:create-lobby', (data) => {
-        // Check if player already has a lobby
-        const existingLobby = Object.values(duelLobbies).find(l => l.creatorId === data.playerId);
-        if (existingLobby) {
-            socket.emit('duel:lobby-error', { error: 'У вас уже есть открытая дуэль' });
+        // Check if player is already in an active duel
+        if (isPlayerInActiveDuel(data.playerId)) {
+            socket.emit('duel:lobby-error', { error: 'Вы уже участвуете в дуэли' });
             return;
         }
 
-        // Check if player is already in an active duel
-        const inActiveDuel = Object.values(activeduels).some(d =>
-            Object.values(d.players).some(p => p.playerId === data.playerId && !p.finished)
-        );
-        if (inActiveDuel) {
-            socket.emit('duel:lobby-error', { error: 'Вы уже участвуете в дуэли' });
+        // Close any existing open lobbies for this player
+        closePlayerLobbies(data.playerId);
+
+        // Validate inputs
+        const VALID_BET_AMOUNTS = [10, 25, 50, 100];
+        const betAmount = data.isBet ? (Number(data.betAmount) || 10) : 0;
+        if (data.isBet && !VALID_BET_AMOUNTS.includes(betAmount)) {
+            socket.emit('duel:lobby-error', { error: 'Недопустимая ставка' });
             return;
         }
 
@@ -725,12 +760,12 @@ io.on('connection', (socket) => {
             roomId,
             creatorSocket: socket,
             creatorId: data.playerId,
-            creatorName: data.playerName || 'Игрок',
-            creatorLevel: data.playerLevel || 1,
+            creatorName: String(data.playerName || 'Игрок').slice(0, 20),
+            creatorLevel: Math.max(1, Math.min(999, Number(data.playerLevel) || 1)),
             creatorChatId: data.chatId || null,
             difficulty: data.difficulty || 'hard',
             isBet: !!data.isBet,
-            betAmount: data.isBet ? (Number(data.betAmount) || 10) : 0,
+            betAmount,
             createdAt: Date.now(),
             pendingJoin: false
         };
@@ -776,13 +811,13 @@ io.on('connection', (socket) => {
         }
 
         // Check if joiner is already in an active duel
-        const joinerInDuel = Object.values(activeduels).some(d =>
-            Object.values(d.players).some(p => p.playerId === playerId && !p.finished)
-        );
-        if (joinerInDuel) {
+        if (isPlayerInActiveDuel(playerId)) {
             socket.emit('duel:lobby-error', { error: 'Вы уже участвуете в дуэли' });
             return;
         }
+
+        // Close any existing lobbies the joiner has
+        closePlayerLobbies(playerId);
 
         // Store joiner info on the lobby
         lobby.pendingJoin = true;
@@ -890,6 +925,15 @@ io.on('connection', (socket) => {
     });
 
     socket.on('duel:find', (data) => {
+        // Check if player is already in an active duel
+        if (isPlayerInActiveDuel(data.playerId)) {
+            socket.emit('duel:lobby-error', { error: 'Вы уже участвуете в дуэли' });
+            return;
+        }
+
+        // Close any existing lobbies
+        closePlayerLobbies(data.playerId);
+
         const playerInfo = {
             socketId: socket.id,
             socket,
@@ -1080,12 +1124,83 @@ io.on('connection', (socket) => {
         const allFinished = allPlayers.every(p => p.finished);
 
         if (allFinished) {
+            // Clear any pending countdown timer
+            if (duel.finishCountdownTimer) {
+                clearTimeout(duel.finishCountdownTimer);
+                duel.finishCountdownTimer = null;
+            }
             resolveDuel(roomId);
+        } else if (won) {
+            // Player solved the puzzle — start 5-second countdown for opponent
+            // Notify opponent with countdown
+            socket.to(roomId).emit('duel:opponent-finished', {
+                won, time, stars, countdown: DUEL_FINISH_COUNTDOWN_MS / 1000
+            });
+
+            // After 5 seconds, if opponent hasn't finished, they lose
+            duel.finishCountdownTimer = setTimeout(() => {
+                if (!activeduels[roomId]) return;
+                const duelNow = activeduels[roomId];
+                Object.values(duelNow.players).forEach(p => {
+                    if (!p.finished) {
+                        p.finished = true;
+                        p.won = false;
+                        p.time = 999;
+                        p.timedOut = true;
+                    }
+                });
+                resolveDuel(roomId);
+            }, DUEL_FINISH_COUNTDOWN_MS);
         } else {
-            // Notify opponent that we finished
+            // Player lost (ran out of attempts) — just notify opponent
             socket.to(roomId).emit('duel:opponent-finished', {
                 won, time, stars
             });
+        }
+    });
+
+    // Player explicitly leaves a duel (back button, menu navigation, app close)
+    socket.on('duel:leave', (data) => {
+        const { roomId } = data || {};
+        const duelRoom = roomId || currentRoom || socket._duelRoom;
+        if (!duelRoom || !activeduels[duelRoom]) return;
+
+        const duel = activeduels[duelRoom];
+        const player = duel.players[socket.id];
+        if (!player || player.finished) return;
+
+        // Mark player as lost (left the game)
+        player.finished = true;
+        player.won = false;
+        player.time = 999;
+        player.left = true;
+
+        // Notify opponent
+        socket.to(duelRoom).emit('duel:opponent-disconnected');
+
+        // Clear any pending countdown
+        if (duel.finishCountdownTimer) {
+            clearTimeout(duel.finishCountdownTimer);
+            duel.finishCountdownTimer = null;
+        }
+
+        // Check if both finished
+        const allFinished = Object.values(duel.players).every(p => p.finished);
+        if (allFinished) {
+            resolveDuel(duelRoom);
+        } else {
+            // Auto-win for remaining player after 3 seconds
+            setTimeout(() => {
+                if (!activeduels[duelRoom]) return;
+                Object.values(duel.players).forEach(p => {
+                    if (!p.finished) {
+                        p.finished = true;
+                        p.won = true;
+                        p.time = Math.floor((Date.now() - duel.startTime) / 1000);
+                    }
+                });
+                resolveDuel(duelRoom);
+            }, 3000);
         }
     });
 
@@ -1138,12 +1253,18 @@ io.on('connection', (socket) => {
                 // Notify opponent
                 socket.to(duelRoom).emit('duel:opponent-disconnected');
 
+                // Clear any pending countdown timer
+                if (duel.finishCountdownTimer) {
+                    clearTimeout(duel.finishCountdownTimer);
+                    duel.finishCountdownTimer = null;
+                }
+
                 // Check if we should resolve
                 const allFinished = Object.values(duel.players).every(p => p.finished);
                 if (allFinished) {
                     resolveDuel(duelRoom);
                 } else {
-                    // Auto-resolve in 3 seconds
+                    // Auto-resolve in 3 seconds — opponent wins
                     const roomToResolve = duelRoom;
                     setTimeout(() => {
                         if (activeduels[roomToResolve]) {
@@ -1217,13 +1338,28 @@ function startBotAI(roomId, difficulty) {
             io.to(roomId).emit('duel:opponent-finished', {
                 won: true,
                 time: bot.time,
-                stars: bot.stars
+                stars: bot.stars,
+                countdown: DUEL_FINISH_COUNTDOWN_MS / 1000
             });
 
             // Check if player also finished
             const allFinished = Object.values(duel.players).every(p => p.finished);
             if (allFinished) {
                 resolveDuel(roomId);
+            } else {
+                // Start 5-second countdown for human player
+                duel.finishCountdownTimer = setTimeout(() => {
+                    if (!activeduels[roomId]) return;
+                    Object.values(duel.players).forEach(p => {
+                        if (!p.finished) {
+                            p.finished = true;
+                            p.won = false;
+                            p.time = 999;
+                            p.timedOut = true;
+                        }
+                    });
+                    resolveDuel(roomId);
+                }, DUEL_FINISH_COUNTDOWN_MS);
             }
             return;
         }
@@ -1357,9 +1493,19 @@ function resolveDuel(roomId) {
     const duel = activeduels[roomId];
     if (!duel) return;
 
+    // Prevent double resolution
+    if (duel.resolved) return;
+    duel.resolved = true;
+
     // Clear bot intervals
     if (duel.botIntervals) {
         duel.botIntervals.forEach(t => clearTimeout(t));
+    }
+
+    // Clear finish countdown timer
+    if (duel.finishCountdownTimer) {
+        clearTimeout(duel.finishCountdownTimer);
+        duel.finishCountdownTimer = null;
     }
 
     const players = Object.entries(duel.players);
@@ -1380,6 +1526,13 @@ function resolveDuel(roomId) {
         loser = players[1];
     }
 
+    // Draw conditions:
+    // 1. Nobody won (both failed)
+    // 2. Both won with exactly the same time
+    // 3. Both solved the puzzle (both won = draw, since second solved within 5s countdown)
+    const isDraw = !finishers.length ||
+        (finishers.length === 2 && finishers[0][1].time === finishers[1][1].time);
+
     const result = {
         winnerId: winner ? winner[1].playerId : null,
         winnerName: winner ? winner[1].playerName : null,
@@ -1389,7 +1542,7 @@ function resolveDuel(roomId) {
         loserName: loser ? loser[1].playerName : null,
         loserTime: loser ? loser[1].time : 0,
         loserStars: loser ? loser[1].stars || 0 : 0,
-        isDraw: !finishers.length || (finishers.length === 2 && finishers[0][1].time === finishers[1][1].time),
+        isDraw,
         isBot: duel.isBot,
         isBet: duel.isBet || false,
         betAmount: duel.betAmount || 0
