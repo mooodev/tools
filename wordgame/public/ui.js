@@ -935,6 +935,11 @@ function initEventListeners() {
         // Cleanup win review if active
         if (typeof cleanupWinReview === 'function') cleanupWinReview();
         if (typeof isDuel !== 'undefined' && isDuel) {
+            // Leaving a duel = auto-lose (report as finished with loss)
+            if (typeof reportDuelFinished === 'function' && !duelFinished) {
+                reportDuelFinished(false, 0);
+            }
+            if (typeof clearDuelInactivityTracking === 'function') clearDuelInactivityTracking();
             isDuel = false;
             if (typeof hideDuelOverlay === 'function') hideDuelOverlay();
         }
@@ -973,7 +978,10 @@ function initEventListeners() {
 
     // Duel
     $('duel-btn').onclick = () => showDuelDiffPicker();
-    $('duel-pick-back').onclick = () => { refreshHome(); showScreen('start-screen'); };
+    $('duel-pick-back').onclick = () => {
+        refreshHome();
+        showScreen('start-screen');
+    };
 }
 
 // (Daily/Weekly puzzle buttons removed)
@@ -990,6 +998,11 @@ function handleUrlParams() {
     const mode = params.get('mode');
     if (mode === 'weekly' && typeof launchWeeklyPuzzle === 'function') {
         launchWeeklyPuzzle();
+    }
+
+    // Handle duel deep link from Telegram notification
+    if (typeof handleDuelUrlParams === 'function') {
+        handleDuelUrlParams();
     }
 }
 

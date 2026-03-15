@@ -1957,8 +1957,8 @@ body.style-gold .card.selected { background: linear-gradient(135deg, #3a3020, #2
 
 .duel-lobby-card {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
+    flex-direction: column;
+    gap: 10px;
     background: var(--surface);
     border: 1.5px solid var(--surface-3);
     border-radius: var(--radius-sm);
@@ -1973,7 +1973,7 @@ body.style-gold .card.selected { background: linear-gradient(135deg, #3a3020, #2
     display: flex;
     align-items: center;
     gap: 10px;
-    flex: 1;
+    width: 100%;
     min-width: 0;
 }
 
@@ -2017,9 +2017,10 @@ body.style-gold .card.selected { background: linear-gradient(135deg, #3a3020, #2
 }
 
 .duel-join-btn {
-    flex-shrink: 0;
-    padding: 8px 16px !important;
-    font-size: 12px !important;
+    width: 100%;
+    padding: 10px 16px !important;
+    font-size: 13px !important;
+    text-align: center;
 }
 
 /* ==============================
@@ -2128,5 +2129,73 @@ body.style-gold .card.selected { background: linear-gradient(135deg, #3a3020, #2
     font-weight: 600;
     color: var(--text-dim);
     text-align: center;
+}
+
+/* ==============================
+   CANCEL DUEL BUTTON (green)
+   ============================== */
+.duel-cancel-active-btn {
+    background: rgba(52,211,153,0.15) !important;
+    border-color: #34d399 !important;
+    color: #34d399 !important;
+    font-size: 15px !important;
+    padding: 14px !important;
+    animation: duelWaitingPulse 2s ease-in-out infinite;
+}
+
+/* ==============================
+   DUEL CHALLENGE OVERLAY
+   ============================== */
+.duel-challenge-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    background: rgba(0,0,0,0.85);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+.duel-challenge-card {
+    background: var(--surface);
+    border: 2px solid var(--accent);
+    border-radius: var(--radius);
+    padding: 28px 24px;
+    text-align: center;
+    max-width: 320px;
+    width: 100%;
+    animation: duelChallengeIn 0.3s ease;
+}
+@keyframes duelChallengeIn {
+    from { transform: scale(0.8); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+.duel-challenge-icon {
+    font-size: 48px;
+    margin-bottom: 12px;
+}
+.duel-challenge-title {
+    font-size: 22px;
+    font-weight: 800;
+    margin-bottom: 8px;
+    color: var(--text);
+}
+.duel-challenge-info {
+    font-size: 15px;
+    color: var(--text-dim);
+    margin-bottom: 20px;
+    line-height: 1.4;
+}
+.duel-challenge-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.duel-challenge-accept {
+    background: var(--error) !important;
+    border-color: var(--error) !important;
+    color: #fff !important;
+    font-size: 16px !important;
+    padding: 14px !important;
 }
 

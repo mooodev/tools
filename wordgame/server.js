@@ -601,7 +601,8 @@ const activeduels = {};      // roomId → duel state
 const duelLobbies = {};      // roomId → lobby state (waiting rooms)
 const BOT_WAIT_MS = 10000;   // 10 seconds before bot
 const DUEL_MAX_AGE_MS = 10 * 60 * 1000; // 10 minutes max duel lifetime
-const DUEL_LOBBY_TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes lobby timeout
+const DUEL_ACCEPT_TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes for creator to accept after someone joins
+const DUEL_INACTIVITY_MS = 2 * 60 * 1000; // 2 minutes inactivity = auto-lose
 
 const BOT_NAMES = [
     'Умник', 'Мастер слов', 'Знаток', 'Лингвист', 'Эрудит',
@@ -624,38 +625,101 @@ const duelCleanupInterval = setInterval(() => {
             console.log(`Cleaned up stale duel: ${roomId}`);
         }
     }
-    // Cleanup expired lobbies
+    // Cleanup pending duels (where someone joined but creator hasn't appeared)
     for (const [roomId, lobby] of Object.entries(duelLobbies)) {
-        if (now - lobby.createdAt > DUEL_LOBBY_TIMEOUT_MS) {
-            if (lobby.creatorSocket && lobby.creatorSocket.connected) {
-                lobby.creatorSocket.emit('duel:lobby-expired', { roomId });
+        if (lobby.pendingJoin && now - lobby.pendingJoinAt > DUEL_ACCEPT_TIMEOUT_MS) {
+            // Creator didn't show up — joiner wins
+            if (lobby.joinerSocket && lobby.joinerSocket.connected) {
+                lobby.joinerSocket.emit('duel:acceptance-timeout', {
+                    roomId,
+                    creatorName: lobby.creatorName,
+                    youWin: true
+                });
             }
             delete duelLobbies[roomId];
             io.emit('duel:lobbies-updated', getPublicLobbies());
-            console.log(`Cleaned up expired lobby: ${roomId}`);
+            console.log(`Lobby ${roomId}: creator didn't appear, joiner wins`);
+        }
+    }
+    // Cleanup inactivity in active duels
+    for (const [roomId, duel] of Object.entries(activeduels)) {
+        if (duel.isBot) continue;
+        for (const [sid, player] of Object.entries(duel.players)) {
+            if (!player.finished && player.lastActivity && now - player.lastActivity > DUEL_INACTIVITY_MS) {
+                player.finished = true;
+                player.won = false;
+                player.time = 999;
+                player.inactive = true;
+                if (player.socket && player.socket.connected) {
+                    player.socket.emit('duel:inactivity-lose', { roomId });
+                }
+                // Notify opponent
+                const oppEntry = Object.entries(duel.players).find(([id]) => id !== sid);
+                if (oppEntry && oppEntry[1].socket && oppEntry[1].socket.connected) {
+                    oppEntry[1].socket.emit('duel:opponent-inactive');
+                }
+                const allFinished = Object.values(duel.players).every(p => p.finished);
+                if (allFinished) {
+                    resolveDuel(roomId);
+                } else {
+                    // Give remaining player a few seconds
+                    setTimeout(() => {
+                        if (activeduels[roomId]) {
+                            Object.values(duel.players).forEach(p => {
+                                if (!p.finished) {
+                                    p.finished = true;
+                                    p.won = true;
+                                    p.time = Math.floor((Date.now() - duel.startTime) / 1000);
+                                }
+                            });
+                            resolveDuel(roomId);
+                        }
+                    }, 3000);
+                }
+            }
         }
     }
 }, 10 * 1000); // Check every 10 seconds
 
-// Helper: get public lobby list
+// Helper: get public lobby list (exclude lobbies with pending joins)
 function getPublicLobbies() {
-    return Object.values(duelLobbies).map(l => ({
-        roomId: l.roomId,
-        creatorName: l.creatorName,
-        creatorLevel: l.creatorLevel,
-        isBet: l.isBet,
-        betAmount: l.betAmount,
-        createdAt: l.createdAt,
-        difficulty: l.difficulty
-    }));
+    return Object.values(duelLobbies)
+        .filter(l => !l.pendingJoin)
+        .map(l => ({
+            roomId: l.roomId,
+            creatorId: l.creatorId,
+            creatorName: l.creatorName,
+            creatorLevel: l.creatorLevel,
+            isBet: l.isBet,
+            betAmount: l.betAmount,
+            createdAt: l.createdAt,
+            difficulty: l.difficulty
+        }));
 }
 
 io.on('connection', (socket) => {
+    socket._duelRoom = null; // Track current duel room on socket
     let currentRoom = null;
     let botTimeout = null;
 
     // ---- DUEL LOBBY EVENTS ----
     socket.on('duel:create-lobby', (data) => {
+        // Check if player already has a lobby
+        const existingLobby = Object.values(duelLobbies).find(l => l.creatorId === data.playerId);
+        if (existingLobby) {
+            socket.emit('duel:lobby-error', { error: 'У вас уже есть открытая дуэль' });
+            return;
+        }
+
+        // Check if player is already in an active duel
+        const inActiveDuel = Object.values(activeduels).some(d =>
+            Object.values(d.players).some(p => p.playerId === data.playerId && !p.finished)
+        );
+        if (inActiveDuel) {
+            socket.emit('duel:lobby-error', { error: 'Вы уже участвуете в дуэли' });
+            return;
+        }
+
         const roomId = generateRoomId();
         const lobby = {
             roomId,
@@ -663,10 +727,12 @@ io.on('connection', (socket) => {
             creatorId: data.playerId,
             creatorName: data.playerName || 'Игрок',
             creatorLevel: data.playerLevel || 1,
+            creatorChatId: data.chatId || null,
             difficulty: data.difficulty || 'hard',
             isBet: !!data.isBet,
             betAmount: data.isBet ? (Number(data.betAmount) || 10) : 0,
-            createdAt: Date.now()
+            createdAt: Date.now(),
+            pendingJoin: false
         };
         duelLobbies[roomId] = lobby;
         socket.emit('duel:lobby-created', { roomId, lobby: getPublicLobbies().find(l => l.roomId === roomId) });
@@ -674,10 +740,18 @@ io.on('connection', (socket) => {
     });
 
     socket.on('duel:cancel-lobby', (data) => {
-        const { roomId } = data || {};
+        const { roomId, playerId } = data || {};
         if (roomId && duelLobbies[roomId]) {
-            delete duelLobbies[roomId];
-            io.emit('duel:lobbies-updated', getPublicLobbies());
+            const lobby = duelLobbies[roomId];
+            // Only creator can cancel, or match by playerId
+            if (lobby.creatorSocket === socket || lobby.creatorId === playerId) {
+                // If someone was waiting, notify them
+                if (lobby.pendingJoin && lobby.joinerSocket && lobby.joinerSocket.connected) {
+                    lobby.joinerSocket.emit('duel:lobby-cancelled', { roomId, creatorName: lobby.creatorName });
+                }
+                delete duelLobbies[roomId];
+                io.emit('duel:lobbies-updated', getPublicLobbies());
+            }
         }
     });
 
@@ -696,82 +770,123 @@ io.on('connection', (socket) => {
             socket.emit('duel:lobby-error', { error: 'Нельзя присоединиться к своей комнате' });
             return;
         }
+        if (lobby.pendingJoin) {
+            socket.emit('duel:lobby-error', { error: 'Кто-то уже присоединяется к этой дуэли' });
+            return;
+        }
 
-        // Remove lobby from list
-        delete duelLobbies[roomId];
+        // Check if joiner is already in an active duel
+        const joinerInDuel = Object.values(activeduels).some(d =>
+            Object.values(d.players).some(p => p.playerId === playerId && !p.finished)
+        );
+        if (joinerInDuel) {
+            socket.emit('duel:lobby-error', { error: 'Вы уже участвуете в дуэли' });
+            return;
+        }
+
+        // Store joiner info on the lobby
+        lobby.pendingJoin = true;
+        lobby.pendingJoinAt = Date.now();
+        lobby.joinerSocket = socket;
+        lobby.joinerId = playerId;
+        lobby.joinerName = playerName || 'Игрок';
+        lobby.joinerLevel = playerLevel || 1;
+
+        // Remove from public lobby list (it's now pending)
         io.emit('duel:lobbies-updated', getPublicLobbies());
 
-        // Create actual duel
-        const puzzleData = {
-            difficulty: lobby.difficulty,
-            puzzleIndex: Math.floor(Math.random() * 100)
-        };
+        // Check if creator is currently online (socket connected)
+        const creatorOnline = lobby.creatorSocket && lobby.creatorSocket.connected;
 
-        const duelState = {
+        if (creatorOnline) {
+            // Creator is online — notify them directly via socket
+            lobby.creatorSocket.emit('duel:challenge-received', {
+                roomId,
+                challengerName: playerName || 'Игрок',
+                challengerLevel: playerLevel || 1,
+                isBet: lobby.isBet,
+                betAmount: lobby.betAmount
+            });
+
+            // Also start the game immediately since both are online
+            startDuelFromLobby(lobby, socket, playerId, playerName, playerLevel);
+            return;
+        }
+
+        // Creator is offline — show waiting screen to joiner
+        socket.emit('duel:waiting-for-creator', {
             roomId,
-            puzzle: puzzleData,
-            players: {
-                [lobby.creatorSocket.id]: {
-                    socketId: lobby.creatorSocket.id,
-                    socket: lobby.creatorSocket,
-                    playerId: lobby.creatorId,
-                    playerName: lobby.creatorName,
-                    playerLevel: lobby.creatorLevel,
-                    difficulty: lobby.difficulty,
-                    solved: 0,
-                    finished: false,
-                    won: false,
-                    time: 0
-                },
-                [socket.id]: {
-                    socketId: socket.id,
-                    socket,
-                    playerId,
-                    playerName: playerName || 'Игрок',
-                    playerLevel: playerLevel || 1,
-                    difficulty: lobby.difficulty,
-                    solved: 0,
-                    finished: false,
-                    won: false,
-                    time: 0
-                }
-            },
-            startTime: Date.now(),
-            isBot: false,
-            botIntervals: [],
-            isBet: lobby.isBet,
-            betAmount: lobby.betAmount
-        };
-
-        activeduels[roomId] = duelState;
-        lobby.creatorSocket.join(roomId);
-        socket.join(roomId);
-        currentRoom = roomId;
-
-        // Notify both players
-        lobby.creatorSocket.emit('duel:matched', {
-            roomId,
-            puzzle: puzzleData,
-            isBet: lobby.isBet,
-            betAmount: lobby.betAmount,
-            opponent: {
-                name: playerName || 'Игрок',
-                level: playerLevel || 1,
-                isBot: false
-            }
+            creatorName: lobby.creatorName,
+            timeout: DUEL_ACCEPT_TIMEOUT_MS
         });
 
-        socket.emit('duel:matched', {
-            roomId,
-            puzzle: puzzleData,
-            isBet: lobby.isBet,
-            betAmount: lobby.betAmount,
-            opponent: {
-                name: lobby.creatorName,
-                level: lobby.creatorLevel,
-                isBot: false
-            }
-        });
+        // Send Telegram notification to creator
+        if (lobby.creatorChatId) {
+            sendDuelChallengeNotification(
+                lobby.creatorChatId,
+                playerName || 'Игрок',
+                playerLevel || 1,
+                lobby.isBet,
+                lobby.betAmount,
+                roomId
+            );
+        }
+    });
+
+    // Creator accepts the challenge (comes back online or clicks notification)
+    socket.on('duel:accept-challenge', (data) => {
+        const { roomId } = data;
+        const lobby = duelLobbies[roomId];
+        if (!lobby || !lobby.pendingJoin) {
+            socket.emit('duel:lobby-error', { error: 'Дуэль не найдена' });
+            return;
+        }
+
+        // Update creator socket (may have reconnected)
+        lobby.creatorSocket = socket;
+
+        if (!lobby.joinerSocket || !lobby.joinerSocket.connected) {
+            // Joiner disconnected — creator wins by default
+            socket.emit('duel:acceptance-timeout', {
+                roomId,
+                creatorName: lobby.joinerName,
+                youWin: true
+            });
+            delete duelLobbies[roomId];
+            io.emit('duel:lobbies-updated', getPublicLobbies());
+            return;
+        }
+
+        startDuelFromLobby(lobby, lobby.joinerSocket, lobby.joinerId, lobby.joinerName, lobby.joinerLevel);
+    });
+
+    // Check if player has a pending duel when they connect/reconnect
+    socket.on('duel:check-pending', (data) => {
+        const { playerId } = data;
+        // Check if this player created a lobby that has a pending joiner
+        const lobby = Object.values(duelLobbies).find(
+            l => l.creatorId === playerId && l.pendingJoin
+        );
+        if (lobby) {
+            // Update creator socket reference
+            lobby.creatorSocket = socket;
+            socket.emit('duel:challenge-received', {
+                roomId: lobby.roomId,
+                challengerName: lobby.joinerName,
+                challengerLevel: lobby.joinerLevel,
+                isBet: lobby.isBet,
+                betAmount: lobby.betAmount
+            });
+        }
+
+        // Also check if player has an existing lobby (for UI state)
+        const myLobby = Object.values(duelLobbies).find(l => l.creatorId === playerId && !l.pendingJoin);
+        if (myLobby) {
+            socket.emit('duel:lobby-created', {
+                roomId: myLobby.roomId,
+                lobby: getPublicLobbies().find(l => l.roomId === myLobby.roomId)
+            });
+        }
     });
 
     socket.on('duel:find', (data) => {
@@ -832,6 +947,8 @@ io.on('connection', (socket) => {
             socket.join(roomId);
             opponent.socket.join(roomId);
             currentRoom = roomId;
+            socket._duelRoom = roomId;
+            opponent.socket._duelRoom = roomId;
 
             // Notify both players
             socket.emit('duel:matched', {
@@ -904,6 +1021,7 @@ io.on('connection', (socket) => {
                 activeduels[roomId] = duelState;
                 socket.join(roomId);
                 currentRoom = roomId;
+                socket._duelRoom = roomId;
 
                 socket.emit('duel:matched', {
                     roomId,
@@ -931,9 +1049,18 @@ io.on('connection', (socket) => {
         if (!duel || !duel.players[socket.id]) return;
 
         duel.players[socket.id].solved = solved;
+        duel.players[socket.id].lastActivity = Date.now();
 
         // Broadcast to opponent
         socket.to(roomId).emit('duel:opponent-progress', { solved });
+    });
+
+    // Track activity (any move resets inactivity timer)
+    socket.on('duel:activity', (data) => {
+        const { roomId } = data;
+        const duel = activeduels[roomId];
+        if (!duel || !duel.players[socket.id]) return;
+        duel.players[socket.id].lastActivity = Date.now();
     });
 
     socket.on('duel:finished', (data) => {
@@ -946,6 +1073,7 @@ io.on('connection', (socket) => {
         player.won = won;
         player.time = time;
         player.stars = stars || 0;
+        player.lastActivity = Date.now();
 
         // Check if both finished
         const allPlayers = Object.values(duel.players);
@@ -979,17 +1107,27 @@ io.on('connection', (socket) => {
         }
         clearTimeout(botTimeout);
 
-        // Clean up any lobbies created by this socket
+        // Don't delete lobbies on disconnect — creator can navigate away and come back
+        // Only mark the socket as disconnected so we know to send Telegram notification if someone joins
         for (const [roomId, lobby] of Object.entries(duelLobbies)) {
             if (lobby.creatorSocket === socket) {
-                delete duelLobbies[roomId];
+                lobby.creatorSocket = null; // Mark as offline
+            }
+            // If joiner disconnects from a pending lobby, creator wins
+            if (lobby.pendingJoin && lobby.joinerSocket === socket) {
+                lobby.pendingJoin = false;
+                lobby.joinerSocket = null;
+                if (lobby.creatorSocket && lobby.creatorSocket.connected) {
+                    lobby.creatorSocket.emit('duel:joiner-left', { roomId });
+                }
                 io.emit('duel:lobbies-updated', getPublicLobbies());
             }
         }
 
         // Handle active duel disconnect
-        if (currentRoom && activeduels[currentRoom]) {
-            const duel = activeduels[currentRoom];
+        const duelRoom = currentRoom || socket._duelRoom;
+        if (duelRoom && activeduels[duelRoom]) {
+            const duel = activeduels[duelRoom];
             const player = duel.players[socket.id];
             if (player && !player.finished) {
                 player.finished = true;
@@ -998,16 +1136,17 @@ io.on('connection', (socket) => {
                 player.disconnected = true;
 
                 // Notify opponent
-                socket.to(currentRoom).emit('duel:opponent-disconnected');
+                socket.to(duelRoom).emit('duel:opponent-disconnected');
 
                 // Check if we should resolve
                 const allFinished = Object.values(duel.players).every(p => p.finished);
                 if (allFinished) {
-                    resolveDuel(currentRoom);
+                    resolveDuel(duelRoom);
                 } else {
                     // Auto-resolve in 3 seconds
+                    const roomToResolve = duelRoom;
                     setTimeout(() => {
-                        if (activeduels[currentRoom]) {
+                        if (activeduels[roomToResolve]) {
                             Object.values(duel.players).forEach(p => {
                                 if (!p.finished) {
                                     p.finished = true;
@@ -1015,7 +1154,7 @@ io.on('connection', (socket) => {
                                     p.time = Math.floor((Date.now() - duel.startTime) / 1000);
                                 }
                             });
-                            resolveDuel(currentRoom);
+                            resolveDuel(roomToResolve);
                         }
                     }, 3000);
                 }
@@ -1099,6 +1238,119 @@ function startBotAI(roomId, difficulty) {
     const firstDelay = Math.random() * (range.max - range.min) * 0.7 + range.min * 0.5;
     const t = setTimeout(botSolveNext, firstDelay);
     duel.botIntervals = [t];
+}
+
+// =============================================
+// START DUEL FROM LOBBY (shared helper)
+// =============================================
+function startDuelFromLobby(lobby, joinerSocket, joinerId, joinerName, joinerLevel) {
+    const roomId = lobby.roomId;
+
+    // Remove lobby
+    delete duelLobbies[roomId];
+    io.emit('duel:lobbies-updated', getPublicLobbies());
+
+    // Create actual duel
+    const puzzleData = {
+        difficulty: lobby.difficulty,
+        puzzleIndex: Math.floor(Math.random() * 100)
+    };
+
+    const now = Date.now();
+    const duelState = {
+        roomId,
+        puzzle: puzzleData,
+        players: {
+            [lobby.creatorSocket.id]: {
+                socketId: lobby.creatorSocket.id,
+                socket: lobby.creatorSocket,
+                playerId: lobby.creatorId,
+                playerName: lobby.creatorName,
+                playerLevel: lobby.creatorLevel,
+                difficulty: lobby.difficulty,
+                solved: 0,
+                finished: false,
+                won: false,
+                time: 0,
+                lastActivity: now
+            },
+            [joinerSocket.id]: {
+                socketId: joinerSocket.id,
+                socket: joinerSocket,
+                playerId: joinerId,
+                playerName: joinerName || 'Игрок',
+                playerLevel: joinerLevel || 1,
+                difficulty: lobby.difficulty,
+                solved: 0,
+                finished: false,
+                won: false,
+                time: 0,
+                lastActivity: now
+            }
+        },
+        startTime: now,
+        isBot: false,
+        botIntervals: [],
+        isBet: lobby.isBet,
+        betAmount: lobby.betAmount
+    };
+
+    activeduels[roomId] = duelState;
+    lobby.creatorSocket.join(roomId);
+    joinerSocket.join(roomId);
+    lobby.creatorSocket._duelRoom = roomId;
+    joinerSocket._duelRoom = roomId;
+
+    // Notify both players
+    lobby.creatorSocket.emit('duel:matched', {
+        roomId,
+        puzzle: puzzleData,
+        isBet: lobby.isBet,
+        betAmount: lobby.betAmount,
+        opponent: {
+            name: joinerName || 'Игрок',
+            level: joinerLevel || 1,
+            isBot: false
+        }
+    });
+
+    joinerSocket.emit('duel:matched', {
+        roomId,
+        puzzle: puzzleData,
+        isBet: lobby.isBet,
+        betAmount: lobby.betAmount,
+        opponent: {
+            name: lobby.creatorName,
+            level: lobby.creatorLevel,
+            isBot: false
+        }
+    });
+}
+
+// =============================================
+// TELEGRAM DUEL NOTIFICATION
+// =============================================
+function sendDuelChallengeNotification(chatId, challengerName, challengerLevel, isBet, betAmount, roomId) {
+    try {
+        const botModule = require('./bot');
+        if (botModule && botModule.bot) {
+            const WEBAPP_URL = process.env.WEBAPP_URL || 'https://your-domain.com';
+            const betText = isBet ? `\n💰 Ставка: ${betAmount} монет` : '';
+            const msg = `⚔️ *${challengerName}* (Ур. ${challengerLevel}) вызывает вас на дуэль!${betText}\n\nУ вас 2 минуты чтобы принять вызов, иначе вы проиграете!`;
+
+            botModule.bot.sendMessage(chatId, msg, {
+                parse_mode: 'Markdown',
+                reply_markup: {
+                    inline_keyboard: [
+                        [{ text: '⚔️ Сражаться!', web_app: { url: `${WEBAPP_URL}?duel_room=${roomId}` } }]
+                    ]
+                }
+            });
+            console.log(`Duel challenge notification sent to ${chatId}`);
+        }
+    } catch (e) {
+        console.warn(`Failed to send duel notification to ${chatId}:`, e.message);
+    }
 }
 
 function resolveDuel(roomId) {
