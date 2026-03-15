@@ -935,13 +935,10 @@ function initEventListeners() {
         // Cleanup win review if active
         if (typeof cleanupWinReview === 'function') cleanupWinReview();
         if (typeof isDuel !== 'undefined' && isDuel) {
-            // Leaving a duel = auto-lose (report as finished with loss)
-            if (typeof reportDuelFinished === 'function' && !duelFinished) {
-                reportDuelFinished(false, 0);
+            // Leaving a duel = explicit leave (triggers auto-win for opponent)
+            if (typeof leaveDuel === 'function') {
+                leaveDuel();
             }
-            if (typeof clearDuelInactivityTracking === 'function') clearDuelInactivityTracking();
-            isDuel = false;
-            if (typeof hideDuelOverlay === 'function') hideDuelOverlay();
         }
         if (typeof isWeeklyPuzzleMode !== 'undefined') isWeeklyPuzzleMode = false;
         refreshHome();
