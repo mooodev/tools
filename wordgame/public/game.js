@@ -87,6 +87,44 @@ function setPuzzleCooldown(diff) {
     if (!save.puzzleCooldowns) save.puzzleCooldowns = {};
     save.puzzleCooldowns[diff] = Date.now() + PUZZLE_COOLDOWN_MS;
     writeSave(save);
+    // Notify server for Telegram cooldown notification
+    notifyCooldownToServer();
+}
+
+function notifyCooldownToServer() {
+    // Only send if we have a Telegram chatId
+    const tgUser = typeof TG !== 'undefined' && TG && TG.initDataUnsafe && TG.initDataUnsafe.user;
+    if (!tgUser) return;
+    const chatId = tgUser.id;
+    const playerId = ensurePlayerId();
+    try {
+        fetch('/api/cooldown-notify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                playerId,
+                chatId,
+                cooldowns: save.puzzleCooldowns || {}
+            })
+        }).catch(() => {});
+    } catch (e) { /* ignore */ }
+}
+
+/**
+ * Find another difficulty that has unsolved puzzles and is not on cooldown.
+ * Skips the given difficulty. Returns null if none available.
+ */
+function findNextAvailableDifficulty(skipDiff) {
+    const diffs = Object.keys(DIFF_META);
+    for (const diff of diffs) {
+        if (diff === skipDiff) continue;
+        if (getPuzzleCooldownRemaining(diff) > 0) continue;
+        const puzzles = WORD_PUZZLES.filter(p => p.difficulty === diff);
+        if (!puzzles.length) continue;
+        const notWon = puzzles.filter((_, i) => (save.completedPuzzles[`${diff}_${i}`] || 0) === 0);
+        if (notWon.length > 0) return diff;
+    }
+    return null;
 }
 
 function launchGame(diff, idx) {
@@ -108,7 +146,7 @@ function launchGame(diff, idx) {
         puzzle = puzzles[idx];
     } else {
         const unplayed = puzzles.map((_, i) => i).filter(i =>
-            save.completedPuzzles[`${diff}_${i}`] === undefined
+            (save.completedPuzzles[`${diff}_${i}`] || 0) === 0
         );
         if (unplayed.length) {
             puzzleIndex = unplayed[Math.floor(Math.random() * unplayed.length)];
@@ -514,6 +552,13 @@ function endRound(won) {
     } else {
         save.currentStreak = 0;
         noHintWins = 0;
+        // Mark puzzle as attempted (0 stars) so it appears in archive
+        if (!isEndless) {
+            const key = `${difficulty}_${puzzleIndex}`;
+            if (save.completedPuzzles[key] === undefined) {
+                save.completedPuzzles[key] = 0;
+            }
+        }
     }
 
     save.totalGames++;
@@ -552,7 +597,7 @@ function endRound(won) {
     for (const [dk, achId] of [['easy','all_easy'],['medium','all_medium'],['hard','all_hard'],['expert','all_expert']]) {
         if (!hasAch(save, achId)) {
             const total = WORD_PUZZLES.filter(p => p.difficulty === dk).length;
-            const done = WORD_PUZZLES.filter((p, i) => p.difficulty === dk && save.completedPuzzles[`${dk}_${i}`] !== undefined).length;
+            const done = WORD_PUZZLES.filter((p, i) => p.difficulty === dk && (save.completedPuzzles[`${dk}_${i}`] || 0) > 0).length;
             if (done >= total && total > 0) {
                 if (unlockAch(save, achId)) newAchs.push(achId);
             }
@@ -593,7 +638,7 @@ function endRound(won) {
         const puzzlesForDiff = WORD_PUZZLES.filter(p => p.difficulty === difficulty);
         const totalForDiff = puzzlesForDiff.length;
         const completedForDiff = puzzlesForDiff.filter((_, i) =>
-            save.completedPuzzles[`${difficulty}_${i}`] !== undefined
+            (save.completedPuzzles[`${difficulty}_${i}`] || 0) > 0
         ).length;
         puzzleProgress = { current: completedForDiff, total: totalForDiff };
         difficultyCompleted = completedForDiff >= totalForDiff && totalForDiff > 0;

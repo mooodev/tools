@@ -79,10 +79,16 @@ function refreshHome() {
                 </span>`;
             btn.disabled = true;
         } else {
+            // Show total stars earned for this difficulty
+            let totalStars = 0;
+            puzzles.forEach((_, i) => {
+                totalStars += save.completedPuzzles[`${key}_${i}`] || 0;
+            });
+            const starsDisplay = totalStars > 0 ? '⭐'.repeat(Math.min(totalStars, 5)) + (totalStars > 5 ? ` ${totalStars}` : '') : '';
             btn.innerHTML = `
                 <span class="diff-left"><span class="diff-dot ${key}"></span>${meta.label}</span>
                 <span class="diff-info">
-                    <span class="diff-attempts">${completed}/${puzzles.length}</span>
+                    <span class="diff-stars">${starsDisplay || '<span class="diff-new">Новый</span>'}</span>
                 </span>`;
             btn.onclick = () => launchGame(key);
         }
@@ -557,8 +563,19 @@ function showResultScreen(won, stars, xpGain, coinsGain, elapsed, leveledUp, new
     } else if (isEndless) {
         addActionBtn('Следующий раунд', () => launchEndless());
     } else if (won && difficultyCompleted) {
-        // All puzzles of this difficulty completed — only show menu button
-        addActionBtn('В меню', () => { refreshHome(); showScreen('start-screen'); });
+        // All puzzles of this difficulty completed — find another available difficulty
+        const nextDiff = findNextAvailableDifficulty(difficulty);
+        if (nextDiff) {
+            const nextMeta = DIFF_META[nextDiff];
+            addActionBtn(`Играть ${nextMeta.label}`, () => launchGame(nextDiff));
+        } else {
+            // All difficulties solved or on cooldown
+            const actMsg = document.createElement('div');
+            actMsg.className = 'res-all-done-msg';
+            actMsg.textContent = 'Все уровни сложности пока решены! Возвращайся, когда откроются новые паззлы.';
+            actEl.appendChild(actMsg);
+        }
+        addActionBtn('В меню', () => { refreshHome(); showScreen('start-screen'); }, !nextDiff);
     } else {
         addActionBtn('Играть ещё', () => launchGame(difficulty));
         addActionBtn('В меню', () => { refreshHome(); showScreen('start-screen'); }, false);
@@ -788,11 +805,19 @@ function refreshArchive() {
         puzzles.forEach((_, i) => {
             const saveKey = `${key}_${i}`;
             const starCount = save.completedPuzzles[saveKey] || 0;
-            const completed = save.completedPuzzles[saveKey] !== undefined;
+            const played = save.completedPuzzles[saveKey] !== undefined;
             const tile = document.createElement('button');
-            tile.className = 'archive-tile' + (completed ? ' completed' : '');
-            tile.innerHTML = `<span>${i + 1}</span><span class="tile-stars">${'⭐'.repeat(starCount)}${'☆'.repeat(3 - starCount)}</span>`;
-            tile.onclick = () => launchGame(key, i);
+            tile.className = 'archive-tile' + (played ? ' completed' : ' locked');
+            if (played) {
+                const starsHtml = starCount > 0
+                    ? `${'⭐'.repeat(starCount)}${'☆'.repeat(3 - starCount)}`
+                    : '☆☆☆';
+                tile.innerHTML = `<span>${i + 1}</span><span class="tile-stars">${starsHtml}</span>`;
+                tile.onclick = () => launchGame(key, i);
+            } else {
+                tile.innerHTML = `<span>${i + 1}</span><span class="tile-stars">&#128274;</span>`;
+                tile.disabled = true;
+            }
             grid.appendChild(tile);
         });
 
