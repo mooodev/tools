@@ -309,8 +309,10 @@ function loadWeeklySpeed() {
 
 function getPreviousWeekId() {
     const now = new Date();
-    const prevWeek = new Date(now);
-    prevWeek.setDate(prevWeek.getDate() - 7);
+    const d = new Date(now);
+    d.setDate(d.getDate() - 7);
+    // Strip time to avoid fractional-day drift (must match frontend getWeekId)
+    const prevWeek = new Date(d.getFullYear(), d.getMonth(), d.getDate());
     const day = prevWeek.getDay() || 7;
     prevWeek.setDate(prevWeek.getDate() + 4 - day);
     const year = prevWeek.getFullYear();
