@@ -15,6 +15,7 @@ const GITHUB_RAW_BASE = 'https://raw.githubusercontent.com/mooodev/tools/main/wo
 
 const PUZZLE_SOURCES = [
     { url: `${GITHUB_RAW_BASE}/words.js`,              globalVar: 'WORD_PUZZLES',   varName: 'WORD_PUZZLES' },
+    { url: `${GITHUB_RAW_BASE}/dailypuzzlewords.js`,   globalVar: 'DAILY_PUZZLES',  varName: 'DAILY_PUZZLES' },
     { url: `${GITHUB_RAW_BASE}/weeklypuzzlewords.js`,  globalVar: 'WEEKLY_PUZZLES', varName: 'WEEKLY_PUZZLES' },
     { url: `${GITHUB_RAW_BASE}/meanings.js`,           globalVar: 'WORD_MEANINGS',  varName: 'WORD_MEANINGS' },
 ];
