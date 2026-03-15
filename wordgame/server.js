@@ -175,6 +175,7 @@ app.post('/api/leaderboard', async (req, res) => {
 app.get('/api/leaderboard', (req, res) => {
     const sort = req.query.sort || 'xp';
     const limit = Math.min(Number(req.query.limit) || 50, 100);
+    const playerId = req.query.playerId || '';
     const players = Object.values(leaderboardData.players);
 
     const sortFns = {
@@ -186,7 +187,19 @@ app.get('/api/leaderboard', (req, res) => {
     };
 
     players.sort(sortFns[sort] || sortFns.xp);
-    res.json({ players: players.slice(0, limit), total: players.length });
+
+    const result = { players: players.slice(0, limit), total: players.length };
+
+    // If playerId is provided and not in top `limit`, include their rank & entry
+    if (playerId) {
+        const myIndex = players.findIndex(p => p.id === playerId);
+        result.myRank = myIndex >= 0 ? myIndex + 1 : -1;
+        if (myIndex >= limit) {
+            result.myEntry = players[myIndex];
+        }
+    }
+
+    res.json(result);
 });
 
 app.get('/api/player/:id', (req, res) => {
@@ -247,6 +260,7 @@ app.post('/api/weekly-speed', async (req, res) => {
 app.get('/api/weekly-speed', (req, res) => {
     const weekId = req.query.weekId;
     const limit = Math.min(Number(req.query.limit) || 50, 100);
+    const playerId = req.query.playerId || '';
 
     if (!weekId || !weeklySpeedData.weeks[weekId]) {
         return res.json({ players: [], total: 0, weekId });
@@ -255,11 +269,21 @@ app.get('/api/weekly-speed', (req, res) => {
     const entries = Object.values(weeklySpeedData.weeks[weekId]);
     entries.sort((a, b) => a.time - b.time);
 
-    res.json({
+    const result = {
         players: entries.slice(0, limit),
         total: entries.length,
         weekId
-    });
+    };
+
+    if (playerId) {
+        const myIndex = entries.findIndex(e => e.id === playerId);
+        result.myRank = myIndex >= 0 ? myIndex + 1 : -1;
+        if (myIndex >= limit) {
+            result.myEntry = entries[myIndex];
+        }
+    }
+
+    res.json(result);
 });
 
 app.get('/api/weekly-speed/previous/:id', (req, res) => {
@@ -365,10 +389,11 @@ app.get('/api/stats', (req, res) => {
         if (la >= thirtyDaysAgo) activeLast30++;
     });
 
-    // Weekly speed stats
+    // Weekly speed stats (with participant names)
     const weeklySpeedStats = {};
     for (const [weekId, entries] of Object.entries(weeklySpeedData.weeks)) {
         const times = Object.values(entries);
+        times.sort((a, b) => a.time - b.time);
         weeklySpeedStats[weekId] = {
             participants: times.length,
             avgTime: times.length > 0
@@ -376,8 +401,29 @@ app.get('/api/stats', (req, res) => {
                 : 0,
             bestTime: times.length > 0
                 ? Math.min(...times.map(e => e.time))
-                : 0
+                : 0,
+            playerList: times.map(e => ({ name: e.name, time: e.time }))
         };
+    }
+
+    // Full leaderboards for stats page
+    const sortFns = {
+        xp:    (a, b) => (b.level * 10000 + b.xp) - (a.level * 10000 + a.xp),
+        duels: (a, b) => (b.duelWins || 0) - (a.duelWins || 0)
+    };
+    const leaderboards = {};
+    for (const [key, fn] of Object.entries(sortFns)) {
+        const sorted = [...players].sort(fn);
+        leaderboards[key] = sorted.slice(0, 50).map((p, i) => ({
+            rank: i + 1,
+            name: p.name,
+            avatar: p.avatar || null,
+            level: p.level,
+            xp: p.xp,
+            totalWins: p.totalWins,
+            totalGames: p.totalGames,
+            duelWins: p.duelWins || 0
+        }));
     }
 
     res.json({
@@ -403,7 +449,8 @@ app.get('/api/stats', (req, res) => {
         },
         levelDistribution,
         activityByDate,
-        weeklySpeedStats
+        weeklySpeedStats,
+        leaderboards
     });
 });
 

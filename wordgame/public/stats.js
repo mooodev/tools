@@ -44,7 +44,7 @@ async function loadStats() {
 }
 
 function renderStats(data) {
-    const { overview, levelDistribution, activityByDate, weeklySpeedStats } = data;
+    const { overview, levelDistribution, activityByDate, weeklySpeedStats, leaderboards } = data;
     const content = document.getElementById('content');
 
     content.innerHTML = `
@@ -118,6 +118,7 @@ function renderStats(data) {
             </div>
         </div>
 
+        <div id="leaderboardsSection"></div>
         <div id="weeklySection"></div>
     `;
 
@@ -125,6 +126,7 @@ function renderStats(data) {
     renderGrowthChart(activityByDate);
     renderLevelChart(levelDistribution);
     renderOverviewChart(overview);
+    renderLeaderboards(leaderboards);
     renderWeeklyTable(weeklySpeedStats);
 }
 
@@ -320,6 +322,55 @@ function renderOverviewChart(overview) {
     chartInstances.push(chart);
 }
 
+function escapeHtmlStats(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
+function renderLeaderboards(leaderboards) {
+    const section = document.getElementById('leaderboardsSection');
+    if (!leaderboards) { section.innerHTML = ''; return; }
+
+    const boards = [
+        { key: 'xp', title: 'Лидерборд по XP', valFn: p => `Ур. ${p.level} (${p.xp} XP)` },
+        { key: 'duels', title: 'Лидерборд по дуэлям', valFn: p => `${p.duelWins} побед` }
+    ];
+
+    let html = '';
+    boards.forEach(b => {
+        const data = leaderboards[b.key];
+        if (!data || !data.length) return;
+
+        const rows = data.map(p => {
+            const medal = p.rank === 1 ? '&#129351;' : p.rank === 2 ? '&#129352;' : p.rank === 3 ? '&#129353;' : p.rank;
+            const avatar = p.avatar || '&#128100;';
+            return `<tr>
+                <td>${medal}</td>
+                <td>${avatar} ${escapeHtmlStats(p.name)}</td>
+                <td>${b.valFn(p)}</td>
+                <td>${p.totalWins} побед / ${p.totalGames} игр</td>
+            </tr>`;
+        }).join('');
+
+        html += `
+            <h2 class="section-title">${b.title}</h2>
+            <table class="weekly-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Игрок</th>
+                        <th>Результат</th>
+                        <th>Статистика</th>
+                    </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+            </table>`;
+    });
+
+    section.innerHTML = html;
+}
+
 function renderWeeklyTable(weeklySpeedStats) {
     const section = document.getElementById('weeklySection');
     const weeks = Object.keys(weeklySpeedStats).sort().reverse();
@@ -329,29 +380,42 @@ function renderWeeklyTable(weeklySpeedStats) {
         return;
     }
 
-    let rows = weeks.map(w => {
+    let html = '';
+    weeks.forEach(w => {
         const s = weeklySpeedStats[w];
-        return `<tr>
-            <td>${w}</td>
-            <td>${s.participants}</td>
-            <td>${formatTime(s.bestTime)}</td>
-            <td>${formatTime(s.avgTime)}</td>
-        </tr>`;
-    }).join('');
+        const playerNames = (s.playerList || []).map(p => escapeHtmlStats(p.name));
+
+        html += `
+            <div class="weekly-block">
+                <h3 class="weekly-week-title">${w} — ${s.participants} участников</h3>
+                <table class="weekly-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Игрок</th>
+                            <th>Время</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${(s.playerList || []).map((p, i) => {
+                            const medal = i === 0 ? '&#129351;' : i === 1 ? '&#129352;' : i === 2 ? '&#129353;' : (i + 1);
+                            return `<tr>
+                                <td>${medal}</td>
+                                <td>${escapeHtmlStats(p.name)}</td>
+                                <td>${formatTime(p.time)}</td>
+                            </tr>`;
+                        }).join('')}
+                    </tbody>
+                </table>
+                <div class="weekly-summary">
+                    Лучшее: ${formatTime(s.bestTime)} · Среднее: ${formatTime(s.avgTime)}
+                </div>
+            </div>`;
+    });
 
     section.innerHTML = `
         <h2 class="section-title">Еженедельные соревнования на скорость</h2>
-        <table class="weekly-table">
-            <thead>
-                <tr>
-                    <th>Неделя</th>
-                    <th>Участников</th>
-                    <th>Лучшее время</th>
-                    <th>Среднее время</th>
-                </tr>
-            </thead>
-            <tbody>${rows}</tbody>
-        </table>
+        ${html}
     `;
 }
 
