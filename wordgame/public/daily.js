@@ -8,19 +8,19 @@
 // =============================================
 // CONSTANTS
 // =============================================
-const DAILY_BONUS_ALL = 50;
-const WEEKLY_COIN_REWARD = 100;
-const WEEKLY_XP_REWARD = 300;
+const DAILY_BONUS_ALL = 40;
+const WEEKLY_COIN_REWARD = 75;
+const WEEKLY_XP_REWARD = 250;
 
 const DAILY_CHALLENGE_POOL = [
-    { id: 'no_mistakes', icon: '&#11088;',  name: 'Безупречно',         desc: 'Выиграй без ошибок',               reward: 30, target: 1 },
-    { id: 'speed_90',    icon: '&#9889;',   name: 'Молния',             desc: 'Выиграй за 90 секунд',              reward: 25, target: 1 },
-    { id: 'no_hints',    icon: '&#129504;',  name: 'Своим умом',         desc: 'Выиграй без подсказок',             reward: 20, target: 1 },
-    { id: 'play_3',      icon: '&#127922;', name: 'Активный игрок',     desc: 'Сыграй 3 раунда',                   reward: 20, target: 3 },
-    { id: 'win_2',       icon: '&#127942;', name: 'Двойная победа',     desc: 'Выиграй 2 раунда',                  reward: 25, target: 2 },
-    { id: 'combo_3',     icon: '&#128165;', name: 'Комбо-мастер',       desc: 'Набери комбо x3 или выше',          reward: 30, target: 1 },
-    { id: 'hard_win',    icon: '&#128170;', name: 'Вызов принят',       desc: 'Выиграй на Трудном или Эксперте',   reward: 35, target: 1 },
-    { id: 'purple_first',icon: '&#128156;', name: 'Фиолетовый охотник', desc: 'Найди фиолетовую группу первой',    reward: 30, target: 1 },
+    { id: 'no_mistakes', icon: '&#11088;',  name: 'Безупречно',         desc: 'Выиграй без ошибок',               reward: 20, target: 1 },
+    { id: 'speed_90',    icon: '&#9889;',   name: 'Молния',             desc: 'Выиграй за 90 секунд',              reward: 15, target: 1 },
+    { id: 'no_hints',    icon: '&#129504;',  name: 'Своим умом',         desc: 'Выиграй без подсказок',             reward: 15, target: 1 },
+    { id: 'play_3',      icon: '&#127922;', name: 'Активный игрок',     desc: 'Сыграй 3 раунда',                   reward: 15, target: 3 },
+    { id: 'win_2',       icon: '&#127942;', name: 'Двойная победа',     desc: 'Выиграй 2 раунда',                  reward: 20, target: 2 },
+    { id: 'combo_3',     icon: '&#128165;', name: 'Комбо-мастер',       desc: 'Набери комбо x3 или выше',          reward: 25, target: 1 },
+    { id: 'hard_win',    icon: '&#128170;', name: 'Вызов принят',       desc: 'Выиграй на Трудном или Эксперте',   reward: 25, target: 1 },
+    { id: 'purple_first',icon: '&#128156;', name: 'Фиолетовый охотник', desc: 'Найди фиолетовую группу первой',    reward: 20, target: 1 },
 ];
 
 // =============================================
@@ -75,8 +75,8 @@ function isPurpleish(hex) {
 // =============================================
 function getStreakBonus() {
     const s = save.dailyStreak;
-    if (s >= 10) return 0.5;
-    if (s >= 6) return 0.25;
+    if (s >= 14) return 0.35;
+    if (s >= 7) return 0.2;
     if (s >= 3) return 0.1;
     return 0;
 }
@@ -346,7 +346,14 @@ function renderHomeWeekly() {
     const claimBtn = el.querySelector('#weekly-claim-btn');
     if (claimBtn) claimBtn.onclick = () => handleClaimWeeklyReward();
     const playBtn = el.querySelector('#weekly-play-btn');
-    if (playBtn) playBtn.onclick = () => launchWeeklyChallenge();
+    if (playBtn) playBtn.onclick = () => {
+        // Use launchWeeklyPuzzle (sets isWeeklyPuzzleMode for speed leaderboard)
+        if (typeof launchWeeklyPuzzle === 'function') {
+            launchWeeklyPuzzle();
+        } else {
+            launchWeeklyChallenge();
+        }
+    };
 }
 
 // =============================================

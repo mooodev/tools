@@ -121,7 +121,7 @@ async function refreshLeaderboard(sort) {
     }
 
     const sortLabels = {
-        xp: 'Уровень', streak: 'Стрик', stars: 'Звёзды', duels: 'Дуэли'
+        xp: 'Уровень', streak: 'Стрик', duels: 'Дуэли'
     };
 
     let html = '';
@@ -134,7 +134,6 @@ async function refreshLeaderboard(sort) {
         switch (currentLeaderboardSort) {
             case 'xp':     statValue = `Ур. ${player.level} (${player.xp} XP)`; break;
             case 'streak': statValue = `${player.bestStreak} подряд`; break;
-            case 'stars':  statValue = `${player.totalStars} &#9733;`; break;
             case 'duels':  statValue = `${player.duelWins || 0} побед`; break;
         }
 
