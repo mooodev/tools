@@ -519,14 +519,30 @@ function launchDuelGame(data) {
         writeSave(save);
     }
 
-    // Use the puzzle determined by the server
+    // Use the puzzle determined by the server.
+    // If the server sent full categories (server-resolved), use them directly
+    // to guarantee both players see the exact same puzzle.
+    // Fallback: exclude bonus puzzles and resolve by index (for backwards compat).
     const puzzleData = data.puzzle;
     difficulty = puzzleData.difficulty;
-    const puzzles = WORD_PUZZLES.filter(p => p.difficulty === difficulty);
-    const idx = puzzleData.puzzleIndex % puzzles.length;
 
-    puzzleIndex = idx;
-    puzzle = puzzles[idx];
+    if (puzzleData.categories) {
+        // Server sent the actual puzzle — use it directly (guaranteed sync)
+        puzzle = { difficulty: puzzleData.difficulty, categories: puzzleData.categories };
+        puzzleIndex = puzzleData.puzzleIndex || 0;
+    } else {
+        // Fallback: resolve locally, excluding bonus puzzles
+        const bonusThemes = (typeof BONUS_WORD_PUZZLES !== 'undefined' && Array.isArray(BONUS_WORD_PUZZLES))
+            ? new Set(BONUS_WORD_PUZZLES.map(bp => bp.categories[0] && bp.categories[0].theme))
+            : new Set();
+        const puzzles = WORD_PUZZLES.filter(p =>
+            p.difficulty === difficulty &&
+            !(p.categories[0] && bonusThemes.has(p.categories[0].theme))
+        );
+        const idx = puzzleData.puzzleIndex % puzzles.length;
+        puzzleIndex = idx;
+        puzzle = puzzles[idx];
+    }
     isEndless = false;
     maxMist = DIFF_META[difficulty].attempts;
 
