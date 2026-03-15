@@ -111,19 +111,23 @@ function startCooldownTimers() {
 
     _cooldownInterval = setInterval(() => {
         let anyActive = false;
+        let anyExpired = false;
         document.querySelectorAll('.diff-cooldown-timer').forEach(el => {
+            if (anyExpired) return;
             const diff = el.dataset.diff;
             const remaining = getPuzzleCooldownRemaining(diff);
             if (remaining > 0) {
                 el.innerHTML = `&#128274; ${formatCooldownTime(remaining)}`;
                 anyActive = true;
             } else {
-                // Cooldown expired — refresh the home screen
-                clearInterval(_cooldownInterval);
-                refreshHome();
+                anyExpired = true;
             }
         });
-        if (!anyActive) clearInterval(_cooldownInterval);
+        if (anyExpired || !anyActive) {
+            clearInterval(_cooldownInterval);
+            _cooldownInterval = null;
+            refreshHome();
+        }
     }, 1000);
 }
 
@@ -887,7 +891,6 @@ function renderBonusWordsButton() {
 // =============================================
 function initEventListeners() {
     // Home
-    $('endless-btn').onclick = () => launchEndless();
     $('profile-btn').onclick = () => { refreshProfile(); showScreen('profile-screen'); };
 
     // Game

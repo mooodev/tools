@@ -280,20 +280,7 @@ body {
 }
 .puzzle-star-3 { color: var(--gold); }
 
-.endless-btn {
-    width: 100%;
-    padding: 16px;
-    border: 1.5px dashed var(--surface-3);
-    border-radius: var(--radius);
-    background: transparent;
-    color: var(--text-dim);
-    font: 600 14px/1 'Inter', sans-serif;
-    cursor: pointer;
-    transition: all 0.25s;
-    text-align: center;
-}
-.endless-btn:active { transform: scale(0.97); }
-.endless-btn:hover { border-color: var(--accent); color: var(--text); }
+/* endless-btn removed — infinite mode hidden from player */
 
 /* ==============================
    GAME SCREEN
