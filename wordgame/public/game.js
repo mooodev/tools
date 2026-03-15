@@ -200,6 +200,8 @@ function initRound() {
 function toggleSelect(item) {
     if (gameOver) return;
     hideMsg();
+    // Report activity for duel inactivity tracking
+    if (typeof reportDuelActivity === 'function') reportDuelActivity();
 
     // Explain mode: show word meaning instead of selecting
     if (explainMode) {
@@ -326,6 +328,9 @@ function cancelRemoveMode() {
 // =============================================
 function checkSubmission() {
     if (selected.length !== 4 || gameOver) return;
+
+    // Report activity for duel inactivity tracking
+    if (typeof reportDuelActivity === 'function') reportDuelActivity();
 
     const firstCat = selected[0].category;
     const isCorrect = selected.every(item => item.category === firstCat);

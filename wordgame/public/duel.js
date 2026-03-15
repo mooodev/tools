@@ -17,6 +17,7 @@ let duelFinished = false;
 let duelResult = null;
 let duelMyLobbyId = null; // lobby I created (waiting for opponent)
 let duelBetInfo = null;   // { isBet, betAmount } for current duel
+let duelInactivityInterval = null; // track inactivity during game
 
 // =============================================
 // SOCKET CONNECTION
@@ -28,6 +29,8 @@ function connectDuelSocket() {
 
     duelSocket.on('connect', () => {
         console.log('Duel socket connected');
+        // Check for pending duels on reconnect
+        duelSocket.emit('duel:check-pending', { playerId: ensurePlayerId() });
     });
 
     duelSocket.on('duel:searching', (data) => {
@@ -44,7 +47,6 @@ function connectDuelSocket() {
         // If I was in lobby waiting, clear it
         if (duelMyLobbyId) {
             duelMyLobbyId = null;
-            updateDuelButtonState(false);
         }
 
         renderDuelMatched(data);
@@ -62,38 +64,77 @@ function connectDuelSocket() {
         showToast('&#128683;', 'Соперник отключился');
     });
 
+    duelSocket.on('duel:opponent-inactive', () => {
+        showToast('&#127942;', 'Соперник неактивен — вы побеждаете!');
+    });
+
+    duelSocket.on('duel:inactivity-lose', () => {
+        showToast('&#128683;', 'Вы проиграли из-за неактивности');
+    });
+
     duelSocket.on('duel:result', (data) => {
         duelResult = data;
+        clearDuelInactivityTracking();
         showDuelResult(data);
     });
 
     duelSocket.on('duel:lobby-created', (data) => {
         duelMyLobbyId = data.roomId;
-        updateDuelButtonState(true);
-        renderDuelLobbyWaiting(data.roomId);
+        // When on duel-pick-screen, show the cancel button state
+        if (_currentScreen === 'duel-pick-screen') {
+            renderDuelLobbyScreen();
+        }
     });
 
     duelSocket.on('duel:lobbies-updated', (lobbies) => {
         renderDuelLobbiesList(lobbies);
     });
 
-    duelSocket.on('duel:lobby-expired', (data) => {
-        if (duelMyLobbyId === data.roomId) {
-            duelMyLobbyId = null;
-            updateDuelButtonState(false);
-            showToast('&#9201;', 'Время ожидания истекло');
-            showDuelLobby();
-        }
-    });
-
     duelSocket.on('duel:lobby-error', (data) => {
         showToast('&#128683;', data.error || 'Ошибка');
     });
 
+    // Someone accepted my duel and is challenging me
+    duelSocket.on('duel:challenge-received', (data) => {
+        // If we're anywhere in the app, show the challenge notification
+        showDuelChallengeAlert(data);
+    });
+
+    // Waiting for creator to accept (I joined someone's lobby)
+    duelSocket.on('duel:waiting-for-creator', (data) => {
+        renderDuelWaitingForCreator(data);
+    });
+
+    // Creator didn't show up in time — I win
+    duelSocket.on('duel:acceptance-timeout', (data) => {
+        if (data.youWin) {
+            showToast('&#127942;', 'Соперник не появился — вы победили!');
+            // Update duel wins
+            save.duelWins = (save.duelWins || 0) + 1;
+            writeSave(save);
+            if (typeof submitToLeaderboard === 'function') submitToLeaderboard();
+        }
+        showDuelLobby();
+    });
+
+    // My lobby was cancelled by me (or I got notified)
+    duelSocket.on('duel:lobby-cancelled', (data) => {
+        showToast('&#128683;', `${data.creatorName} отменил дуэль`);
+        showDuelLobby();
+    });
+
+    // Joiner left the pending lobby
+    duelSocket.on('duel:joiner-left', (data) => {
+        showToast('&#128683;', 'Соперник ушёл');
+        // Lobby is still active, go back to lobby screen
+        if (_currentScreen === 'duel-pick-screen') {
+            renderDuelLobbyScreen();
+        }
+    });
+
     duelSocket.on('disconnect', () => {
         console.log('Duel socket disconnected');
-        duelMyLobbyId = null;
-        updateDuelButtonState(false);
+        // Don't clear duelMyLobbyId — lobby persists on server
     });
 
     return duelSocket;
@@ -113,19 +154,38 @@ function renderDuelLobbyScreen() {
     const container = $('duel-lobby-container');
     if (!container) return;
 
+    const hasMyLobby = !!duelMyLobbyId;
+
+    let buttonHtml;
+    if (hasMyLobby) {
+        buttonHtml = `<button class="pill-btn duel-cancel-active-btn" id="duel-cancel-active-btn">&#10060; Отменить дуэль</button>`;
+    } else {
+        buttonHtml = `<button class="pill-btn primary duel-create-btn" id="duel-create-btn">&#9876; Создать дуэль</button>`;
+    }
+
     container.innerHTML = `
         <div class="duel-lobby-rules">
             <span class="duel-lobby-rules-icon">&#9432;</span>
             Если вы не в приложении, у вас будет 2 минуты чтобы принять вызов.
         </div>
-        <button class="pill-btn primary duel-create-btn" id="duel-create-btn">&#9876; Создать дуэль</button>
+        ${buttonHtml}
         <div class="duel-lobby-title">Открытые дуэли</div>
         <div class="duel-lobbies-list" id="duel-lobbies-list">
             <div class="duel-lobbies-empty">Загрузка...</div>
         </div>
     `;
 
-    container.querySelector('#duel-create-btn').onclick = () => showCreateDuelDialog();
+    if (hasMyLobby) {
+        container.querySelector('#duel-cancel-active-btn').onclick = () => {
+            if (duelSocket && duelMyLobbyId) {
+                duelSocket.emit('duel:cancel-lobby', { roomId: duelMyLobbyId, playerId: ensurePlayerId() });
+            }
+            duelMyLobbyId = null;
+            renderDuelLobbyScreen();
+        };
+    } else {
+        container.querySelector('#duel-create-btn').onclick = () => showCreateDuelDialog();
+    }
 }
 
 function showCreateDuelDialog() {
@@ -201,56 +261,21 @@ function createDuelLobby(isBet, betAmount) {
     duelOpponent = null;
     duelRoomId = null;
 
+    // Get Telegram chat ID for notifications
+    let chatId = null;
+    if (typeof TG !== 'undefined' && TG && TG.initDataUnsafe && TG.initDataUnsafe.user) {
+        chatId = TG.initDataUnsafe.user.id;
+    }
+
     socket.emit('duel:create-lobby', {
         playerId: ensurePlayerId(),
         playerName: getPlayerName(),
         playerLevel: save.level,
         difficulty: duelDifficulty,
         isBet,
-        betAmount: isBet ? betAmount : 0
+        betAmount: isBet ? betAmount : 0,
+        chatId
     });
-}
-
-function renderDuelLobbyWaiting(roomId) {
-    const container = $('duel-lobby-container');
-    if (!container) return;
-
-    container.innerHTML = `
-        <div class="duel-search-anim">
-            <div class="duel-search-ring"></div>
-            <div class="duel-search-icon">&#9876;</div>
-        </div>
-        <div class="duel-search-title">Ожидание соперника...</div>
-        <div class="duel-search-sub">Другой игрок увидит вашу дуэль в списке.<br>Время ожидания: 2 минуты.</div>
-        <div class="duel-search-timer" id="duel-lobby-timer">2:00</div>
-        <button class="pill-btn" id="duel-cancel-lobby-btn">Отмена</button>
-    `;
-
-    // Countdown 2 minutes
-    let remaining = 120;
-    const timerEl = $('duel-lobby-timer');
-    clearInterval(window._duelLobbyInterval);
-    window._duelLobbyInterval = setInterval(() => {
-        remaining--;
-        if (timerEl) {
-            const m = Math.floor(remaining / 60);
-            const s = String(remaining % 60).padStart(2, '0');
-            timerEl.textContent = `${m}:${s}`;
-        }
-        if (remaining <= 0) {
-            clearInterval(window._duelLobbyInterval);
-        }
-    }, 1000);
-
-    container.querySelector('#duel-cancel-lobby-btn').onclick = () => {
-        clearInterval(window._duelLobbyInterval);
-        if (duelSocket && duelMyLobbyId) {
-            duelSocket.emit('duel:cancel-lobby', { roomId: duelMyLobbyId });
-        }
-        duelMyLobbyId = null;
-        updateDuelButtonState(false);
-        showDuelLobby();
-    };
 }
 
 function renderDuelLobbiesList(lobbies) {
@@ -259,7 +284,7 @@ function renderDuelLobbiesList(lobbies) {
 
     const myId = ensurePlayerId();
     // Filter out my own lobby
-    const otherLobbies = lobbies.filter(l => l.creatorName && l.creatorName !== getPlayerName());
+    const otherLobbies = lobbies.filter(l => l.creatorId !== myId);
 
     if (!otherLobbies.length) {
         list.innerHTML = '<div class="duel-lobbies-empty">Пока нет открытых дуэлей</div>';
@@ -280,7 +305,7 @@ function renderDuelLobbiesList(lobbies) {
                         <div class="duel-lobby-meta">Ур. ${lobby.creatorLevel} ${typeLabel}</div>
                     </div>
                 </div>
-                <button class="pill-btn primary duel-join-btn">Принять</button>
+                <button class="pill-btn primary duel-join-btn">Принять вызов</button>
             </div>`;
     });
 
@@ -308,20 +333,111 @@ function joinDuelLobby(roomId) {
         playerName: getPlayerName(),
         playerLevel: save.level
     });
+}
 
-    // Show search screen while waiting for match confirmation
+// =============================================
+// WAITING FOR CREATOR (after joining offline creator's lobby)
+// =============================================
+function renderDuelWaitingForCreator(data) {
     showScreen('duel-search-screen');
     const content = $('duel-search-content');
-    if (content) {
-        content.innerHTML = `
-            <div class="duel-search-anim">
-                <div class="duel-search-ring"></div>
-                <div class="duel-search-icon">&#9876;</div>
-            </div>
-            <div class="duel-search-title">Подключение...</div>
-        `;
-    }
+    if (!content) return;
+
+    content.innerHTML = `
+        <div class="duel-search-anim">
+            <div class="duel-search-ring"></div>
+            <div class="duel-search-icon">&#9876;</div>
+        </div>
+        <div class="duel-search-title">Ожидание ${escapeHtml(data.creatorName)}...</div>
+        <div class="duel-search-sub">Оповещение отправлено в Telegram.<br>У соперника 2 минуты чтобы принять вызов.</div>
+        <div class="duel-search-timer" id="duel-wait-timer">2:00</div>
+        <button class="pill-btn" id="duel-cancel-wait-btn">Отмена</button>
+    `;
+
+    let remaining = 120;
+    const timerEl = $('duel-wait-timer');
+    clearInterval(window._duelWaitInterval);
+    window._duelWaitInterval = setInterval(() => {
+        remaining--;
+        if (timerEl) {
+            const m = Math.floor(remaining / 60);
+            const s = String(remaining % 60).padStart(2, '0');
+            timerEl.textContent = `${m}:${s}`;
+        }
+        if (remaining <= 0) {
+            clearInterval(window._duelWaitInterval);
+        }
+    }, 1000);
+
+    content.querySelector('#duel-cancel-wait-btn').onclick = () => {
+        clearInterval(window._duelWaitInterval);
+        refreshHome();
+        showScreen('start-screen');
+    };
 }
+
+// =============================================
+// CHALLENGE ALERT (shown to creator when someone joins)
+// =============================================
+function showDuelChallengeAlert(data) {
+    const { roomId, challengerName, challengerLevel, isBet, betAmount } = data;
+    const betText = isBet ? ` (ставка: ${betAmount} монет)` : '';
+
+    // Create a full-screen alert overlay
+    let overlay = document.getElementById('duel-challenge-overlay');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'duel-challenge-overlay';
+        overlay.className = 'duel-challenge-overlay';
+        document.body.appendChild(overlay);
+    }
+
+    overlay.innerHTML = `
+        <div class="duel-challenge-card">
+            <div class="duel-challenge-icon">&#9876;</div>
+            <div class="duel-challenge-title">Вызов на дуэль!</div>
+            <div class="duel-challenge-info">
+                <strong>${escapeHtml(challengerName)}</strong> (Ур. ${challengerLevel})${betText}
+            </div>
+            <div class="duel-challenge-actions">
+                <button class="pill-btn primary duel-challenge-accept">&#9876; Сражаться!</button>
+                <button class="pill-btn duel-challenge-decline">Отклонить</button>
+            </div>
+        </div>
+    `;
+    overlay.style.display = 'flex';
+
+    SFX.correct();
+    haptic(30);
+
+    overlay.querySelector('.duel-challenge-accept').onclick = () => {
+        overlay.style.display = 'none';
+        const socket = connectDuelSocket();
+        socket.emit('duel:accept-challenge', { roomId });
+    };
+
+    overlay.querySelector('.duel-challenge-decline').onclick = () => {
+        overlay.style.display = 'none';
+        // Cancel the lobby
+        if (duelSocket) {
+            duelSocket.emit('duel:cancel-lobby', { roomId, playerId: ensurePlayerId() });
+        }
+        duelMyLobbyId = null;
+    };
+}
+
+// =============================================
+// BEFOREUNLOAD WARNING (when in active lobby)
+// =============================================
+function setupDuelBeforeUnload() {
+    window.addEventListener('beforeunload', (e) => {
+        if (duelMyLobbyId) {
+            e.preventDefault();
+            e.returnValue = 'У вас открытая дуэль. Если кто-то примет вызов, вам придёт уведомление в Telegram. У вас будет 2 минуты чтобы принять, иначе вы проиграете.';
+        }
+    });
+}
+setupDuelBeforeUnload();
 
 // =============================================
 // DUEL BUTTON STATE (green when waiting)
@@ -400,6 +516,35 @@ function launchDuelGame(data) {
 
     // Show opponent indicator
     showDuelOverlay();
+
+    // Start inactivity tracking
+    startDuelInactivityTracking();
+}
+
+// =============================================
+// INACTIVITY TRACKING
+// =============================================
+function startDuelInactivityTracking() {
+    clearDuelInactivityTracking();
+    // Send activity pings whenever player interacts
+    duelInactivityInterval = setInterval(() => {
+        if (isDuel && duelSocket && duelRoomId) {
+            duelSocket.emit('duel:activity', { roomId: duelRoomId });
+        }
+    }, 30000); // Ping every 30s to keep alive
+}
+
+function clearDuelInactivityTracking() {
+    if (duelInactivityInterval) {
+        clearInterval(duelInactivityInterval);
+        duelInactivityInterval = null;
+    }
+}
+
+// Report activity on any game interaction
+function reportDuelActivity() {
+    if (!isDuel || !duelSocket || !duelRoomId) return;
+    duelSocket.emit('duel:activity', { roomId: duelRoomId });
 }
 
 // =============================================
@@ -417,6 +562,7 @@ function reportDuelProgress() {
 function reportDuelFinished(won, stars) {
     if (!isDuel || !duelSocket || !duelRoomId || duelFinished) return;
     duelFinished = true;
+    clearDuelInactivityTracking();
 
     const elapsed = getElapsed();
     duelSocket.emit('duel:finished', {
@@ -469,6 +615,7 @@ function renderDuelSearching(waitTime) {
 function renderDuelMatched(data) {
     clearInterval(window._duelSearchInterval);
     clearInterval(window._duelLobbyInterval);
+    clearInterval(window._duelWaitInterval);
 
     showScreen('duel-search-screen');
     const content = $('duel-search-content');
@@ -643,6 +790,26 @@ function formatDuelTime(seconds) {
     const m = Math.floor(seconds / 60);
     const s = String(seconds % 60).padStart(2, '0');
     return `${m}:${s}`;
+}
+
+// =============================================
+// URL PARAMS — handle duel_room deep link
+// =============================================
+function handleDuelUrlParams() {
+    const params = new URLSearchParams(window.location.search);
+    const duelRoom = params.get('duel_room');
+    if (duelRoom) {
+        // Clean the URL
+        const url = new URL(window.location);
+        url.searchParams.delete('duel_room');
+        window.history.replaceState({}, '', url);
+
+        // Connect and accept the challenge
+        setTimeout(() => {
+            const socket = connectDuelSocket();
+            socket.emit('duel:accept-challenge', { roomId: duelRoom });
+        }, 500);
+    }
 }
 
 // =============================================
