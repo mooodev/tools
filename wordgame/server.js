@@ -594,6 +594,50 @@ setInterval(async () => {
 }, 60 * 1000);
 
 // =============================================
+// LOAD PUZZLES FOR SERVER-SIDE DUEL RESOLUTION
+// =============================================
+// Parse words.js to get base puzzles (no bonus) so the server can send
+// the actual puzzle data to both duel players, avoiding any client-side
+// desync caused by different bonus unlock states or GitHub fetch results.
+let SERVER_PUZZLES = [];
+try {
+    const wordsFile = fs.readFileSync(path.join(__dirname, 'public', 'words.js'), 'utf8');
+    const match = wordsFile.match(/(?:const|let|var)\s+WORD_PUZZLES\s*=\s*/);
+    if (match) {
+        const dataStart = match.index + match[0].length;
+        let depth = 0, inStr = false, strCh = '', esc = false, end = -1;
+        for (let i = dataStart; i < wordsFile.length; i++) {
+            const ch = wordsFile[i];
+            if (esc) { esc = false; continue; }
+            if (ch === '\\' && inStr) { esc = true; continue; }
+            if (inStr) { if (ch === strCh) inStr = false; continue; }
+            if (ch === '"' || ch === "'" || ch === '`') { inStr = true; strCh = ch; continue; }
+            if (ch === '[' || ch === '{') depth++;
+            if (ch === ']' || ch === '}') depth--;
+            if (depth === 0) { end = i + 1; break; }
+        }
+        if (end > 0) {
+            const raw = wordsFile.slice(dataStart, end)
+                .replace(/\/\/.*$/gm, '')
+                .replace(/\/\*[\s\S]*?\*\//g, '')
+                .replace(/,\s*([}\]])/g, '$1')
+                .replace(/([{,]\s*)(\w+)\s*:/g, '$1"$2":');
+            SERVER_PUZZLES = JSON.parse(raw);
+            console.log(`[server] Loaded ${SERVER_PUZZLES.length} base puzzles for duel resolution`);
+        }
+    }
+} catch (e) {
+    console.warn('[server] Failed to load puzzles for duel resolution:', e.message);
+}
+
+function getServerPuzzle(difficulty) {
+    const pool = SERVER_PUZZLES.filter(p => p.difficulty === difficulty);
+    if (pool.length === 0) return null;
+    const idx = Math.floor(Math.random() * pool.length);
+    return { puzzleIndex: idx, difficulty, categories: pool[idx].categories };
+}
+
+// =============================================
 // DUEL MATCHMAKING
 // =============================================
 const duelQueue = [];        // Players waiting for a match (legacy)
@@ -954,11 +998,9 @@ io.on('connection', (socket) => {
             clearTimeout(opponent._botTimeout);
 
             const roomId = generateRoomId();
-            const puzzleData = {
+            const puzzleData = getServerPuzzle(playerInfo.difficulty) || {
                 difficulty: playerInfo.difficulty,
-                puzzleIndex: data.puzzleIndex !== undefined
-                    ? data.puzzleIndex
-                    : Math.floor(Math.random() * 100)
+                puzzleIndex: Math.floor(Math.random() * 100)
             };
 
             const duelState = {
@@ -1025,11 +1067,9 @@ io.on('connection', (socket) => {
 
                 // Create bot match
                 const roomId = generateRoomId();
-                const puzzleData = {
+                const puzzleData = getServerPuzzle(playerInfo.difficulty) || {
                     difficulty: playerInfo.difficulty,
-                    puzzleIndex: data.puzzleIndex !== undefined
-                        ? data.puzzleIndex
-                        : Math.floor(Math.random() * 100)
+                    puzzleIndex: Math.floor(Math.random() * 100)
                 };
 
                 const botName = BOT_NAMES[Math.floor(Math.random() * BOT_NAMES.length)];
@@ -1386,8 +1426,8 @@ function startDuelFromLobby(lobby, joinerSocket, joinerId, joinerName, joinerLev
     delete duelLobbies[roomId];
     io.emit('duel:lobbies-updated', getPublicLobbies());
 
-    // Create actual duel
-    const puzzleData = {
+    // Create actual duel — resolve puzzle server-side to guarantee sync
+    const puzzleData = getServerPuzzle(lobby.difficulty) || {
         difficulty: lobby.difficulty,
         puzzleIndex: Math.floor(Math.random() * 100)
     };
