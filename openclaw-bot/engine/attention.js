@@ -104,6 +104,7 @@ class AttentionController {
       opportunist: { relevanceBoost: 0.1,  thresholdShift: -0.15 }, // scans broadly
       guardian:    { relevanceBoost: -0.05, thresholdShift: 0.05 },  // careful, filters more
       catalyst:    { relevanceBoost: 0.08, thresholdShift: -0.05 },  // creative, open
+      idiot:       { relevanceBoost: 0.3,  thresholdShift: -0.3 },   // processes everything, no filter
     };
 
     return mods[personality?.archetype] || { relevanceBoost: 0, thresholdShift: 0 };
