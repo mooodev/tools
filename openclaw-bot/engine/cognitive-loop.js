@@ -20,9 +20,11 @@ const { GoalEngine } = require('./goals');
 const { AttentionController } = require('./attention');
 const { MetaCognition } = require('./metacognition');
 const { getPersonality } = require('./personalities');
+const { MCTSEngine } = require('./mcts');
+const { VectorMemoryStore } = require('./vector-memory');
 
 class CognitiveLoop {
-  constructor({ personality = 'achiever', apiKey, model = 'gpt-4o-mini', provider = 'openai' } = {}) {
+  constructor({ personality = 'achiever', apiKey, model = 'gpt-4o-mini', provider = 'openai', useMCTS = true, vectorMemoryPath = null } = {}) {
     this.personality = getPersonality(personality);
     this.memory = new MemorySystem();
     this.goals = new GoalEngine();
@@ -34,6 +36,15 @@ class CognitiveLoop {
     this.conversationHistory = [];
     this.maxHistory = 20;
     this.stepLog = []; // detailed log of each cognitive step for UI
+
+    // --- MCTS + Vector Memory ---
+    this.useMCTS = useMCTS;
+    this.vectorMemory = new VectorMemoryStore({ persistPath: vectorMemoryPath });
+    this.mcts = new MCTSEngine({
+      maxIterations: 30,
+      maxDepth: 3,
+      priorFn: (state, ctx) => this.vectorMemory.computePrior(state, ctx)
+    });
   }
 
   /**
@@ -87,14 +98,46 @@ class CognitiveLoop {
       }))
     });
 
-    // --- Step 5 & 6: Build prompt and call LLM ---
+    // --- Step 4b: Long-term vector memory retrieval ---
+    const vectorResults = this.vectorMemory.query(
+      `${goalDesc} ${userInput}`,
+      attentionResult.depth === 'deep' ? 5 : 3
+    );
+    trace.steps.push({
+      step: 'vector_memory',
+      count: vectorResults.length,
+      topResults: vectorResults.slice(0, 3).map(r => ({
+        observation: r.entry.observation.slice(0, 80),
+        similarity: r.similarity.toFixed(3)
+      }))
+    });
+
+    // --- Step 5: MCTS strategy search (if enabled and depth >= normal) ---
+    let mctsResult = null;
+    if (this.useMCTS && attentionResult.depth !== 'shallow') {
+      mctsResult = this.mcts.search(userInput, {
+        goal: goalDesc,
+        memories,
+        vectorMemories: vectorResults,
+        personality: this.personality
+      });
+      trace.steps.push({
+        step: 'mcts_search',
+        bestAction: mctsResult.bestAction.slice(0, 100),
+        confidence: mctsResult.confidence.toFixed(3),
+        iterations: mctsResult.stats.iterations,
+        alternatives: mctsResult.alternatives.length
+      });
+    }
+
+    // --- Step 6: Meta-cognition + Build prompt and call LLM ---
     const metaReflections = this.meta.generateReflection(goalDesc);
     trace.steps.push({
       step: 'meta_cognition',
       reflections: metaReflections
     });
 
-    const systemPrompt = this._buildSystemPrompt(memories, metaReflections, attentionResult.depth);
+    const systemPrompt = this._buildSystemPrompt(memories, metaReflections, attentionResult.depth, mctsResult, vectorResults);
     const response = await this._callLLM(systemPrompt, userInput);
     trace.steps.push({
       step: 'llm_response',
@@ -103,7 +146,7 @@ class CognitiveLoop {
     });
 
     // --- Step 7: Evaluate and learn ---
-    this._updateMemory(userInput, response, goalDesc);
+    this._updateMemory(userInput, response, goalDesc, mctsResult);
     this.meta.logAction({
       action: `Processed: "${userInput.slice(0, 80)}"`,
       outcome: `Responded (${response.length} chars, depth: ${attentionResult.depth})`,
@@ -150,7 +193,9 @@ class CognitiveLoop {
       },
       goals: this.goals.getSummary(),
       memory: this.memory.stats,
+      vectorMemory: this.vectorMemory.stats,
       meta: this.meta.getSelfAssessment(),
+      mctsEnabled: this.useMCTS,
       conversationLength: this.conversationHistory.length / 2
     };
   }
@@ -165,6 +210,14 @@ class CognitiveLoop {
     this.meta.reset();
     this.conversationHistory = [];
     this.stepLog = [];
+    // Note: vectorMemory is NOT cleared on reset — it's long-term cross-session memory
+  }
+
+  /**
+   * Save long-term vector memory to disk.
+   */
+  saveVectorMemory() {
+    this.vectorMemory.save();
   }
 
   // --- Private methods ---
@@ -179,7 +232,7 @@ class CognitiveLoop {
     return types.length > 0 ? types : ['semantic', 'episodic', 'procedural'];
   }
 
-  _buildSystemPrompt(memories, metaReflections, depth) {
+  _buildSystemPrompt(memories, metaReflections, depth, mctsResult = null, vectorResults = []) {
     const parts = [];
 
     // Base identity
@@ -206,6 +259,31 @@ class CognitiveLoop {
     if (metaReflections.length > 0) {
       parts.push('\n## SELF-MONITORING ALERTS');
       metaReflections.forEach(r => parts.push(`⚠️ ${r}`));
+    }
+
+    // Long-term vector memory (cross-session experience)
+    if (vectorResults.length > 0) {
+      parts.push('\n## LONG-TERM EXPERIENCE (from vector memory)');
+      vectorResults.forEach(r => {
+        const reward = r.entry.payload?.reward;
+        const rewardStr = reward !== undefined ? ` | reward: ${reward}` : '';
+        parts.push(`- (sim: ${r.similarity.toFixed(2)}${rewardStr}) ${r.entry.observation}`);
+        if (r.entry.payload?.reflection) {
+          parts.push(`  → Reflection: ${r.entry.payload.reflection}`);
+        }
+      });
+    }
+
+    // MCTS chosen strategy
+    if (mctsResult) {
+      parts.push(`\n## MCTS STRATEGY (confidence: ${mctsResult.confidence.toFixed(2)}, ${mctsResult.stats.iterations} simulations)`);
+      parts.push(`Chosen approach: ${mctsResult.bestAction}`);
+      if (mctsResult.alternatives.length > 1) {
+        parts.push('Alternative strategies considered:');
+        mctsResult.alternatives.slice(1, 3).forEach(alt => {
+          parts.push(`  - ${alt.action} (visits: ${alt.visits}, avgReward: ${alt.avgReward})`);
+        });
+      }
     }
 
     // Depth instruction
@@ -290,7 +368,7 @@ class CognitiveLoop {
     }
   }
 
-  _updateMemory(input, response, goal) {
+  _updateMemory(input, response, goal, mctsResult = null) {
     // Store episodic memory of this interaction
     this.memory.store({
       content: `User asked: "${input.slice(0, 100)}" → Responded about: ${response.slice(0, 100)}`,
@@ -311,6 +389,19 @@ class CognitiveLoop {
         tags: ['strategy']
       });
     }
+
+    // Store in long-term vector memory for cross-session retrieval
+    this.vectorMemory.store({
+      observation: `${input.slice(0, 200)} → ${response.slice(0, 200)}`,
+      summary: goal ? `Goal: ${goal}` : '',
+      payload: {
+        plan: mctsResult?.bestAction || null,
+        reflection: mctsResult ? `MCTS confidence: ${mctsResult.confidence.toFixed(2)}` : null,
+        reward: mctsResult?.confidence || null,
+        trajectory: mctsResult?.alternatives?.slice(0, 3) || []
+      },
+      tags: goal ? goal.split(/\s+/).slice(0, 5) : []
+    });
   }
 
   _generateSkipResponse(attentionResult) {
