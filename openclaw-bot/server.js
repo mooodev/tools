@@ -91,16 +91,19 @@ app.get('/api/leadership-styles', (_req, res) => {
 
 // Create a team
 app.post('/api/team/create', (req, res) => {
-  const { teamId, name, leadershipStyle, apiKey, model, provider } = req.body;
+  const { teamId, name, leadershipStyle, apiKey, model, provider, workbenchPath } = req.body;
   if (!teamId || !apiKey) {
     return res.status(400).json({ error: 'teamId and apiKey are required' });
   }
+  // Default workbench path: ./workbench relative to where openclaw-bot lives
+  const defaultWorkbench = path.join(__dirname, 'workbench');
   const team = new Team({
     name: name || 'Team Alpha',
     leadershipStyle: leadershipStyle || 'commander',
     apiKey,
     model: model || 'gpt-4o-mini',
-    provider: provider || 'openai'
+    provider: provider || 'openai',
+    workbenchPath: workbenchPath || defaultWorkbench
   });
   teams.set(teamId, team);
   res.json({ ok: true, state: team.getState() });
@@ -182,6 +185,43 @@ app.get('/api/team/stats/:teamId', (req, res) => {
   const team = teams.get(req.params.teamId);
   if (!team) return res.status(404).json({ error: 'Team not found' });
   res.json(team.getDetailedStats());
+});
+
+// Run production loop — iterates toward goal completion
+app.post('/api/team/production-loop', async (req, res) => {
+  const { teamId, maxIterations } = req.body;
+  const team = teams.get(teamId);
+  if (!team) return res.status(404).json({ error: 'Team not found' });
+
+  const result = await team.runProductionLoop({
+    maxIterations: maxIterations || 10
+  });
+  res.json(result);
+});
+
+// Set workbench path
+app.post('/api/team/workbench', (req, res) => {
+  const { teamId, path: workbenchDir } = req.body;
+  const team = teams.get(teamId);
+  if (!team) return res.status(404).json({ error: 'Team not found' });
+  team.setWorkbenchPath(workbenchDir || path.join(__dirname, 'workbench'));
+  res.json({ ok: true, workbench: { path: team.workbenchPath, files: team.listWorkbenchFiles() } });
+});
+
+// List workbench files
+app.get('/api/team/workbench/:teamId', (req, res) => {
+  const team = teams.get(req.params.teamId);
+  if (!team) return res.status(404).json({ error: 'Team not found' });
+  res.json({ path: team.workbenchPath, files: team.listWorkbenchFiles() });
+});
+
+// Read a workbench file
+app.get('/api/team/workbench/:teamId/:filename', (req, res) => {
+  const team = teams.get(req.params.teamId);
+  if (!team) return res.status(404).json({ error: 'Team not found' });
+  const content = team.readFromWorkbench(req.params.filename);
+  if (content === null) return res.status(404).json({ error: 'File not found' });
+  res.json({ filename: req.params.filename, content });
 });
 
 const PORT = process.env.PORT || 3000;

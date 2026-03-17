@@ -48,6 +48,93 @@ class CognitiveLoop {
   }
 
   /**
+   * Process input in team context — bypasses attention filter so agents always respond to team work.
+   */
+  async processAsTeamMember(userInput, teamContext = {}) {
+    const trace = { steps: [], timestamp: Date.now() };
+    trace.steps.push({ step: 'input', data: userInput.slice(0, 200), mode: 'team_member' });
+
+    const currentGoal = this.goals.getCurrentFocus();
+    const goalRelevance = this.goals.scoreRelevance(userInput);
+    trace.steps.push({
+      step: 'goal_check',
+      currentGoal: currentGoal?.description || 'None',
+      relevance: goalRelevance.toFixed(2)
+    });
+
+    // In team mode, always process — the leader assigned this work
+    const depth = goalRelevance > 0.7 ? 'deep' : goalRelevance > 0.4 ? 'normal' : 'shallow';
+    trace.steps.push({
+      step: 'attention',
+      process: true,
+      depth,
+      reason: 'Team mode: always process assigned work'
+    });
+
+    const goalDesc = currentGoal?.description || '';
+    const memories = this.memory.retrieve({
+      goal: goalDesc,
+      query: userInput,
+      topK: depth === 'deep' ? 8 : depth === 'normal' ? 5 : 3,
+      types: this._getMemoryTypes()
+    });
+    trace.steps.push({
+      step: 'memory_retrieval',
+      count: memories.length,
+      topMemories: memories.slice(0, 3).map(m => ({
+        content: m.memory.content.slice(0, 100),
+        score: m.score.toFixed(2),
+        type: m.memory.type
+      }))
+    });
+
+    const vectorResults = this.vectorMemory.query(
+      `${goalDesc} ${userInput}`,
+      depth === 'deep' ? 5 : 3
+    );
+    trace.steps.push({ step: 'vector_memory', count: vectorResults.length });
+
+    let mctsResult = null;
+    if (this.useMCTS && depth !== 'shallow') {
+      mctsResult = this.mcts.search(userInput, {
+        goal: goalDesc,
+        memories,
+        vectorMemories: vectorResults,
+        personality: this.personality
+      });
+      trace.steps.push({
+        step: 'mcts_search',
+        bestAction: mctsResult.bestAction.slice(0, 100),
+        confidence: mctsResult.confidence.toFixed(3)
+      });
+    }
+
+    const metaReflections = this.meta.generateReflection(goalDesc);
+    const systemPrompt = this._buildSystemPrompt(memories, metaReflections, depth, mctsResult, vectorResults);
+    const response = await this._callLLM(systemPrompt, userInput);
+    trace.steps.push({ step: 'llm_response', depth, responseLength: response.length });
+
+    this._updateMemory(userInput, response, goalDesc, mctsResult);
+    this.meta.logAction({
+      action: `Team processed: "${userInput.slice(0, 80)}"`,
+      outcome: `Responded (${response.length} chars, depth: ${depth})`,
+      goalId: currentGoal?.id,
+      success: true
+    });
+
+    this.conversationHistory.push(
+      { role: 'user', content: userInput },
+      { role: 'assistant', content: response }
+    );
+    if (this.conversationHistory.length > this.maxHistory * 2) {
+      this.conversationHistory = this.conversationHistory.slice(-this.maxHistory * 2);
+    }
+
+    this.stepLog.push(trace);
+    return { response, trace, filtered: false };
+  }
+
+  /**
    * Main processing cycle. Takes user input, returns response + cognitive trace.
    */
   async process(userInput) {
