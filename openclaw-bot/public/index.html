@@ -3,12 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CLAW-X — Intelligent Agent Bot</title>
+  <title>CLAW-X — Team Intelligence Platform</title>
   <style>
     :root {
       --bg: #0a0a0f;
       --surface: #12121a;
       --surface2: #1a1a26;
+      --surface3: #222233;
       --border: #2a2a3a;
       --text: #e0e0e8;
       --text-dim: #888899;
@@ -17,6 +18,8 @@
       --danger: #ff6b6b;
       --success: #00b894;
       --warning: #fdcb6e;
+      --pink: #fd79a8;
+      --orange: #e17055;
     }
 
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -31,7 +34,7 @@
     /* --- Layout --- */
     .app {
       display: grid;
-      grid-template-columns: 320px 1fr 300px;
+      grid-template-columns: 340px 1fr 360px;
       grid-template-rows: auto 1fr;
       height: 100vh;
       gap: 1px;
@@ -41,7 +44,7 @@
     .header {
       grid-column: 1 / -1;
       background: var(--surface);
-      padding: 12px 24px;
+      padding: 10px 24px;
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -56,9 +59,31 @@
       -webkit-text-fill-color: transparent;
     }
 
-    .header .subtitle {
-      font-size: 0.75rem;
+    .header .subtitle { font-size: 0.75rem; color: var(--text-dim); }
+
+    .mode-toggle {
+      display: flex;
+      gap: 4px;
+      background: var(--surface2);
+      border-radius: 8px;
+      padding: 3px;
+    }
+
+    .mode-toggle button {
+      padding: 6px 14px;
+      border: none;
+      border-radius: 6px;
+      background: transparent;
       color: var(--text-dim);
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .mode-toggle button.active {
+      background: var(--accent);
+      color: white;
     }
 
     /* --- Panels --- */
@@ -78,13 +103,7 @@
       border-bottom: 1px solid var(--border);
     }
 
-    /* --- Setup Panel (left) --- */
-    .setup-panel {
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
-
+    /* --- Shared form elements --- */
     .field label {
       display: block;
       font-size: 0.75rem;
@@ -106,50 +125,7 @@
       transition: border-color 0.2s;
     }
 
-    .field input:focus, .field select:focus {
-      border-color: var(--accent);
-    }
-
-    /* Personality cards */
-    .personality-grid {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-
-    .personality-card {
-      padding: 10px 12px;
-      background: var(--surface2);
-      border: 2px solid var(--border);
-      border-radius: 10px;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-
-    .personality-card:hover {
-      border-color: var(--accent);
-      background: #1e1e2e;
-    }
-
-    .personality-card.selected {
-      border-color: var(--accent);
-      background: rgba(108, 92, 231, 0.15);
-    }
-
-    .personality-card .p-header {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-weight: 600;
-      font-size: 0.9rem;
-    }
-
-    .personality-card .p-desc {
-      font-size: 0.75rem;
-      color: var(--text-dim);
-      margin-top: 4px;
-      line-height: 1.4;
-    }
+    .field input:focus, .field select:focus { border-color: var(--accent); }
 
     .btn {
       padding: 10px 20px;
@@ -161,23 +137,124 @@
       transition: all 0.2s;
     }
 
-    .btn-primary {
-      background: var(--accent);
-      color: white;
-    }
-
+    .btn-primary { background: var(--accent); color: white; }
     .btn-primary:hover { background: #5b4bd5; }
     .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-sm { padding: 6px 12px; font-size: 0.75rem; }
+    .btn-danger { background: transparent; color: var(--danger); border: 1px solid var(--danger); font-size: 0.8rem; padding: 6px 12px; }
+    .btn-danger:hover { background: rgba(255, 107, 107, 0.1); }
+    .btn-success { background: var(--success); color: white; }
+    .btn-warning { background: var(--warning); color: #333; }
 
-    .btn-danger {
-      background: transparent;
-      color: var(--danger);
-      border: 1px solid var(--danger);
-      font-size: 0.8rem;
-      padding: 6px 12px;
+    /* --- Setup Panel (left) --- */
+    .setup-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
     }
 
-    .btn-danger:hover { background: rgba(255, 107, 107, 0.1); }
+    /* Personality cards */
+    .personality-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .personality-card {
+      padding: 8px 12px;
+      background: var(--surface2);
+      border: 2px solid var(--border);
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .personality-card:hover { border-color: var(--accent); background: #1e1e2e; }
+    .personality-card.selected { border-color: var(--accent); background: rgba(108, 92, 231, 0.15); }
+
+    .personality-card .p-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 600;
+      font-size: 0.85rem;
+    }
+
+    .personality-card .p-desc {
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      margin-top: 2px;
+      line-height: 1.4;
+    }
+
+    /* Leadership style cards */
+    .leadership-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .leadership-card {
+      padding: 8px 12px;
+      background: var(--surface2);
+      border: 2px solid var(--border);
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .leadership-card:hover { border-color: var(--accent2); background: #1e1e2e; }
+    .leadership-card.selected { border-color: var(--accent2); background: rgba(0, 206, 201, 0.12); }
+    .leadership-card .l-header { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 0.85rem; }
+    .leadership-card .l-desc { font-size: 0.7rem; color: var(--text-dim); margin-top: 2px; line-height: 1.4; }
+
+    /* Team roster */
+    .team-roster {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .roster-agent {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      background: var(--surface2);
+      border-radius: 8px;
+      font-size: 0.8rem;
+    }
+
+    .roster-agent .agent-emoji { font-size: 1.2rem; }
+    .roster-agent .agent-name { flex: 1; font-weight: 600; }
+    .roster-agent .agent-role {
+      font-size: 0.65rem;
+      padding: 2px 6px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      font-weight: 700;
+    }
+
+    .agent-role.leader { background: rgba(253, 203, 110, 0.2); color: var(--warning); }
+    .agent-role.member { background: rgba(108, 92, 231, 0.2); color: var(--accent); }
+
+    /* Add agent row */
+    .add-agent-row {
+      display: flex;
+      gap: 4px;
+      margin-top: 6px;
+    }
+
+    .add-agent-row select {
+      flex: 1;
+      padding: 6px 8px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-size: 0.8rem;
+    }
 
     /* --- Chat Panel (center) --- */
     .chat-panel {
@@ -205,35 +282,67 @@
       word-wrap: break-word;
     }
 
-    .message.user {
-      align-self: flex-end;
-      background: var(--accent);
-      color: white;
-      border-bottom-right-radius: 4px;
+    .message.user { align-self: flex-end; background: var(--accent); color: white; border-bottom-right-radius: 4px; }
+    .message.assistant { align-self: flex-start; background: var(--surface2); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
+    .message.system { align-self: center; background: transparent; color: var(--text-dim); font-size: 0.8rem; font-style: italic; text-align: center; }
+    .message.filtered { align-self: flex-start; background: rgba(253, 203, 110, 0.1); border: 1px solid var(--warning); color: var(--warning); font-size: 0.85rem; }
+
+    /* Team message with agent breakdown */
+    .team-message {
+      align-self: flex-start;
+      max-width: 90%;
     }
 
-    .message.assistant {
-      align-self: flex-start;
+    .team-message .leader-response {
+      padding: 12px 16px;
       background: var(--surface2);
-      border: 1px solid var(--border);
+      border: 1px solid var(--accent2);
+      border-radius: 12px;
       border-bottom-left-radius: 4px;
+      font-size: 0.9rem;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      word-wrap: break-word;
     }
 
-    .message.system {
-      align-self: center;
-      background: transparent;
+    .team-message .agent-inputs {
+      margin-top: 6px;
+      border-left: 3px solid var(--border);
+      padding-left: 10px;
+    }
+
+    .agent-input-toggle {
+      font-size: 0.75rem;
       color: var(--text-dim);
-      font-size: 0.8rem;
-      font-style: italic;
-      text-align: center;
+      cursor: pointer;
+      padding: 4px 0;
+      user-select: none;
     }
 
-    .message.filtered {
-      align-self: flex-start;
-      background: rgba(253, 203, 110, 0.1);
-      border: 1px solid var(--warning);
-      color: var(--warning);
-      font-size: 0.85rem;
+    .agent-input-toggle:hover { color: var(--accent2); }
+
+    .agent-input-detail {
+      display: none;
+      margin-top: 6px;
+    }
+
+    .agent-input-detail.open { display: block; }
+
+    .agent-input-item {
+      padding: 6px 10px;
+      margin-bottom: 4px;
+      background: var(--surface3);
+      border-radius: 6px;
+      font-size: 0.75rem;
+      line-height: 1.5;
+      white-space: pre-wrap;
+    }
+
+    .agent-input-item .agent-label {
+      font-weight: 700;
+      color: var(--accent2);
+      font-size: 0.7rem;
+      text-transform: uppercase;
     }
 
     .chat-input-area {
@@ -256,17 +365,12 @@
     }
 
     .chat-input-area input:focus { border-color: var(--accent); }
-
     .chat-input-area .btn { border-radius: 10px; }
 
-    /* --- Cognitive Panel (right) --- */
-    .cognitive-panel {
-      font-size: 0.8rem;
-    }
+    /* --- Right Panel: State + Stats --- */
+    .cognitive-panel { font-size: 0.8rem; }
 
-    .state-section {
-      margin-bottom: 16px;
-    }
+    .state-section { margin-bottom: 16px; }
 
     .state-section h3 {
       font-size: 0.7rem;
@@ -276,59 +380,88 @@
       letter-spacing: 0.04em;
     }
 
-    .state-value {
-      color: var(--text-dim);
-      line-height: 1.5;
-    }
+    .state-value { color: var(--text-dim); line-height: 1.5; }
 
-    .trace-step {
-      padding: 6px 8px;
-      margin-bottom: 4px;
+    /* Team Goals Manager */
+    .team-goal-item {
+      padding: 8px 10px;
+      margin-bottom: 6px;
       background: var(--surface2);
-      border-radius: 6px;
+      border-radius: 8px;
       border-left: 3px solid var(--accent);
-      font-size: 0.75rem;
     }
 
-    .trace-step.filtered {
-      border-left-color: var(--warning);
-    }
+    .team-goal-item.completed { border-left-color: var(--success); opacity: 0.6; }
+    .team-goal-item.abandoned { border-left-color: var(--danger); opacity: 0.4; }
 
-    .trace-step .step-name {
-      font-weight: 600;
-      color: var(--accent2);
-      text-transform: uppercase;
-      font-size: 0.65rem;
-    }
-
-    .memory-bar {
+    .goal-header-row {
       display: flex;
-      gap: 8px;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+    }
+
+    .goal-desc {
+      flex: 1;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+
+    .goal-priority {
+      font-size: 0.65rem;
+      padding: 1px 6px;
+      border-radius: 4px;
+      background: rgba(108, 92, 231, 0.2);
+      color: var(--accent);
+    }
+
+    .goal-progress-bar {
+      margin-top: 4px;
+      height: 4px;
+      background: var(--surface3);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .goal-progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      border-radius: 2px;
+      transition: width 0.3s;
+    }
+
+    .goal-actions {
+      display: flex;
+      gap: 4px;
       margin-top: 4px;
     }
 
-    .memory-bar .mem-type {
-      padding: 2px 8px;
-      background: var(--surface2);
+    .goal-actions button {
+      padding: 2px 6px;
+      border: none;
       border-radius: 4px;
-      font-size: 0.7rem;
+      font-size: 0.65rem;
+      cursor: pointer;
+      background: var(--surface3);
+      color: var(--text-dim);
+      transition: all 0.2s;
     }
 
-    .mem-type.semantic { color: #74b9ff; }
-    .mem-type.episodic { color: #a29bfe; }
-    .mem-type.procedural { color: #55efc4; }
+    .goal-actions button:hover { color: var(--text); background: var(--border); }
 
-    .goals-area {
-      margin-top: 8px;
+    .goal-created-by {
+      font-size: 0.6rem;
+      color: var(--text-dim);
+      margin-top: 2px;
     }
 
-    .goal-input-row {
+    .add-goal-row {
       display: flex;
       gap: 4px;
       margin-top: 8px;
     }
 
-    .goal-input-row input {
+    .add-goal-row input {
       flex: 1;
       padding: 6px 8px;
       background: var(--surface2);
@@ -339,18 +472,114 @@
       outline: none;
     }
 
-    .goal-input-row select {
-      padding: 6px;
+    /* --- Visualization / Stats --- */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .stat-card {
+      padding: 8px 10px;
       background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      color: var(--text);
+      border-radius: 8px;
+      text-align: center;
+    }
+
+    .stat-card .stat-value {
+      font-size: 1.4rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .stat-card .stat-label {
+      font-size: 0.65rem;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      margin-top: 2px;
+    }
+
+    /* Bar chart visualization */
+    .bar-chart {
+      margin-top: 8px;
+    }
+
+    .bar-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 4px;
       font-size: 0.75rem;
     }
 
-    .goal-input-row .btn {
-      padding: 6px 10px;
+    .bar-label {
+      width: 80px;
+      text-align: right;
+      color: var(--text-dim);
+      font-size: 0.7rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .bar-track {
+      flex: 1;
+      height: 14px;
+      background: var(--surface3);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .bar-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.5s;
+      display: flex;
+      align-items: center;
+      padding-left: 4px;
+      font-size: 0.6rem;
+      font-weight: 700;
+      color: white;
+    }
+
+    .memory-bar-display {
+      display: flex;
+      gap: 6px;
+      margin-top: 4px;
+      flex-wrap: wrap;
+    }
+
+    .mem-type {
+      padding: 2px 8px;
+      background: var(--surface2);
+      border-radius: 4px;
+      font-size: 0.7rem;
+    }
+
+    .mem-type.semantic { color: #74b9ff; }
+    .mem-type.episodic { color: #a29bfe; }
+    .mem-type.procedural { color: #55efc4; }
+
+    /* Trace display */
+    .trace-step {
+      padding: 6px 8px;
+      margin-bottom: 4px;
+      background: var(--surface2);
+      border-radius: 6px;
+      border-left: 3px solid var(--accent);
       font-size: 0.75rem;
+    }
+
+    .trace-step.filtered { border-left-color: var(--warning); }
+
+    .trace-step .step-name {
+      font-weight: 600;
+      color: var(--accent2);
+      text-transform: uppercase;
+      font-size: 0.65rem;
     }
 
     /* Welcome screen */
@@ -365,37 +594,13 @@
       gap: 12px;
     }
 
-    .welcome .logo {
-      font-size: 3rem;
-    }
-
-    .welcome h2 {
-      font-size: 1.2rem;
-      color: var(--text);
-      border: none;
-      padding: 0;
-      text-transform: none;
-      letter-spacing: 0;
-    }
-
+    .welcome .logo { font-size: 3rem; }
+    .welcome h2 { font-size: 1.2rem; color: var(--text); border: none; padding: 0; text-transform: none; letter-spacing: 0; }
     .welcome p { max-width: 400px; font-size: 0.85rem; line-height: 1.6; }
 
-    /* Loading dots */
-    .typing-indicator {
-      display: flex;
-      gap: 4px;
-      padding: 12px 16px;
-      align-self: flex-start;
-    }
-
-    .typing-indicator span {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: var(--text-dim);
-      animation: typing 1.4s infinite;
-    }
-
+    /* Typing indicator */
+    .typing-indicator { display: flex; gap: 4px; padding: 12px 16px; align-self: flex-start; }
+    .typing-indicator span { width: 8px; height: 8px; border-radius: 50%; background: var(--text-dim); animation: typing 1.4s infinite; }
     .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
     .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
 
@@ -404,19 +609,47 @@
       30% { opacity: 1; transform: scale(1); }
     }
 
+    /* Tab system for right panel */
+    .tab-bar {
+      display: flex;
+      gap: 2px;
+      margin-bottom: 12px;
+      background: var(--surface2);
+      border-radius: 8px;
+      padding: 3px;
+    }
+
+    .tab-bar button {
+      flex: 1;
+      padding: 6px 8px;
+      border: none;
+      border-radius: 6px;
+      background: transparent;
+      color: var(--text-dim);
+      font-size: 0.7rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-transform: uppercase;
+    }
+
+    .tab-bar button.active { background: var(--accent); color: white; }
+
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
     /* Scrollbar */
     ::-webkit-scrollbar { width: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 
     /* Responsive */
-    @media (max-width: 900px) {
-      .app {
-        grid-template-columns: 1fr;
-        grid-template-rows: auto auto 1fr auto;
-      }
-      .cognitive-panel { max-height: 200px; }
+    @media (max-width: 1100px) {
+      .app { grid-template-columns: 1fr; grid-template-rows: auto auto 1fr auto; }
+      .cognitive-panel { max-height: 300px; }
     }
+
+    .hidden { display: none !important; }
   </style>
 </head>
 <body>
@@ -425,41 +658,86 @@
     <div class="header">
       <div>
         <h1>CLAW-X</h1>
-        <span class="subtitle">Goal-Driven Cognitive Agent &middot; Layered Memory &middot; Personality Archetypes</span>
+        <span class="subtitle">Team Intelligence Platform &middot; Multi-Agent Coordination &middot; Leadership Styles</span>
       </div>
-      <div id="session-status" style="font-size:0.8rem; color:var(--text-dim);">No session</div>
+      <div style="display:flex; align-items:center; gap:12px;">
+        <div class="mode-toggle">
+          <button class="active" onclick="switchMode('solo')" id="mode-solo">Solo Agent</button>
+          <button onclick="switchMode('team')" id="mode-team">Team Mode</button>
+        </div>
+        <div id="session-status" style="font-size:0.8rem; color:var(--text-dim);">No session</div>
+      </div>
     </div>
 
     <!-- Left: Setup -->
-    <div class="panel setup-panel">
-      <h2>Configuration</h2>
-
-      <div class="field">
-        <label>API Provider</label>
-        <select id="provider">
-          <option value="openai">OpenAI</option>
-          <option value="anthropic">Anthropic</option>
-          <option value="openrouter">OpenRouter</option>
-        </select>
+    <div class="panel setup-panel" id="setup-panel">
+      <!-- Solo mode setup -->
+      <div id="solo-setup">
+        <h2>Configuration</h2>
+        <div class="field">
+          <label>API Provider</label>
+          <select id="provider">
+            <option value="openai">OpenAI</option>
+            <option value="anthropic">Anthropic</option>
+            <option value="openrouter">OpenRouter</option>
+          </select>
+        </div>
+        <div class="field" style="margin-top:10px;">
+          <label>API Key</label>
+          <input type="password" id="api-key" placeholder="sk-... or your API key">
+        </div>
+        <div class="field" style="margin-top:10px;">
+          <label>Model</label>
+          <input type="text" id="model" placeholder="gpt-4o-mini" value="gpt-4o-mini">
+        </div>
+        <h2 style="margin-top:16px;">Agent Personality</h2>
+        <div class="personality-grid" id="personality-grid"></div>
+        <button class="btn btn-primary" style="margin-top:12px;" id="btn-start" onclick="startSession()">Launch Agent</button>
+        <button class="btn btn-danger hidden" id="btn-reset" onclick="resetSession()">Reset Agent</button>
       </div>
 
-      <div class="field">
-        <label>API Key</label>
-        <input type="password" id="api-key" placeholder="sk-... or your API key">
-      </div>
+      <!-- Team mode setup -->
+      <div id="team-setup" class="hidden">
+        <h2>Team Configuration</h2>
+        <div class="field">
+          <label>API Provider</label>
+          <select id="team-provider">
+            <option value="openai">OpenAI</option>
+            <option value="anthropic">Anthropic</option>
+            <option value="openrouter">OpenRouter</option>
+          </select>
+        </div>
+        <div class="field" style="margin-top:10px;">
+          <label>API Key</label>
+          <input type="password" id="team-api-key" placeholder="sk-... or your API key">
+        </div>
+        <div class="field" style="margin-top:10px;">
+          <label>Model</label>
+          <input type="text" id="team-model" placeholder="gpt-4o-mini" value="gpt-4o-mini">
+        </div>
+        <div class="field" style="margin-top:10px;">
+          <label>Team Name</label>
+          <input type="text" id="team-name" placeholder="Team Alpha" value="Team Alpha">
+        </div>
 
-      <div class="field">
-        <label>Model</label>
-        <input type="text" id="model" placeholder="gpt-4o-mini" value="gpt-4o-mini">
-      </div>
+        <h2 style="margin-top:16px;">Leadership Style</h2>
+        <div class="leadership-grid" id="leadership-grid"></div>
 
-      <h2>Agent Personality</h2>
-      <div class="personality-grid" id="personality-grid">
-        <!-- Filled by JS -->
-      </div>
+        <h2 style="margin-top:16px;">Leader Personality</h2>
+        <div class="personality-grid" id="leader-personality-grid"></div>
 
-      <button class="btn btn-primary" id="btn-start" onclick="startSession()">Launch Agent</button>
-      <button class="btn btn-danger" id="btn-reset" onclick="resetSession()" style="display:none;">Reset Agent</button>
+        <h2 style="margin-top:16px;">Team Members</h2>
+        <div class="team-roster" id="team-roster-setup">
+          <div style="font-size:0.75rem; color:var(--text-dim);">Add agents to your team below</div>
+        </div>
+        <div class="add-agent-row">
+          <select id="add-agent-personality"></select>
+          <button class="btn btn-primary btn-sm" onclick="addAgentToSetup()">+ Add</button>
+        </div>
+
+        <button class="btn btn-primary" style="margin-top:14px; width:100%;" onclick="assembleTeam()">Assemble Team</button>
+        <button class="btn btn-danger hidden" id="btn-disband" onclick="disbandTeam()">Disband Team</button>
+      </div>
     </div>
 
     <!-- Center: Chat -->
@@ -468,79 +746,172 @@
         <div class="welcome">
           <div class="logo">&#129504;</div>
           <h2>Welcome to CLAW-X</h2>
-          <p>Configure your API key and choose an agent personality on the left, then launch to start chatting with an intelligent, goal-driven agent.</p>
+          <p>Choose <strong>Solo Agent</strong> for a single intelligent agent, or <strong>Team Mode</strong> to assemble a team with a leader that coordinates multiple agents.</p>
           <p style="font-size:0.75rem; color:var(--text-dim); margin-top:8px;">
-            Unlike simple chatbots, CLAW-X agents have goals, layered memory, attention filtering, and self-monitoring. Set goals in the right panel to unlock the full cognitive architecture.
+            In Team Mode, agents have different personalities and a leader synthesizes their responses based on their leadership style. Set team goals, track progress, and watch the team work together.
           </p>
         </div>
       </div>
-      <div class="chat-input-area" style="display:none;" id="chat-input-area">
+      <div class="chat-input-area hidden" id="chat-input-area">
         <input type="text" id="chat-input" placeholder="Type a message..." onkeydown="if(event.key==='Enter')sendMessage()">
         <button class="btn btn-primary" onclick="sendMessage()">Send</button>
       </div>
     </div>
 
-    <!-- Right: Cognitive State -->
+    <!-- Right: State + Stats -->
     <div class="panel cognitive-panel">
-      <h2>Cognitive State</h2>
-
-      <div class="state-section">
-        <h3>Agent</h3>
-        <div class="state-value" id="agent-info">Not initialized</div>
-      </div>
-
-      <div class="state-section">
-        <h3>Goals</h3>
-        <div class="state-value" id="goals-display">No goals set</div>
-        <div class="goal-input-row">
-          <input type="text" id="goal-input" placeholder="Add a goal...">
-          <select id="goal-tier">
-            <option value="current">Current</option>
-            <option value="mid">Mid-term</option>
-            <option value="long">Long-term</option>
-          </select>
-          <button class="btn btn-primary" onclick="addGoal()">+</button>
+      <!-- Solo state -->
+      <div id="solo-state">
+        <h2>Cognitive State</h2>
+        <div class="state-section">
+          <h3>Agent</h3>
+          <div class="state-value" id="agent-info">Not initialized</div>
+        </div>
+        <div class="state-section">
+          <h3>Goals</h3>
+          <div class="state-value" id="goals-display">No goals set</div>
+          <div class="add-goal-row">
+            <input type="text" id="goal-input" placeholder="Add a goal...">
+            <select id="goal-tier" style="padding:6px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.75rem;">
+              <option value="current">Current</option>
+              <option value="mid">Mid</option>
+              <option value="long">Long</option>
+            </select>
+            <button class="btn btn-primary btn-sm" onclick="addGoal()">+</button>
+          </div>
+        </div>
+        <div class="state-section">
+          <h3>Memory</h3>
+          <div class="memory-bar-display" id="memory-bar">
+            <span class="mem-type semantic">Sem: 0</span>
+            <span class="mem-type episodic">Epi: 0</span>
+            <span class="mem-type procedural">Pro: 0</span>
+          </div>
+        </div>
+        <div class="state-section">
+          <h3>Meta-Cognition</h3>
+          <div class="state-value" id="meta-display">No data yet</div>
+        </div>
+        <div class="state-section">
+          <h3>Last Cognitive Trace</h3>
+          <div id="trace-display">No trace yet</div>
         </div>
       </div>
 
-      <div class="state-section">
-        <h3>Memory</h3>
-        <div class="memory-bar" id="memory-bar">
-          <span class="mem-type semantic">Semantic: 0</span>
-          <span class="mem-type episodic">Episodic: 0</span>
-          <span class="mem-type procedural">Procedural: 0</span>
+      <!-- Team state -->
+      <div id="team-state" class="hidden">
+        <div class="tab-bar">
+          <button class="active" onclick="switchTab('goals')">Goals</button>
+          <button onclick="switchTab('roster')">Roster</button>
+          <button onclick="switchTab('stats')">Stats</button>
+          <button onclick="switchTab('trace')">Trace</button>
         </div>
-      </div>
 
-      <div class="state-section">
-        <h3>Meta-Cognition</h3>
-        <div class="state-value" id="meta-display">No data yet</div>
-      </div>
+        <!-- Goals Tab -->
+        <div class="tab-content active" id="tab-goals">
+          <h3 style="font-size:0.7rem;text-transform:uppercase;color:var(--accent2);margin-bottom:8px;">Team Goals</h3>
+          <div id="team-goals-list">
+            <div style="font-size:0.75rem;color:var(--text-dim);">No goals set. Add one below.</div>
+          </div>
+          <div class="add-goal-row">
+            <input type="text" id="team-goal-input" placeholder="Add a team goal...">
+            <button class="btn btn-primary btn-sm" onclick="addTeamGoal()">+</button>
+          </div>
+        </div>
 
-      <div class="state-section">
-        <h3>Last Cognitive Trace</h3>
-        <div id="trace-display">No trace yet</div>
+        <!-- Roster Tab -->
+        <div class="tab-content" id="tab-roster">
+          <h3 style="font-size:0.7rem;text-transform:uppercase;color:var(--accent2);margin-bottom:8px;">Team Roster</h3>
+          <div id="team-roster-display"></div>
+        </div>
+
+        <!-- Stats Tab -->
+        <div class="tab-content" id="tab-stats">
+          <h3 style="font-size:0.7rem;text-transform:uppercase;color:var(--accent2);margin-bottom:8px;">Team Statistics</h3>
+          <div class="stats-grid" id="stats-grid">
+            <div class="stat-card"><div class="stat-value">0</div><div class="stat-label">Messages</div></div>
+            <div class="stat-card"><div class="stat-value">0</div><div class="stat-label">Responses</div></div>
+            <div class="stat-card"><div class="stat-value">0</div><div class="stat-label">Goals Done</div></div>
+            <div class="stat-card"><div class="stat-value">0</div><div class="stat-label">Agents</div></div>
+          </div>
+          <h3 style="font-size:0.7rem;text-transform:uppercase;color:var(--accent2);margin:12px 0 6px;">Agent Contributions</h3>
+          <div id="contributions-chart" class="bar-chart"></div>
+          <h3 style="font-size:0.7rem;text-transform:uppercase;color:var(--accent2);margin:12px 0 6px;">Memory Distribution</h3>
+          <div id="memory-chart" class="bar-chart"></div>
+        </div>
+
+        <!-- Trace Tab -->
+        <div class="tab-content" id="tab-trace">
+          <h3 style="font-size:0.7rem;text-transform:uppercase;color:var(--accent2);margin-bottom:8px;">Last Team Trace</h3>
+          <div id="team-trace-display" style="font-size:0.75rem;color:var(--text-dim);">No trace yet</div>
+        </div>
       </div>
     </div>
   </div>
 
   <script>
+    // ========== STATE ==========
+    let currentMode = 'solo'; // 'solo' | 'team'
     let sessionId = null;
+    let teamId = null;
     let selectedPersonality = 'achiever';
+    let selectedLeaderPersonality = 'achiever';
+    let selectedLeadership = 'commander';
     let personalities = [];
+    let leadershipStyles = [];
+    let setupAgents = []; // agents to add when assembling team
 
-    // --- Init ---
+    // ========== INIT ==========
     async function init() {
-      const resp = await fetch('/api/personalities');
-      personalities = await resp.json();
+      const [pResp, lResp] = await Promise.all([
+        fetch('/api/personalities'),
+        fetch('/api/leadership-styles')
+      ]);
+      personalities = await pResp.json();
+      leadershipStyles = await lResp.json();
+
       renderPersonalities();
+      renderLeadershipStyles();
+      populateAgentDropdown();
     }
 
+    // ========== MODE SWITCHING ==========
+    function switchMode(mode) {
+      currentMode = mode;
+      document.getElementById('mode-solo').classList.toggle('active', mode === 'solo');
+      document.getElementById('mode-team').classList.toggle('active', mode === 'team');
+      document.getElementById('solo-setup').classList.toggle('hidden', mode !== 'solo');
+      document.getElementById('team-setup').classList.toggle('hidden', mode !== 'team');
+      document.getElementById('solo-state').classList.toggle('hidden', mode !== 'solo');
+      document.getElementById('team-state').classList.toggle('hidden', mode !== 'team');
+    }
+
+    // ========== TAB SWITCHING ==========
+    function switchTab(tabName) {
+      document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab-bar button').forEach(b => b.classList.remove('active'));
+      document.getElementById('tab-' + tabName).classList.add('active');
+      // Highlight the clicked button
+      const btns = document.querySelectorAll('.tab-bar button');
+      btns.forEach(b => { if (b.textContent.toLowerCase() === tabName) b.classList.add('active'); });
+    }
+
+    // ========== PERSONALITY RENDERING ==========
     function renderPersonalities() {
       const grid = document.getElementById('personality-grid');
       grid.innerHTML = personalities.map(p => `
         <div class="personality-card ${p.archetype === selectedPersonality ? 'selected' : ''}"
              onclick="selectPersonality('${p.archetype}')">
+          <div class="p-header">${p.emoji} ${p.name}</div>
+          <div class="p-desc">${p.description}</div>
+        </div>
+      `).join('');
+
+      // Leader personality grid
+      const lgrid = document.getElementById('leader-personality-grid');
+      lgrid.innerHTML = personalities.map(p => `
+        <div class="personality-card ${p.archetype === selectedLeaderPersonality ? 'selected' : ''}"
+             onclick="selectLeaderPersonality('${p.archetype}')">
           <div class="p-header">${p.emoji} ${p.name}</div>
           <div class="p-desc">${p.description}</div>
         </div>
@@ -552,33 +923,85 @@
       renderPersonalities();
     }
 
-    // --- Session ---
+    function selectLeaderPersonality(archetype) {
+      selectedLeaderPersonality = archetype;
+      renderPersonalities();
+    }
+
+    // ========== LEADERSHIP STYLES ==========
+    function renderLeadershipStyles() {
+      const grid = document.getElementById('leadership-grid');
+      grid.innerHTML = leadershipStyles.map(s => `
+        <div class="leadership-card ${s.id === selectedLeadership ? 'selected' : ''}"
+             onclick="selectLeadership('${s.id}')">
+          <div class="l-header">${s.emoji} ${s.name}</div>
+          <div class="l-desc">${s.description}</div>
+        </div>
+      `).join('');
+    }
+
+    function selectLeadership(id) {
+      selectedLeadership = id;
+      renderLeadershipStyles();
+    }
+
+    // ========== TEAM SETUP ==========
+    function populateAgentDropdown() {
+      const sel = document.getElementById('add-agent-personality');
+      sel.innerHTML = personalities.map(p => `<option value="${p.archetype}">${p.emoji} ${p.name}</option>`).join('');
+    }
+
+    function addAgentToSetup() {
+      const sel = document.getElementById('add-agent-personality');
+      const personality = sel.value;
+      const p = personalities.find(x => x.archetype === personality);
+      setupAgents.push({ personality, name: p.name, emoji: p.emoji });
+      renderSetupRoster();
+    }
+
+    function removeSetupAgent(idx) {
+      setupAgents.splice(idx, 1);
+      renderSetupRoster();
+    }
+
+    function renderSetupRoster() {
+      const container = document.getElementById('team-roster-setup');
+      if (setupAgents.length === 0) {
+        container.innerHTML = '<div style="font-size:0.75rem;color:var(--text-dim);">No agents added yet</div>';
+        return;
+      }
+      container.innerHTML = setupAgents.map((a, i) => `
+        <div class="roster-agent">
+          <span class="agent-emoji">${a.emoji}</span>
+          <span class="agent-name">${a.name}</span>
+          <span class="agent-role member">member</span>
+          <button class="btn btn-sm" style="padding:2px 6px;font-size:0.7rem;background:var(--surface3);color:var(--danger);border:none;border-radius:4px;cursor:pointer;" onclick="removeSetupAgent(${i})">x</button>
+        </div>
+      `).join('');
+    }
+
+    // ========== SOLO SESSION ==========
     async function startSession() {
       const apiKey = document.getElementById('api-key').value.trim();
       const model = document.getElementById('model').value.trim();
       const provider = document.getElementById('provider').value;
-
-      if (!apiKey) {
-        alert('Please enter your API key.');
-        return;
-      }
+      if (!apiKey) { alert('Please enter your API key.'); return; }
 
       sessionId = 'session_' + Math.random().toString(36).slice(2, 10);
-
       const resp = await fetch('/api/session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sessionId, personality: selectedPersonality, apiKey, model, provider })
       });
-
       const data = await resp.json();
       if (data.ok) {
-        document.getElementById('session-status').textContent = `Session: ${sessionId.slice(0, 12)}...`;
-        document.getElementById('chat-input-area').style.display = 'flex';
-        document.getElementById('btn-reset').style.display = 'block';
+        document.getElementById('session-status').textContent = `Solo: ${sessionId.slice(0, 12)}...`;
+        document.getElementById('chat-input-area').classList.remove('hidden');
+        document.getElementById('btn-reset').classList.remove('hidden');
         document.getElementById('chat-messages').innerHTML = '';
-        addSystemMessage(`Agent "${personalities.find(p => p.archetype === selectedPersonality)?.name}" initialized. Set goals in the right panel and start chatting.`);
-        updateState(data.state);
+        const p = personalities.find(x => x.archetype === selectedPersonality);
+        addSystemMessage(`Agent "${p?.name}" initialized. Set goals and start chatting.`);
+        updateSoloState(data.state);
         document.getElementById('chat-input').focus();
       }
     }
@@ -592,59 +1015,183 @@
       });
       document.getElementById('chat-messages').innerHTML = '';
       addSystemMessage('Agent reset. Memory cleared, goals removed.');
-      updateState({ personality: { archetype: selectedPersonality, name: selectedPersonality }, goals: 'No active goals.', memory: { semantic: 0, episodic: 0, procedural: 0 }, meta: { totalActions: 0, successes: 0, failures: 0 }, conversationLength: 0 });
     }
 
-    // --- Chat ---
+    // ========== TEAM ASSEMBLY ==========
+    async function assembleTeam() {
+      const apiKey = document.getElementById('team-api-key').value.trim();
+      const model = document.getElementById('team-model').value.trim();
+      const provider = document.getElementById('team-provider').value;
+      const teamName = document.getElementById('team-name').value.trim();
+
+      if (!apiKey) { alert('Please enter your API key.'); return; }
+      if (setupAgents.length === 0) { alert('Add at least one team member.'); return; }
+
+      teamId = 'team_' + Math.random().toString(36).slice(2, 10);
+
+      // 1. Create team
+      const createResp = await fetch('/api/team/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ teamId, name: teamName, leadershipStyle: selectedLeadership, apiKey, model, provider })
+      });
+      const createData = await createResp.json();
+      if (!createData.ok) { alert('Failed to create team'); return; }
+
+      // 2. Appoint leader
+      await fetch('/api/team/appoint-leader', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ teamId, personality: selectedLeaderPersonality })
+      });
+
+      // 3. Add agents
+      for (const agent of setupAgents) {
+        await fetch('/api/team/add-agent', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ teamId, personality: agent.personality, role: 'member' })
+        });
+      }
+
+      // 4. Get final state
+      const stateResp = await fetch('/api/team/state/' + teamId);
+      const state = await stateResp.json();
+
+      document.getElementById('session-status').textContent = `Team: ${teamName}`;
+      document.getElementById('chat-input-area').classList.remove('hidden');
+      document.getElementById('btn-disband').classList.remove('hidden');
+      document.getElementById('chat-messages').innerHTML = '';
+
+      const leaderP = personalities.find(x => x.archetype === selectedLeaderPersonality);
+      const leaderS = leadershipStyles.find(x => x.id === selectedLeadership);
+      addSystemMessage(`Team "${teamName}" assembled!\nLeader: ${leaderP?.emoji} ${leaderP?.name} (${leaderS?.emoji} ${leaderS?.name} style)\nMembers: ${setupAgents.map(a => a.emoji + ' ' + a.name).join(', ')}\n\nSet team goals in the right panel, then start chatting!`);
+
+      updateTeamState(state);
+      document.getElementById('chat-input').focus();
+    }
+
+    function disbandTeam() {
+      teamId = null;
+      document.getElementById('chat-messages').innerHTML = '';
+      document.getElementById('chat-input-area').classList.add('hidden');
+      document.getElementById('btn-disband').classList.add('hidden');
+      document.getElementById('session-status').textContent = 'No session';
+      addSystemMessage('Team disbanded.');
+    }
+
+    // ========== MESSAGING ==========
     async function sendMessage() {
       const input = document.getElementById('chat-input');
       const message = input.value.trim();
-      if (!message || !sessionId) return;
-
+      if (!message) return;
       input.value = '';
-      addMessage(message, 'user');
-      showTyping();
 
-      const resp = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId, message })
-      });
-
-      hideTyping();
-      const data = await resp.json();
-
-      if (data.filtered) {
-        addMessage(data.response, 'filtered');
+      if (currentMode === 'solo') {
+        if (!sessionId) return;
+        addMessage(message, 'user');
+        showTyping();
+        const resp = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sessionId, message })
+        });
+        hideTyping();
+        const data = await resp.json();
+        addMessage(data.response, data.filtered ? 'filtered' : 'assistant');
+        if (data.trace) renderSoloTrace(data.trace);
+        if (data.state) updateSoloState(data.state);
       } else {
-        addMessage(data.response, 'assistant');
+        if (!teamId) return;
+        addMessage(message, 'user');
+        showTyping();
+        const resp = await fetch('/api/team/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ teamId, message })
+        });
+        hideTyping();
+        const data = await resp.json();
+        if (data.error) {
+          addSystemMessage('Error: ' + data.error);
+          return;
+        }
+        addTeamMessage(data.response, data.agentResponses || []);
+        if (data.trace) renderTeamTrace(data.trace);
+        if (data.state) updateTeamState(data.state);
       }
-
-      if (data.trace) renderTrace(data.trace);
-      if (data.state) updateState(data.state);
     }
 
-    // --- Goals ---
+    // ========== GOALS ==========
     async function addGoal() {
       const input = document.getElementById('goal-input');
       const tier = document.getElementById('goal-tier').value;
       const description = input.value.trim();
       if (!description || !sessionId) return;
-
       input.value = '';
-
       const resp = await fetch('/api/goals', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sessionId, description, tier })
       });
-
       const data = await resp.json();
-      if (data.state) updateState(data.state);
+      if (data.state) updateSoloState(data.state);
       addSystemMessage(`Goal added: [${tier}] ${description}`);
     }
 
-    // --- UI Helpers ---
+    async function addTeamGoal() {
+      const input = document.getElementById('team-goal-input');
+      const description = input.value.trim();
+      if (!description || !teamId) return;
+      input.value = '';
+      const resp = await fetch('/api/team/goals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ teamId, description, priority: 0.7, createdBy: 'user' })
+      });
+      const data = await resp.json();
+      if (data.state) updateTeamState(data.state);
+      addSystemMessage(`Team goal added: ${description}`);
+    }
+
+    async function updateGoalProgress(goalId, progress) {
+      if (!teamId) return;
+      await fetch('/api/team/goals/' + goalId, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ teamId, progress })
+      });
+      refreshTeamState();
+    }
+
+    async function completeGoal(goalId) {
+      if (!teamId) return;
+      await fetch('/api/team/goals/' + goalId, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ teamId, status: 'completed', progress: 1 })
+      });
+      refreshTeamState();
+    }
+
+    async function abandonGoal(goalId) {
+      if (!teamId) return;
+      await fetch('/api/team/goals/' + goalId, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ teamId, status: 'abandoned' })
+      });
+      refreshTeamState();
+    }
+
+    async function refreshTeamState() {
+      if (!teamId) return;
+      const resp = await fetch('/api/team/state/' + teamId);
+      const state = await resp.json();
+      updateTeamState(state);
+    }
+
+    // ========== UI HELPERS ==========
     function addMessage(text, type) {
       const container = document.getElementById('chat-messages');
       const div = document.createElement('div');
@@ -654,8 +1201,49 @@
       container.scrollTop = container.scrollHeight;
     }
 
-    function addSystemMessage(text) {
-      addMessage(text, 'system');
+    function addSystemMessage(text) { addMessage(text, 'system'); }
+
+    function addTeamMessage(leaderResponse, agentResponses) {
+      const container = document.getElementById('chat-messages');
+      const div = document.createElement('div');
+      div.className = 'team-message';
+
+      const toggleId = 'toggle-' + Date.now();
+      const detailId = 'detail-' + Date.now();
+
+      let agentInputsHtml = '';
+      if (agentResponses.length > 0) {
+        agentInputsHtml = `
+          <div class="agent-inputs">
+            <div class="agent-input-toggle" onclick="document.getElementById('${detailId}').classList.toggle('open')">
+              &#9660; Show ${agentResponses.length} agent input(s)
+            </div>
+            <div class="agent-input-detail" id="${detailId}">
+              ${agentResponses.map(r => {
+                const p = personalities.find(x => x.archetype === r.personality);
+                return `<div class="agent-input-item">
+                  <div class="agent-label">${p?.emoji || ''} ${p?.name || r.personality} ${r.filtered ? '(FILTERED)' : ''}</div>
+                  ${r.response.slice(0, 400)}${r.response.length > 400 ? '...' : ''}
+                </div>`;
+              }).join('')}
+            </div>
+          </div>
+        `;
+      }
+
+      div.innerHTML = `
+        <div class="leader-response">${escapeHtml(leaderResponse)}</div>
+        ${agentInputsHtml}
+      `;
+
+      container.appendChild(div);
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
     }
 
     function showTyping() {
@@ -673,34 +1261,143 @@
       if (el) el.remove();
     }
 
-    function updateState(state) {
+    // ========== STATE UPDATES ==========
+    function updateSoloState(state) {
       if (!state) return;
-
-      // Agent info
       const p = state.personality;
       document.getElementById('agent-info').textContent = p ? `${p.emoji || ''} ${p.name} (${state.conversationLength || 0} turns)` : 'Unknown';
-
-      // Goals
       document.getElementById('goals-display').textContent = state.goals || 'No active goals.';
-
-      // Memory
       const mem = state.memory || {};
       document.getElementById('memory-bar').innerHTML = `
         <span class="mem-type semantic">Sem: ${mem.semantic || 0}</span>
         <span class="mem-type episodic">Epi: ${mem.episodic || 0}</span>
         <span class="mem-type procedural">Pro: ${mem.procedural || 0}</span>
       `;
-
-      // Meta
       const meta = state.meta || {};
       document.getElementById('meta-display').textContent =
         `Actions: ${meta.totalActions || 0} | Success: ${meta.successRate || 'N/A'} | Errors: ${(meta.recentErrors || []).length}`;
     }
 
-    function renderTrace(trace) {
+    function updateTeamState(state) {
+      if (!state) return;
+
+      // Update goals tab
+      renderTeamGoals(state.goals || []);
+
+      // Update roster tab
+      renderTeamRoster(state.agents || []);
+
+      // Update stats tab
+      renderTeamStats(state);
+    }
+
+    function renderTeamGoals(goals) {
+      const container = document.getElementById('team-goals-list');
+      if (goals.length === 0) {
+        container.innerHTML = '<div style="font-size:0.75rem;color:var(--text-dim);">No goals set. Add one below.</div>';
+        return;
+      }
+      container.innerHTML = goals.map(g => {
+        const statusClass = g.status === 'completed' ? 'completed' : g.status === 'abandoned' ? 'abandoned' : '';
+        return `
+          <div class="team-goal-item ${statusClass}">
+            <div class="goal-header-row">
+              <div class="goal-desc">${escapeHtml(g.description)}</div>
+              <span class="goal-priority">P: ${g.priority}</span>
+            </div>
+            <div class="goal-progress-bar">
+              <div class="goal-progress-fill" style="width:${Math.round(g.progress * 100)}%"></div>
+            </div>
+            <div class="goal-created-by">by ${g.createdBy} &middot; ${Math.round(g.progress * 100)}% &middot; ${g.status}</div>
+            ${g.status === 'active' ? `
+              <div class="goal-actions">
+                <button onclick="updateGoalProgress('${g.id}', ${Math.min(1, g.progress + 0.25)})">+25%</button>
+                <button onclick="completeGoal('${g.id}')" style="color:var(--success);">Done</button>
+                <button onclick="abandonGoal('${g.id}')" style="color:var(--danger);">Drop</button>
+              </div>
+            ` : ''}
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderTeamRoster(agents) {
+      const container = document.getElementById('team-roster-display');
+      container.innerHTML = agents.map(a => `
+        <div class="roster-agent" style="margin-bottom:8px;">
+          <span class="agent-emoji">${a.emoji}</span>
+          <div style="flex:1;">
+            <div style="font-weight:600;font-size:0.8rem;">${a.name}</div>
+            <div style="font-size:0.65rem;color:var(--text-dim);">
+              Msgs: ${a.stats?.messages || 0} | Contrib: ${a.stats?.contributions || 0}
+            </div>
+          </div>
+          <span class="agent-role ${a.role}">${a.role}</span>
+        </div>
+      `).join('');
+    }
+
+    function renderTeamStats(state) {
+      const stats = state.stats || {};
+
+      // Top stat cards
+      document.getElementById('stats-grid').innerHTML = `
+        <div class="stat-card"><div class="stat-value">${stats.totalMessages || 0}</div><div class="stat-label">Messages</div></div>
+        <div class="stat-card"><div class="stat-value">${stats.totalResponses || 0}</div><div class="stat-label">Responses</div></div>
+        <div class="stat-card"><div class="stat-value">${stats.completedGoals || 0}</div><div class="stat-label">Goals Done</div></div>
+        <div class="stat-card"><div class="stat-value">${stats.agentCount || 0}</div><div class="stat-label">Agents</div></div>
+      `;
+
+      // Contribution chart
+      const agents = state.agents || [];
+      const maxContrib = Math.max(1, ...agents.map(a => a.stats?.contributions || 0));
+      const colors = ['var(--accent)', 'var(--accent2)', 'var(--pink)', 'var(--warning)', 'var(--success)', 'var(--orange)'];
+
+      document.getElementById('contributions-chart').innerHTML = agents.map((a, i) => {
+        const contribs = a.stats?.contributions || 0;
+        const pct = Math.round((contribs / maxContrib) * 100);
+        const color = colors[i % colors.length];
+        return `
+          <div class="bar-row">
+            <div class="bar-label">${a.emoji} ${a.personality}</div>
+            <div class="bar-track">
+              <div class="bar-fill" style="width:${pct}%;background:${color};">${contribs}</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      // Memory chart
+      document.getElementById('memory-chart').innerHTML = agents.map((a, i) => {
+        const cog = a.cognitiveState || {};
+        const mem = cog.memory || {};
+        const total = (mem.semantic || 0) + (mem.episodic || 0) + (mem.procedural || 0);
+        const maxMem = Math.max(1, total);
+        return `
+          <div class="bar-row">
+            <div class="bar-label">${a.emoji} ${a.personality}</div>
+            <div class="bar-track">
+              <div style="display:flex;height:100%;width:100%;">
+                <div style="width:${(mem.semantic||0)/maxMem*100}%;background:#74b9ff;height:100%;border-radius:3px 0 0 3px;"></div>
+                <div style="width:${(mem.episodic||0)/maxMem*100}%;background:#a29bfe;height:100%;"></div>
+                <div style="width:${(mem.procedural||0)/maxMem*100}%;background:#55efc4;height:100%;border-radius:0 3px 3px 0;"></div>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('') + `
+        <div style="display:flex;gap:12px;margin-top:4px;font-size:0.65rem;">
+          <span style="color:#74b9ff;">&#9632; Semantic</span>
+          <span style="color:#a29bfe;">&#9632; Episodic</span>
+          <span style="color:#55efc4;">&#9632; Procedural</span>
+        </div>
+      `;
+    }
+
+    // ========== TRACE RENDERING ==========
+    function renderSoloTrace(trace) {
       const container = document.getElementById('trace-display');
       if (!trace?.steps) { container.textContent = 'No trace'; return; }
-
       container.innerHTML = trace.steps.map(s => {
         const cls = s.step === 'attention' && !s.process ? 'trace-step filtered' : 'trace-step';
         let details = '';
@@ -717,7 +1414,29 @@
       }).join('');
     }
 
-    // --- Boot ---
+    function renderTeamTrace(trace) {
+      const container = document.getElementById('team-trace-display');
+      if (!trace) { container.textContent = 'No trace'; return; }
+
+      const parts = [];
+      parts.push(`<div class="trace-step"><span class="step-name">user input</span><br>${escapeHtml(trace.userMessage || '')}</div>`);
+      parts.push(`<div class="trace-step"><span class="step-name">leadership style</span><br>${trace.leadershipStyle || 'unknown'}</div>`);
+
+      if (trace.agentResponses) {
+        for (const ar of trace.agentResponses) {
+          const p = personalities.find(x => x.archetype === ar.personality);
+          parts.push(`<div class="trace-step ${ar.filtered ? 'filtered' : ''}"><span class="step-name">agent: ${p?.emoji || ''} ${ar.personality}</span><br>${ar.responseLength} chars ${ar.filtered ? '(FILTERED)' : ''}</div>`);
+        }
+      }
+
+      if (trace.leaderSynthesis) {
+        parts.push(`<div class="trace-step" style="border-left-color:var(--warning);"><span class="step-name">leader synthesis</span><br>${trace.leaderSynthesis.responseLength} chars from ${trace.leaderSynthesis.agentsConsulted} agents</div>`);
+      }
+
+      container.innerHTML = parts.join('');
+    }
+
+    // ========== BOOT ==========
     init();
   </script>
 </body>

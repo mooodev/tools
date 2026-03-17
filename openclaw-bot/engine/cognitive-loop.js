@@ -318,6 +318,7 @@ class CognitiveLoop {
     if (style === 'direct') return "That's not relevant to our current focus. What else?";
     if (style === 'cautious') return "I've noted this but it doesn't seem to align with our active goals. Should I reconsider?";
     if (style === 'analytical') return `Filtered: ${attentionResult.reason}. Redirecting focus to active goals.`;
+    if (style === 'silly') return "Ooh wait what? I got distracted by a butterfly... or was it a thought? Anyway, what were we doing again? Something about goals probably!";
     return "I'm staying focused on the current objectives. Is this related to our goals?";
   }
 }
