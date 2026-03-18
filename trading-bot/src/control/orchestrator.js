@@ -3,7 +3,7 @@
  * Calls Python for LightGBM training/prediction via child_process.
  */
 
-const { spawn } = require("child_process");
+const { spawn, execSync } = require("child_process");
 const path = require("path");
 const fs = require("fs");
 const { config } = require("../config");
@@ -16,6 +16,7 @@ class Orchestrator {
     this.state = {
       status: "idle",
       lastFetch: null,
+      lastFeatures: null,
       lastTrain: null,
       lastDecay: null,
       trainResult: null,
@@ -76,7 +77,11 @@ class Orchestrator {
     });
 
     const stats = exportTrainingData(processed);
-    return stats ? { success: true, ...stats } : { success: false, error: "No valid features produced" };
+    if (stats) {
+      this._emit({ lastFeatures: new Date().toISOString() });
+      return { success: true, ...stats };
+    }
+    return { success: false, error: "No valid features produced" };
   }
 
   // ─── LightGBM Training (via Python) ─────────────────────────────
@@ -176,10 +181,53 @@ class Orchestrator {
 
   // ─── Python Bridge ──────────────────────────────────────────────
 
+  _getVenvPython() {
+    const projectRoot = path.join(config.PYTHON_DIR, "..", "..");
+    const venvDir = path.join(projectRoot, "venv");
+    const venvPython = path.join(venvDir, "bin", "python3");
+
+    if (fs.existsSync(venvPython)) return venvPython;
+    return null;
+  }
+
+  async _ensurePythonDeps() {
+    const projectRoot = path.join(config.PYTHON_DIR, "..", "..");
+    const venvDir = path.join(projectRoot, "venv");
+    const venvPython = path.join(venvDir, "bin", "python3");
+
+    if (!fs.existsSync(venvPython)) {
+      this._emit({ trainLog: "Creating Python virtual environment..." });
+      execSync("python3 -m venv venv", { cwd: projectRoot, stdio: "pipe" });
+    }
+
+    // Check if numpy is importable (quick test for deps)
+    try {
+      execSync(`${venvPython} -c "import numpy, pandas, lightgbm, sklearn"`, {
+        cwd: projectRoot,
+        stdio: "pipe",
+      });
+    } catch {
+      this._emit({ trainLog: "Installing Python dependencies (numpy, pandas, lightgbm, scikit-learn)..." });
+      execSync(
+        `${path.join(venvDir, "bin", "pip")} install lightgbm pandas numpy scikit-learn`,
+        { cwd: projectRoot, stdio: "pipe", timeout: 120000 }
+      );
+      this._emit({ trainLog: "Python dependencies installed." });
+    }
+  }
+
   _runPython(command, args = []) {
-    return new Promise((resolve, reject) => {
+    return new Promise(async (resolve, reject) => {
+      try {
+        await this._ensurePythonDeps();
+      } catch (err) {
+        reject(new Error(`Failed to set up Python environment: ${err.message}`));
+        return;
+      }
+
+      const pythonBin = this._getVenvPython() || "python3";
       const scriptPath = path.join(config.PYTHON_DIR, "trainer.py");
-      const proc = spawn("python3", [scriptPath, command, ...args], {
+      const proc = spawn(pythonBin, [scriptPath, command, ...args], {
         cwd: config.PYTHON_DIR,
         env: { ...process.env },
       });
