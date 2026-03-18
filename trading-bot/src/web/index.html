@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EMH Trading Bot — Pattern Decay Dashboard</title>
+  <style>
+    :root {
+      --bg: #0a0a0f;
+      --surface: #12121a;
+      --surface2: #1a1a25;
+      --border: #2a2a3a;
+      --text: #e0e0e8;
+      --text-dim: #8888a0;
+      --accent: #6c5ce7;
+      --accent2: #00cec9;
+      --green: #00b894;
+      --red: #ff6b6b;
+      --orange: #fdcb6e;
+      --blue: #74b9ff;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    .header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .header h1 {
+      font-size: 16px;
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    .header .status {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--text-dim);
+    }
+
+    .status-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+    }
+    .status-dot.busy { background: var(--orange); animation: pulse 1s ease-in-out infinite; }
+    .status-dot.error { background: var(--red); }
+
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+    .tabs {
+      display: flex;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 16px;
+    }
+
+    .tab {
+      padding: 10px 20px;
+      font-size: 12px;
+      color: var(--text-dim);
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all 0.2s;
+    }
+    .tab:hover { color: var(--text); }
+    .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+    .content {
+      padding: 20px;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    .panel { display: none; }
+    .panel.active { display: block; }
+
+    .grid { display: grid; gap: 16px; }
+    .grid-2 { grid-template-columns: 1fr 1fr; }
+    .grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+    }
+
+    .card h3 {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-dim);
+      margin-bottom: 12px;
+    }
+
+    .metric {
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--accent2);
+    }
+    .metric.small { font-size: 18px; }
+    .metric-label { font-size: 10px; color: var(--text-dim); margin-top: 4px; }
+
+    button {
+      background: var(--accent);
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-family: inherit;
+      font-size: 12px;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    button:hover { opacity: 0.85; }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    button.secondary { background: var(--surface2); border: 1px solid var(--border); }
+    button.danger { background: var(--red); }
+    button.success { background: var(--green); }
+
+    .btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+
+    input, select {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 6px 10px;
+      border-radius: 4px;
+      font-family: inherit;
+      font-size: 12px;
+      width: 100%;
+    }
+
+    .form-row {
+      display: flex; gap: 12px; align-items: end; margin-bottom: 12px;
+    }
+    .form-group { flex: 1; }
+    .form-group label {
+      display: block; font-size: 10px; color: var(--text-dim);
+      margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    th, td {
+      text-align: left;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    th {
+      color: var(--text-dim);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .bar-container {
+      background: var(--surface2);
+      border-radius: 3px;
+      height: 14px;
+      position: relative;
+      overflow: hidden;
+    }
+    .bar-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.3s;
+    }
+
+    .tag {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 10px;
+      font-weight: 600;
+    }
+    .tag.emerging { background: rgba(0,184,148,0.2); color: var(--green); }
+    .tag.stable { background: rgba(116,185,255,0.2); color: var(--blue); }
+    .tag.traded_out { background: rgba(255,107,107,0.2); color: var(--red); }
+    .tag.weak { background: rgba(253,203,110,0.2); color: var(--orange); }
+    .tag.unknown { background: rgba(136,136,160,0.2); color: var(--text-dim); }
+
+    .log-box {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 12px;
+      font-size: 11px;
+      max-height: 300px;
+      overflow-y: auto;
+      line-height: 1.6;
+      color: var(--text-dim);
+    }
+    .log-box .log-line { white-space: pre-wrap; word-break: break-all; }
+    .log-box .log-info { color: var(--blue); }
+    .log-box .log-success { color: var(--green); }
+    .log-box .log-error { color: var(--red); }
+
+    .freshness-meter {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .freshness-bar {
+      flex: 1;
+      height: 6px;
+      background: var(--surface2);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .freshness-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.5s, background 0.5s;
+    }
+
+    .regime-badge {
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 600;
+      display: inline-block;
+    }
+    .regime-badge.patterns_emerging { background: rgba(0,184,148,0.2); color: var(--green); }
+    .regime-badge.patterns_decaying { background: rgba(255,107,107,0.2); color: var(--red); }
+    .regime-badge.stable { background: rgba(116,185,255,0.2); color: var(--blue); }
+
+    @media (max-width: 900px) {
+      .grid-2, .grid-3 { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <h1>EMH TRADING BOT</h1>
+  <span style="font-size:11px;color:var(--text-dim)">Pattern Decay Dashboard</span>
+  <div class="status">
+    <div class="status-dot" id="statusDot"></div>
+    <span id="statusText">idle</span>
+  </div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" data-tab="control">Control</div>
+  <div class="tab" data-tab="config">Config</div>
+  <div class="tab" data-tab="training">Training</div>
+  <div class="tab" data-tab="decay">Pattern Decay</div>
+  <div class="tab" data-tab="logs">Logs</div>
+</div>
+
+<div class="content">
+
+  <!-- ═══ CONTROL PANEL ═══ -->
+  <div class="panel active" id="panel-control">
+    <div class="grid grid-3" style="margin-bottom:16px">
+      <div class="card">
+        <h3>Pipeline Actions</h3>
+        <div class="btn-row" style="flex-direction:column;gap:8px">
+          <button onclick="api('fetch')" id="btnFetch">1. Fetch 72h Data</button>
+          <button onclick="api('features')" id="btnFeatures" class="secondary">2. Engineer Features</button>
+          <button onclick="api('train')" id="btnTrain" class="secondary">3. Train LightGBM</button>
+          <button onclick="api('decay')" id="btnDecay" class="secondary">4. Analyze Decay</button>
+          <hr style="border-color:var(--border);width:100%">
+          <button onclick="api('pipeline')" class="success">Run Full Pipeline</button>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Data Status</h3>
+        <div id="dataStatus">
+          <p style="color:var(--text-dim);font-size:12px">No data loaded</p>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Model Status</h3>
+        <div id="modelStatus">
+          <p style="color:var(--text-dim);font-size:12px">No model trained</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid grid-2">
+      <div class="card">
+        <h3>Quick Metrics</h3>
+        <div class="grid grid-2" id="quickMetrics" style="gap:12px">
+          <div><div class="metric small" id="mAccuracy">—</div><div class="metric-label">Accuracy</div></div>
+          <div><div class="metric small" id="mAuc">—</div><div class="metric-label">AUC-ROC</div></div>
+          <div><div class="metric small" id="mPrecision">—</div><div class="metric-label">Precision</div></div>
+          <div><div class="metric small" id="mF1">—</div><div class="metric-label">F1 Score</div></div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Market Regime</h3>
+        <div id="regimeDisplay" style="text-align:center;padding:20px">
+          <div class="regime-badge stable" id="regimeBadge">UNKNOWN</div>
+          <div class="metric-label" style="margin-top:12px" id="regimeDetail">Run decay analysis to detect regime</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ CONFIG PANEL ═══ -->
+  <div class="panel" id="panel-config">
+    <div class="card" style="margin-bottom:16px">
+      <h3>Candle Timeframe</h3>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Candle Minutes</label>
+          <select id="cfgTimeframe">
+            <option value="5">5 min</option>
+            <option value="15" selected>15 min</option>
+            <option value="30">30 min</option>
+            <option value="60">1 hour</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Fetch Hours</label>
+          <input type="number" id="cfgFetchHours" value="72">
+        </div>
+        <div class="form-group">
+          <label>Max Tokens</label>
+          <input type="number" id="cfgMaxTokens" value="100">
+        </div>
+        <div class="form-group" style="flex:0">
+          <label>&nbsp;</label>
+          <button onclick="saveConfig()">Apply</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid grid-2">
+      <div class="card">
+        <h3>ML Parameters</h3>
+        <div class="form-row"><div class="form-group"><label>Prediction Horizon (candles)</label><input type="number" id="cfgHorizon" value="4"></div></div>
+        <div class="form-row"><div class="form-group"><label>Growth Threshold (%)</label><input type="number" id="cfgThreshold" value="5" step="0.5"></div></div>
+        <div class="form-row"><div class="form-group"><label>LightGBM Num Leaves</label><input type="number" id="cfgNumLeaves" value="31"></div></div>
+        <div class="form-row"><div class="form-group"><label>Learning Rate</label><input type="number" id="cfgLR" value="0.05" step="0.01"></div></div>
+        <div class="form-row"><div class="form-group"><label>N Estimators</label><input type="number" id="cfgEstimators" value="500"></div></div>
+        <div class="form-row"><div class="form-group"><label>Early Stopping Rounds</label><input type="number" id="cfgEarlyStopping" value="50"></div></div>
+      </div>
+      <div class="card">
+        <h3>EMH / Pattern Decay</h3>
+        <div class="form-row"><div class="form-group"><label>Decay Window (hours)</label><input type="number" id="cfgDecayWindow" value="12"></div></div>
+        <div class="form-row"><div class="form-group"><label>Min Windows for Decay</label><input type="number" id="cfgMinWindows" value="3"></div></div>
+        <div class="form-row"><div class="form-group"><label>Alpha Decay Threshold</label><input type="number" id="cfgAlphaThreshold" value="0.3" step="0.05"></div></div>
+        <div class="form-row"><div class="form-group"><label>Freshness Lookback</label><input type="number" id="cfgFreshnessLookback" value="6"></div></div>
+        <div class="form-row"><div class="form-group"><label>Min Volume 24h ($)</label><input type="number" id="cfgMinVolume" value="10000"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ TRAINING PANEL ═══ -->
+  <div class="panel" id="panel-training">
+    <div class="grid grid-2" style="margin-bottom:16px">
+      <div class="card">
+        <h3>Feature Importance (Top 20)</h3>
+        <table id="featureTable">
+          <thead><tr><th>Feature</th><th>Importance</th><th style="width:40%">Bar</th></tr></thead>
+          <tbody id="featureTableBody"><tr><td colspan="3" style="color:var(--text-dim)">Train a model first</td></tr></tbody>
+        </table>
+      </div>
+      <div class="card">
+        <h3>Confusion Matrix</h3>
+        <div id="confusionMatrix" style="font-size:14px;padding:20px;text-align:center">
+          <p style="color:var(--text-dim)">Train a model to see results</p>
+        </div>
+        <h3 style="margin-top:24px">Class Distribution</h3>
+        <div id="classDistribution" style="padding:12px">—</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Training Details</h3>
+      <div id="trainDetails" style="font-size:12px;color:var(--text-dim)">No training results yet</div>
+    </div>
+  </div>
+
+  <!-- ═══ PATTERN DECAY PANEL ═══ -->
+  <div class="panel" id="panel-decay">
+    <div class="grid grid-3" style="margin-bottom:16px">
+      <div class="card">
+        <h3>Emerging Patterns</h3>
+        <div id="emergingList"><p style="color:var(--text-dim);font-size:12px">Run decay analysis</p></div>
+      </div>
+      <div class="card">
+        <h3>Stable Patterns</h3>
+        <div id="stableList"><p style="color:var(--text-dim);font-size:12px">Run decay analysis</p></div>
+      </div>
+      <div class="card">
+        <h3>Traded-Out Patterns</h3>
+        <div id="tradedOutList"><p style="color:var(--text-dim);font-size:12px">Run decay analysis</p></div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:16px">
+      <h3>Feature Freshness Rankings</h3>
+      <table id="freshnessTable">
+        <thead><tr><th>Feature</th><th>Freshness</th><th style="width:30%">Freshness Bar</th><th>Status</th><th>Decay Rate</th><th>Trend</th></tr></thead>
+        <tbody id="freshnessTableBody"><tr><td colspan="6" style="color:var(--text-dim)">Run decay analysis first</td></tr></tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h3>Window AUC Over Time</h3>
+      <div id="aucTimeline" style="height:120px;position:relative;overflow:hidden">
+        <canvas id="aucCanvas" style="width:100%;height:100%"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ LOGS PANEL ═══ -->
+  <div class="panel" id="panel-logs">
+    <div class="card">
+      <h3>Live Logs</h3>
+      <div class="log-box" id="logBox"></div>
+      <div style="margin-top:8px">
+        <button onclick="document.getElementById('logBox').innerHTML=''" class="secondary">Clear</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let currentTab = 'control';
+const logs = [];
+
+// ─── Tabs ─────────────────────────────────────────────────────────
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    currentTab = tab.dataset.tab;
+    $('panel-' + currentTab).classList.add('active');
+  });
+});
+
+// ─── SSE ──────────────────────────────────────────────────────────
+const evtSource = new EventSource('/api/events');
+evtSource.onmessage = (e) => {
+  try {
+    const state = JSON.parse(e.data);
+    updateStatus(state);
+  } catch {}
+};
+
+function updateStatus(state) {
+  const dot = $('statusDot');
+  const text = $('statusText');
+  text.textContent = state.status || 'idle';
+
+  dot.className = 'status-dot';
+  if (['fetching', 'training', 'analyzing_decay'].includes(state.status)) {
+    dot.classList.add('busy');
+  } else if (state.status === 'error') {
+    dot.classList.add('error');
+  }
+
+  if (state.trainLog) {
+    addLog(state.trainLog, 'info');
+  }
+  if (state.error) {
+    addLog('ERROR: ' + state.error, 'error');
+  }
+  if (state.fetchProgress) {
+    const fp = state.fetchProgress;
+    if (fp.phase === 'tokens') addLog(`Fetched ${fp.count}/${fp.total} tokens`, 'info');
+    if (fp.phase === 'candles') addLog(`Processing token ${fp.current}/${fp.total}: ${(fp.mint||'').slice(0,12)}`, 'info');
+    if (fp.phase === 'done') addLog(`Fetch complete: ${fp.tokens} tokens`, 'success');
+  }
+}
+
+function addLog(msg, type = '') {
+  const box = $('logBox');
+  const line = document.createElement('div');
+  line.className = 'log-line' + (type ? ' log-' + type : '');
+  line.textContent = new Date().toLocaleTimeString() + '  ' + msg;
+  box.appendChild(line);
+  box.scrollTop = box.scrollHeight;
+}
+
+// ─── API Calls ────────────────────────────────────────────────────
+async function api(endpoint, body) {
+  addLog(`Starting ${endpoint}...`, 'info');
+  try {
+    const res = await fetch('/api/' + endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const data = await res.json();
+    if (data.success === false) {
+      addLog(`${endpoint} failed: ${data.error}`, 'error');
+    } else {
+      addLog(`${endpoint} completed`, 'success');
+    }
+    refreshAll();
+    return data;
+  } catch (err) {
+    addLog(`${endpoint} error: ${err.message}`, 'error');
+  }
+}
+
+// ─── Config ───────────────────────────────────────────────────────
+async function loadConfig() {
+  const res = await fetch('/api/config');
+  const cfg = await res.json();
+  $('cfgTimeframe').value = cfg.CANDLE_MINUTES || 15;
+  $('cfgFetchHours').value = cfg.FETCH_HOURS || 72;
+  $('cfgMaxTokens').value = cfg.MAX_TOKENS_TO_FETCH || 100;
+  $('cfgHorizon').value = cfg.PREDICTION_HORIZON || 4;
+  $('cfgThreshold').value = (cfg.GROWTH_THRESHOLD || 0.05) * 100;
+  $('cfgNumLeaves').value = cfg.LGBM_NUM_LEAVES || 31;
+  $('cfgLR').value = cfg.LGBM_LEARNING_RATE || 0.05;
+  $('cfgEstimators').value = cfg.LGBM_N_ESTIMATORS || 500;
+  $('cfgEarlyStopping').value = cfg.LGBM_EARLY_STOPPING_ROUNDS || 50;
+  $('cfgDecayWindow').value = cfg.DECAY_WINDOW_HOURS || 12;
+  $('cfgMinWindows').value = cfg.DECAY_MIN_WINDOWS || 3;
+  $('cfgAlphaThreshold').value = cfg.ALPHA_DECAY_THRESHOLD || 0.3;
+  $('cfgFreshnessLookback').value = cfg.FRESHNESS_LOOKBACK_WINDOWS || 6;
+  $('cfgMinVolume').value = cfg.MIN_VOLUME_24H || 10000;
+}
+
+async function saveConfig() {
+  const body = {
+    CANDLE_MINUTES: parseInt($('cfgTimeframe').value),
+    FETCH_HOURS: parseInt($('cfgFetchHours').value),
+    MAX_TOKENS_TO_FETCH: parseInt($('cfgMaxTokens').value),
+    PREDICTION_HORIZON: parseInt($('cfgHorizon').value),
+    GROWTH_THRESHOLD: parseFloat($('cfgThreshold').value) / 100,
+    LGBM_NUM_LEAVES: parseInt($('cfgNumLeaves').value),
+    LGBM_LEARNING_RATE: parseFloat($('cfgLR').value),
+    LGBM_N_ESTIMATORS: parseInt($('cfgEstimators').value),
+    LGBM_EARLY_STOPPING_ROUNDS: parseInt($('cfgEarlyStopping').value),
+    DECAY_WINDOW_HOURS: parseInt($('cfgDecayWindow').value),
+    DECAY_MIN_WINDOWS: parseInt($('cfgMinWindows').value),
+    ALPHA_DECAY_THRESHOLD: parseFloat($('cfgAlphaThreshold').value),
+    FRESHNESS_LOOKBACK_WINDOWS: parseInt($('cfgFreshnessLookback').value),
+    MIN_VOLUME_24H: parseInt($('cfgMinVolume').value),
+  };
+  await fetch('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  addLog('Config updated', 'success');
+}
+
+// ─── Data Refresh ─────────────────────────────────────────────────
+async function refreshAll() {
+  await Promise.all([refreshDataStatus(), refreshTrainResult(), refreshDecayResult()]);
+}
+
+async function refreshDataStatus() {
+  try {
+    const [rawRes, featRes] = await Promise.all([
+      fetch('/api/raw-data').then(r => r.json()),
+      fetch('/api/features-stats').then(r => r.json()),
+    ]);
+
+    let html = '';
+    if (rawRes && rawRes.tokens) {
+      html += `<div style="margin-bottom:8px"><span style="color:var(--accent2);font-size:16px;font-weight:700">${rawRes.tokens.length}</span> <span style="font-size:11px;color:var(--text-dim)">tokens fetched</span></div>`;
+      html += `<div style="font-size:10px;color:var(--text-dim)">At ${rawRes.fetchedAt || '—'}</div>`;
+    }
+    if (featRes) {
+      html += `<div style="margin-top:8px"><span style="color:var(--accent2);font-size:16px;font-weight:700">${featRes.totalSamples}</span> <span style="font-size:11px;color:var(--text-dim)">samples</span></div>`;
+      html += `<div style="font-size:10px;color:var(--text-dim)">${featRes.features} features | ${featRes.positiveRate} positive</div>`;
+    }
+    $('dataStatus').innerHTML = html || '<p style="color:var(--text-dim);font-size:12px">No data loaded</p>';
+  } catch {}
+}
+
+async function refreshTrainResult() {
+  try {
+    const result = await fetch('/api/train-result').then(r => r.json());
+    if (!result) return;
+
+    const m = result.metrics;
+    if (m) {
+      $('mAccuracy').textContent = (m.accuracy * 100).toFixed(1) + '%';
+      $('mAuc').textContent = m.auc.toFixed(3);
+      $('mPrecision').textContent = (m.precision * 100).toFixed(1) + '%';
+      $('mF1').textContent = m.f1.toFixed(3);
+
+      // Color coding
+      $('mAuc').style.color = m.auc > 0.6 ? 'var(--green)' : m.auc > 0.5 ? 'var(--orange)' : 'var(--red)';
+
+      // Confusion matrix
+      if (m.confusion_matrix) {
+        const cm = m.confusion_matrix;
+        $('confusionMatrix').innerHTML = `
+          <table style="margin:0 auto;width:auto">
+            <tr><td></td><th style="text-align:center">Pred 0</th><th style="text-align:center">Pred 1</th></tr>
+            <tr><th>Actual 0</th><td style="background:rgba(0,206,201,0.15);text-align:center;padding:12px 24px;font-weight:700">${cm[0][0]}</td>
+                <td style="background:rgba(255,107,107,0.15);text-align:center;padding:12px 24px">${cm[0][1]}</td></tr>
+            <tr><th>Actual 1</th><td style="background:rgba(255,107,107,0.15);text-align:center;padding:12px 24px">${cm[1][0]}</td>
+                <td style="background:rgba(0,184,148,0.15);text-align:center;padding:12px 24px;font-weight:700">${cm[1][1]}</td></tr>
+          </table>`;
+      }
+
+      // Class distribution
+      if (m.class_balance) {
+        const total = m.class_balance.positive + m.class_balance.negative;
+        const posW = (m.class_balance.positive / total * 100).toFixed(1);
+        $('classDistribution').innerHTML = `
+          <div style="display:flex;gap:16px;font-size:12px">
+            <div>Negative: <strong>${m.class_balance.negative}</strong> (${(100-posW).toFixed(1)}%)</div>
+            <div>Positive: <strong>${m.class_balance.positive}</strong> (${posW}%)</div>
+          </div>
+          <div class="bar-container" style="margin-top:8px;height:20px">
+            <div class="bar-fill" style="width:${posW}%;background:var(--green)"></div>
+          </div>`;
+      }
+
+      // Model status card
+      $('modelStatus').innerHTML = `
+        <div class="metric small" style="color:var(--green)">${m.auc.toFixed(3)}</div>
+        <div class="metric-label">AUC-ROC</div>
+        <div style="margin-top:8px;font-size:11px;color:var(--text-dim)">
+          Best iter: ${m.best_iteration}<br>
+          Samples: ${m.samples.train}/${m.samples.val}/${m.samples.test}
+        </div>`;
+    }
+
+    // Feature importance table
+    if (result.feature_importance) {
+      const top20 = result.feature_importance.slice(0, 20);
+      const maxImp = top20[0]?.importance || 1;
+      let tbody = '';
+      for (const f of top20) {
+        const pct = (f.importance / maxImp * 100).toFixed(0);
+        tbody += `<tr>
+          <td style="font-size:11px">${f.name}</td>
+          <td style="font-size:11px">${(f.importance * 100).toFixed(2)}%</td>
+          <td><div class="bar-container"><div class="bar-fill" style="width:${pct}%;background:var(--accent)"></div></div></td>
+        </tr>`;
+      }
+      $('featureTableBody').innerHTML = tbody;
+    }
+
+    // Training details
+    $('trainDetails').innerHTML = `<pre style="white-space:pre-wrap">${JSON.stringify(result.params, null, 2)}</pre>`;
+  } catch {}
+}
+
+async function refreshDecayResult() {
+  try {
+    const result = await fetch('/api/decay-result').then(r => r.json());
+    if (!result || result.error) return;
+
+    // Regime badge
+    const badge = $('regimeBadge');
+    badge.textContent = (result.regime || 'unknown').replace(/_/g, ' ').toUpperCase();
+    badge.className = 'regime-badge ' + (result.regime || 'stable');
+    $('regimeDetail').textContent = `AUC trend: ${result.regime_trend >= 0 ? '+' : ''}${(result.regime_trend * 100).toFixed(2)}% | ${result.windows_analyzed} windows analyzed`;
+
+    // Emerging/stable/traded-out lists
+    renderFeatureList($('emergingList'), result.emerging_features, 'emerging');
+    renderFeatureList($('tradedOutList'), result.traded_out_features, 'traded_out');
+
+    // Stable features
+    const stableFeatures = result.freshest_features.filter(f => f.status === 'stable');
+    renderFeatureList($('stableList'), stableFeatures, 'stable');
+
+    // Freshness table
+    if (result.feature_decay) {
+      const entries = Object.entries(result.feature_decay).sort((a, b) => b[1].freshness_score - a[1].freshness_score);
+      let tbody = '';
+      for (const [name, data] of entries) {
+        const freshPct = (data.freshness_score * 100).toFixed(0);
+        const freshColor = data.freshness_score > 0.7 ? 'var(--green)' :
+                           data.freshness_score > 0.4 ? 'var(--orange)' : 'var(--red)';
+        const trendArrow = data.trend > 0.001 ? '&#9650;' : data.trend < -0.001 ? '&#9660;' : '&#9644;';
+        const trendColor = data.trend > 0.001 ? 'var(--green)' : data.trend < -0.001 ? 'var(--red)' : 'var(--text-dim)';
+
+        tbody += `<tr>
+          <td style="font-size:11px">${name}</td>
+          <td style="font-size:11px">${freshPct}%</td>
+          <td><div class="freshness-bar"><div class="freshness-fill" style="width:${freshPct}%;background:${freshColor}"></div></div></td>
+          <td><span class="tag ${data.status}">${data.status.replace(/_/g, ' ')}</span></td>
+          <td style="font-size:11px">${(data.decay_rate * 100).toFixed(1)}%</td>
+          <td style="color:${trendColor}">${trendArrow}</td>
+        </tr>`;
+      }
+      $('freshnessTableBody').innerHTML = tbody;
+    }
+
+    // AUC timeline
+    if (result.window_metrics && result.window_metrics.length > 0) {
+      drawAucTimeline(result.window_metrics);
+    }
+  } catch {}
+}
+
+function renderFeatureList(el, features, status) {
+  if (!features || features.length === 0) {
+    el.innerHTML = `<p style="color:var(--text-dim);font-size:12px">None</p>`;
+    return;
+  }
+  el.innerHTML = features.slice(0, 8).map(f =>
+    `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--border)">
+      <span style="font-size:11px">${f.name}</span>
+      <span class="tag ${status}">${(f.freshness * 100).toFixed(0)}%</span>
+    </div>`
+  ).join('');
+}
+
+function drawAucTimeline(metrics) {
+  const canvas = $('aucCanvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = canvas.offsetWidth * 2;
+  canvas.height = canvas.offsetHeight * 2;
+  ctx.scale(2, 2);
+
+  const w = canvas.offsetWidth;
+  const h = canvas.offsetHeight;
+  const pad = { t: 10, r: 10, b: 20, l: 35 };
+
+  ctx.clearRect(0, 0, w, h);
+
+  const aucs = metrics.map(m => m.auc);
+  const minAuc = Math.min(...aucs) - 0.02;
+  const maxAuc = Math.max(...aucs) + 0.02;
+
+  // Grid
+  ctx.strokeStyle = 'rgba(42,42,58,0.5)';
+  ctx.lineWidth = 0.5;
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.t + (h - pad.t - pad.b) * i / 4;
+    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(w - pad.r, y); ctx.stroke();
+    ctx.fillStyle = '#8888a0';
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText((maxAuc - (maxAuc - minAuc) * i / 4).toFixed(2), pad.l - 4, y + 3);
+  }
+
+  // AUC line
+  ctx.strokeStyle = '#6c5ce7';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let i = 0; i < aucs.length; i++) {
+    const x = pad.l + (w - pad.l - pad.r) * i / (aucs.length - 1);
+    const y = pad.t + (h - pad.t - pad.b) * (1 - (aucs[i] - minAuc) / (maxAuc - minAuc));
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+
+  // 0.5 reference line
+  if (minAuc < 0.5 && maxAuc > 0.5) {
+    const y = pad.t + (h - pad.t - pad.b) * (1 - (0.5 - minAuc) / (maxAuc - minAuc));
+    ctx.strokeStyle = 'rgba(255,107,107,0.4)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(w - pad.r, y); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // Points
+  for (let i = 0; i < aucs.length; i++) {
+    const x = pad.l + (w - pad.l - pad.r) * i / (aucs.length - 1);
+    const y = pad.t + (h - pad.t - pad.b) * (1 - (aucs[i] - minAuc) / (maxAuc - minAuc));
+    ctx.fillStyle = aucs[i] > 0.55 ? '#00b894' : aucs[i] > 0.5 ? '#fdcb6e' : '#ff6b6b';
+    ctx.beginPath(); ctx.arc(x, y, 3, 0, Math.PI * 2); ctx.fill();
+  }
+}
+
+// ─── Init ─────────────────────────────────────────────────────────
+loadConfig();
+refreshAll();
+setInterval(refreshAll, 10000);
+</script>
+
+</body>
+</html>

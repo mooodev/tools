@@ -1,0 +1,19 @@
+{
+  "name": "trading-bot",
+  "version": "1.0.0",
+  "description": "EMH-aware trading bot for pump.fun tokens - finds fresh patterns, detects alpha decay",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "fetch": "node src/index.js fetch",
+    "train": "node src/index.js train",
+    "predict": "node src/index.js predict",
+    "backtest": "node src/index.js backtest",
+    "decay": "node src/index.js decay",
+    "dashboard": "node src/index.js dashboard",
+    "setup-python": "pip install lightgbm pandas numpy scikit-learn matplotlib"
+  },
+  "dependencies": {
+    "express": "^4.22.1"
+  }
+}
