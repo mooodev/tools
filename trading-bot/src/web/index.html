@@ -133,6 +133,8 @@
     button.secondary { background: var(--surface2); border: 1px solid var(--border); }
     button.danger { background: var(--red); }
     button.success { background: var(--green); }
+    button.step-done { background: var(--green); opacity: 0.85; }
+    button.step-running { background: var(--orange); animation: pulse 1s ease-in-out infinite; }
 
     .btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
 
@@ -445,6 +447,20 @@ const $ = id => document.getElementById(id);
 let currentTab = 'control';
 const logs = [];
 
+// Map pipeline steps to their button IDs and status-to-step mapping
+const stepButtons = {
+  fetch: 'btnFetch',
+  features: 'btnFeatures',
+  train: 'btnTrain',
+  decay: 'btnDecay',
+};
+const statusToStep = {
+  fetching: 'fetch',
+  training: 'train',
+  analyzing_decay: 'decay',
+};
+const completedSteps = new Set();
+
 // ─── Tabs ─────────────────────────────────────────────────────────
 document.querySelectorAll('.tab').forEach(tab => {
   tab.addEventListener('click', () => {
@@ -477,6 +493,25 @@ function updateStatus(state) {
     dot.classList.add('error');
   }
 
+  // Update pipeline step button colors
+  // Clear running state from all buttons first
+  for (const btnId of Object.values(stepButtons)) {
+    const btn = $(btnId);
+    if (btn) btn.classList.remove('step-running');
+  }
+  // Mark the currently running step
+  const runningStep = statusToStep[state.status];
+  if (runningStep && stepButtons[runningStep]) {
+    const btn = $(stepButtons[runningStep]);
+    if (btn) btn.classList.add('step-running');
+  }
+
+  // Track completed steps based on state timestamps
+  if (state.lastFetch) markStepDone('fetch');
+  if (state.lastFeatures) markStepDone('features');
+  if (state.lastTrain) markStepDone('train');
+  if (state.lastDecay) markStepDone('decay');
+
   if (state.trainLog) {
     addLog(state.trainLog, 'info');
   }
@@ -488,6 +523,18 @@ function updateStatus(state) {
     if (fp.phase === 'tokens') addLog(`Fetched ${fp.count}/${fp.total} tokens`, 'info');
     if (fp.phase === 'candles') addLog(`Processing token ${fp.current}/${fp.total}: ${(fp.mint||'').slice(0,12)}`, 'info');
     if (fp.phase === 'done') addLog(`Fetch complete: ${fp.tokens} tokens`, 'success');
+  }
+}
+
+function markStepDone(step) {
+  completedSteps.add(step);
+  const btnId = stepButtons[step];
+  if (btnId) {
+    const btn = $(btnId);
+    if (btn) {
+      btn.classList.remove('secondary', 'step-running');
+      btn.classList.add('step-done');
+    }
   }
 }
 
@@ -514,6 +561,7 @@ async function api(endpoint, body) {
       addLog(`${endpoint} failed: ${data.error}`, 'error');
     } else {
       addLog(`${endpoint} completed`, 'success');
+      if (stepButtons[endpoint]) markStepDone(endpoint);
     }
     refreshAll();
     return data;
