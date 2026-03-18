@@ -1,0 +1,7 @@
+node_modules/
+/data/
+models/*.lgbm
+models/*.json
+!models/.gitkeep
+__pycache__/
+*.pyc
