@@ -16,9 +16,22 @@ Usage:
 import sys
 import json
 import os
+import platform
 import numpy as np
 import pandas as pd
-import lightgbm as lgb
+
+try:
+    import lightgbm as lgb
+except OSError as e:
+    if "libomp" in str(e) and platform.system() == "Darwin":
+        print(json.dumps({
+            "error": "LightGBM requires OpenMP (libomp) on macOS. "
+                     "Fix: run 'brew install libomp' then retry.",
+            "fix_command": "brew install libomp",
+        }))
+        sys.exit(1)
+    raise
+
 from sklearn.model_selection import TimeSeriesSplit
 from sklearn.metrics import (
     accuracy_score, precision_score, recall_score, f1_score,
@@ -168,6 +181,69 @@ def predict(csv_path, model_path):
         })
 
     return {"predictions": results, "total": len(results)}
+
+
+def screen(csv_path, model_path, threshold=0.5, top_n=20):
+    """
+    Screen tokens: predict on latest data per token and rank by probability.
+    Returns ranked list of tokens with BUY/HOLD/AVOID signals.
+    """
+    df = pd.read_csv(csv_path)
+    feature_cols = [c for c in df.columns if c not in ("label", "timestamp", "token_id")]
+    model = lgb.Booster(model_file=model_path)
+
+    if "token_id" not in df.columns:
+        return {"error": "CSV must have token_id column for screening"}
+
+    # For each token, take its LATEST row (most recent candle features)
+    token_signals = []
+    for token_id, group in df.groupby("token_id"):
+        latest = group.sort_values("timestamp").iloc[-1:]
+        X_latest = latest[feature_cols].values
+        prob = float(model.predict(X_latest)[0])
+
+        # Also compute average probability over last N candles for confidence
+        recent = group.sort_values("timestamp").tail(4)  # last ~1 hour
+        X_recent = recent[feature_cols].values
+        recent_probs = model.predict(X_recent)
+        avg_prob = float(np.mean(recent_probs))
+        consistency = float(np.std(recent_probs))  # lower = more consistent signal
+
+        if prob >= threshold and avg_prob >= threshold * 0.8:
+            signal = "BUY"
+        elif prob < 0.3 and avg_prob < 0.35:
+            signal = "AVOID"
+        else:
+            signal = "HOLD"
+
+        token_signals.append({
+            "token_id": str(token_id),
+            "probability": prob,
+            "avg_probability": avg_prob,
+            "consistency": consistency,
+            "signal": signal,
+            "candles_available": len(group),
+            "timestamp": int(latest["timestamp"].values[0]),
+        })
+
+    # Sort by probability descending (strongest buy signals first)
+    token_signals.sort(key=lambda x: -x["probability"])
+
+    buy_signals = [t for t in token_signals if t["signal"] == "BUY"]
+    avoid_signals = [t for t in token_signals if t["signal"] == "AVOID"]
+    hold_signals = [t for t in token_signals if t["signal"] == "HOLD"]
+
+    return {
+        "screened": len(token_signals),
+        "top_tokens": token_signals[:top_n],
+        "summary": {
+            "buy": len(buy_signals),
+            "hold": len(hold_signals),
+            "avoid": len(avoid_signals),
+        },
+        "buy_signals": buy_signals[:top_n],
+        "avoid_signals": avoid_signals[:10],
+    }
 
 
 def analyze_pattern_decay(csv_path, config_json, output_dir):
@@ -426,6 +502,19 @@ if __name__ == "__main__":
             sys.exit(1)
 
         result = analyze_pattern_decay(csv_path, config_json, output_dir)
+        print(json.dumps(result, indent=2))
+
+    elif command == "screen":
+        csv_path = sys.argv[2] if len(sys.argv) > 2 else None
+        model_path = sys.argv[3] if len(sys.argv) > 3 else None
+        threshold = float(sys.argv[4]) if len(sys.argv) > 4 else 0.5
+        top_n = int(sys.argv[5]) if len(sys.argv) > 5 else 20
+
+        if not csv_path or not model_path:
+            print(json.dumps({"error": "Need csv_path and model_path"}))
+            sys.exit(1)
+
+        result = screen(csv_path, model_path, threshold, top_n)
         print(json.dumps(result, indent=2))
 
     else:

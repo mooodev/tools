@@ -14,6 +14,8 @@
  *   node src/index.js train        — Train LightGBM model
  *   node src/index.js decay        — Run pattern decay analysis
  *   node src/index.js predict      — Run predictions
+ *   node src/index.js screen       — Screen tokens (rank by buy probability)
+ *   node src/index.js monitor      — Live monitor (fetch → features → screen)
  *   node src/index.js pipeline     — Run full pipeline
  */
 
@@ -67,6 +69,50 @@ async function main() {
       console.log("\n  Predictions:", JSON.stringify(predictResult, null, 2));
       break;
 
+    case "screen":
+      console.log("\n  Screening tokens (ranking by buy probability)...\n");
+      const threshold = parseFloat(process.argv[3]) || 0.5;
+      const topN = parseInt(process.argv[4]) || 20;
+      const screenResult = await orchestrator.runScreen(null, threshold, topN);
+      if (screenResult.success) {
+        console.log(`\n  Screened ${screenResult.screened} tokens:`);
+        console.log(`  BUY: ${screenResult.summary?.buy || 0}  HOLD: ${screenResult.summary?.hold || 0}  AVOID: ${screenResult.summary?.avoid || 0}\n`);
+        if (screenResult.buy_signals?.length) {
+          console.log("  Top BUY signals:");
+          for (const t of screenResult.buy_signals.slice(0, 10)) {
+            console.log(`    ${t.token_id}  prob=${(t.probability * 100).toFixed(1)}%  avg=${(t.avg_probability * 100).toFixed(1)}%  consistency=${t.consistency.toFixed(3)}`);
+          }
+        }
+        if (screenResult.avoid_signals?.length) {
+          console.log("\n  AVOID signals:");
+          for (const t of screenResult.avoid_signals.slice(0, 5)) {
+            console.log(`    ${t.token_id}  prob=${(t.probability * 100).toFixed(1)}%`);
+          }
+        }
+      } else {
+        console.log("  Screen failed:", screenResult.error);
+      }
+      break;
+
+    case "monitor":
+      console.log("\n  Live monitor: fetch → features → screen...\n");
+      const monTimeframe = parseInt(process.argv[3]) || config.CANDLE_MINUTES;
+      const monitorResult = await orchestrator.runMonitor(monTimeframe);
+      if (monitorResult.success && monitorResult.screen) {
+        const s = monitorResult.screen;
+        console.log(`\n  Monitor complete. Screened ${s.screened} tokens:`);
+        console.log(`  BUY: ${s.summary?.buy || 0}  HOLD: ${s.summary?.hold || 0}  AVOID: ${s.summary?.avoid || 0}\n`);
+        if (s.buy_signals?.length) {
+          console.log("  Top BUY signals:");
+          for (const t of s.buy_signals.slice(0, 10)) {
+            console.log(`    ${t.token_id}  prob=${(t.probability * 100).toFixed(1)}%  avg=${(t.avg_probability * 100).toFixed(1)}%`);
+          }
+        }
+      } else {
+        console.log("  Monitor result:", JSON.stringify(monitorResult, null, 2));
+      }
+      break;
+
     case "pipeline":
       console.log("\n  Running full pipeline (fetch → features → train → decay)...\n");
       const pipelineResult = await orchestrator.runFullPipeline();
@@ -75,7 +121,7 @@ async function main() {
 
     default:
       console.log(`  Unknown command: ${command}`);
-      console.log(`  Available: dashboard, fetch, features, train, decay, predict, pipeline`);
+      console.log(`  Available: dashboard, fetch, features, train, decay, predict, screen, monitor, pipeline`);
       process.exit(1);
   }
 }

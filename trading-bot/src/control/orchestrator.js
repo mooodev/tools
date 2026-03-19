@@ -6,6 +6,7 @@
 const { spawn, execSync } = require("child_process");
 const path = require("path");
 const fs = require("fs");
+const os = require("os");
 const { config } = require("../config");
 const { fetchAll, loadRawData } = require("../data/fetcher");
 const { aggregateCandles } = require("../data/aggregator");
@@ -152,6 +153,56 @@ class Orchestrator {
     }
   }
 
+  // ─── Screen Tokens (predict + rank) ────────────────────────
+
+  async runScreen(csvPath, threshold, topN) {
+    const modelPath = path.join(config.MODEL_DIR, "model.lgbm");
+    if (!fs.existsSync(modelPath)) {
+      return { success: false, error: "No trained model. Run train first." };
+    }
+    const dataPath = csvPath || path.join(config.FEATURES_DIR, "training_data.csv");
+    if (!fs.existsSync(dataPath)) {
+      return { success: false, error: "No feature data. Run features first." };
+    }
+    try {
+      const args = [dataPath, modelPath];
+      if (threshold) args.push(String(threshold));
+      if (topN) args.push(String(topN));
+      const result = await this._runPython("screen", args);
+      return { success: true, ...result };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  // ─── Live Monitor: fetch → features → screen ─────────────
+
+  async runMonitor(timeframeMinutes) {
+    this._emit({ status: "monitoring", error: null });
+    try {
+      // 1. Fetch fresh data
+      const fetchResult = await this.runFetch();
+      if (!fetchResult.success) return fetchResult;
+
+      // 2. Engineer features
+      const featResult = this.runFeatures(timeframeMinutes);
+      if (!featResult.success) return featResult;
+
+      // 3. Screen tokens with trained model
+      const screenResult = await this.runScreen();
+      this._emit({ status: "idle" });
+      return {
+        success: true,
+        fetch: fetchResult,
+        features: featResult,
+        screen: screenResult,
+      };
+    } catch (err) {
+      this._emit({ status: "error", error: err.message });
+      return { success: false, error: err.message };
+    }
+  }
+
   // ─── Full Pipeline ──────────────────────────────────────────────
 
   async runFullPipeline(timeframeMinutes) {
@@ -198,6 +249,21 @@ class Orchestrator {
     if (!fs.existsSync(venvPython)) {
       this._emit({ trainLog: "Creating Python virtual environment..." });
       execSync("python3 -m venv venv", { cwd: projectRoot, stdio: "pipe" });
+    }
+
+    // macOS: LightGBM requires libomp (OpenMP) which isn't bundled
+    if (os.platform() === "darwin") {
+      try {
+        execSync("brew list libomp", { stdio: "pipe" });
+      } catch {
+        this._emit({ trainLog: "Installing libomp (required by LightGBM on macOS)..." });
+        try {
+          execSync("brew install libomp", { stdio: "pipe", timeout: 120000 });
+          this._emit({ trainLog: "libomp installed." });
+        } catch (brewErr) {
+          this._emit({ trainLog: "WARNING: Could not install libomp via Homebrew. Install manually: brew install libomp" });
+        }
+      }
     }
 
     // Check if numpy is importable (quick test for deps)

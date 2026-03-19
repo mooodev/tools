@@ -87,6 +87,20 @@ function startServer() {
     orchestrator.runFullPipeline(req.body?.timeframe);
   });
 
+  app.post("/api/screen", async (req, res) => {
+    const result = await orchestrator.runScreen(
+      req.body?.csvPath,
+      req.body?.threshold,
+      req.body?.topN
+    );
+    res.json(result);
+  });
+
+  app.post("/api/monitor", async (req, res) => {
+    res.json({ started: true });
+    orchestrator.runMonitor(req.body?.timeframe);
+  });
+
   // ─── Data Endpoints ─────────────────────────────────────────────
 
   app.get("/api/raw-data", (_req, res) => {
