@@ -154,12 +154,10 @@ class Orchestrator {
       const configJson = JSON.stringify(config);
       const result = await this._runPython("decay", [csvPath, configJson, config.MODEL_DIR]);
 
-      // If Python returned an error (e.g. not enough windows), save it so dashboard can display
-      if (result.error) {
-        const decayPath = path.join(config.MODEL_DIR, "decay_analysis.json");
-        fs.mkdirSync(config.MODEL_DIR, { recursive: true });
-        fs.writeFileSync(decayPath, JSON.stringify(result, null, 2));
-      }
+      // Save decay result so the dashboard can display it
+      const decayPath = path.join(config.MODEL_DIR, "decay_analysis.json");
+      fs.mkdirSync(config.MODEL_DIR, { recursive: true });
+      fs.writeFileSync(decayPath, JSON.stringify(result, null, 2));
 
       this._emit({
         status: "idle",
