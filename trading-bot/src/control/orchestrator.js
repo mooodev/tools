@@ -8,7 +8,7 @@ const path = require("path");
 const fs = require("fs");
 const os = require("os");
 const { config } = require("../config");
-const { fetchAll, loadRawData } = require("../data/fetcher");
+const { fetchAll, updateTokenData, loadRawData } = require("../data/fetcher");
 const { aggregateCandles } = require("../data/aggregator");
 const { exportTrainingData } = require("../features/engineer");
 
@@ -43,6 +43,26 @@ class Orchestrator {
     this._emit({ status: "fetching", error: null, fetchProgress: { phase: "starting" } });
     try {
       const results = await fetchAll((progress) => {
+        this._emit({ fetchProgress: progress });
+      });
+      this._emit({
+        status: "idle",
+        lastFetch: new Date().toISOString(),
+        fetchProgress: { phase: "done", tokens: results.length },
+      });
+      return { success: true, tokens: results.length };
+    } catch (err) {
+      this._emit({ status: "error", error: err.message });
+      return { success: false, error: err.message };
+    }
+  }
+
+  // ─── Update (Incremental Fetch) ────────────────────────────────
+
+  async runUpdate() {
+    this._emit({ status: "fetching", error: null, fetchProgress: { phase: "updating" } });
+    try {
+      const results = await updateTokenData((progress) => {
         this._emit({ fetchProgress: progress });
       });
       this._emit({

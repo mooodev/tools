@@ -12,9 +12,11 @@ const { fetchJSON, sleep } = require("../lib/api-client");
  * Fetch a page of graduated tokens from pump.fun.
  */
 async function fetchGraduatedPage({ offset = 0, limit = config.COINS_PER_PAGE, sort = "market_cap", order = "DESC" } = {}) {
+  const isGraduated = (config.TOKEN_FILTER || "graduated") === "graduated";
   const params = new URLSearchParams({
     offset: String(offset), limit: String(limit), sort, order,
-    includeNsfw: "true", complete: "true",
+    includeNsfw: "true",
+    ...(isGraduated ? { complete: "true" } : {}),
   });
   const url = `${config.FRONTEND_API}/coins?${params}`;
   try {
@@ -122,6 +124,24 @@ async function fetchCandles(poolAddress, {
 }
 
 /**
+ * Apply token filters (market cap, volume, graduation status).
+ */
+function applyTokenFilters(tokens) {
+  let filtered = tokens;
+
+  // Market cap filter
+  const minMcap = config.MIN_MARKET_CAP || 0;
+  if (minMcap > 0) {
+    filtered = filtered.filter((t) => {
+      const mcap = t.usd_market_cap || t.market_cap || 0;
+      return mcap >= minMcap;
+    });
+  }
+
+  return filtered;
+}
+
+/**
  * Full pipeline: fetch top graduated tokens + their candles.
  * Saves raw data to disk.
  */
@@ -142,8 +162,10 @@ async function fetchAll(onProgress) {
     if (onProgress) onProgress({ phase: "tokens", count: allTokens.length, total: maxTokens });
   }
 
-  const tokens = allTokens.slice(0, maxTokens);
-  console.log(`  [fetch] Got ${tokens.length} graduated tokens`);
+  // Apply filters
+  const filtered = applyTokenFilters(allTokens);
+  const tokens = filtered.slice(0, maxTokens);
+  console.log(`  [fetch] Got ${allTokens.length} tokens, ${tokens.length} after filters`);
 
   const results = [];
   for (let i = 0; i < tokens.length; i++) {
@@ -175,6 +197,7 @@ async function fetchAll(onProgress) {
         poolAddress: pool.poolAddress,
         volumeUsd24h: pool.volumeUsd24h,
         reserveInUsd: pool.reserveInUsd,
+        marketCap: token.usd_market_cap || token.market_cap || 0,
       },
       candles,
       fetchedAt: new Date().toISOString(),
@@ -199,6 +222,114 @@ async function fetchAll(onProgress) {
 }
 
 /**
+ * Update existing token data — only fetch candles that are not yet downloaded.
+ * Reads existing data from disk, finds the latest timestamp, and fetches only newer candles.
+ */
+async function updateTokenData(onProgress) {
+  const rawDir = config.RAW_DIR;
+  if (!fs.existsSync(rawDir)) {
+    console.log("  [update] No existing data — running full fetch instead");
+    return fetchAll(onProgress);
+  }
+
+  const existingData = loadRawData();
+  if (existingData.length === 0) {
+    console.log("  [update] No existing token files — running full fetch instead");
+    return fetchAll(onProgress);
+  }
+
+  console.log(`  [update] Updating ${existingData.length} existing tokens`);
+  const results = [];
+  let updated = 0;
+  let skipped = 0;
+
+  for (let i = 0; i < existingData.length; i++) {
+    const data = existingData[i];
+    const mint = data.token?.mint;
+    if (!mint) continue;
+
+    if (onProgress) onProgress({ phase: "candles", current: i + 1, total: existingData.length, mint });
+
+    const poolAddress = data.token?.poolAddress;
+    if (!poolAddress) {
+      console.log(`  [skip] ${mint.slice(0, 12)} — no pool address stored`);
+      skipped++;
+      continue;
+    }
+
+    // Find the latest candle timestamp in existing data
+    const existingCandles = data.candles || [];
+    const latestTimestamp = existingCandles.length > 0
+      ? Math.max(...existingCandles.map((c) => c.timestamp))
+      : 0;
+
+    if (latestTimestamp === 0) {
+      console.log(`  [skip] ${mint.slice(0, 12)} — no existing candles`);
+      skipped++;
+      continue;
+    }
+
+    // Fetch only new candles (from latest existing timestamp onwards)
+    const nowTs = Math.floor(Date.now() / 1000);
+    const hoursSinceLastCandle = (nowTs - latestTimestamp) / 3600;
+
+    if (hoursSinceLastCandle < 0.02) { // Less than ~1 minute ago
+      console.log(`  [skip] ${mint.slice(0, 12)} — already up to date`);
+      skipped++;
+      results.push(data);
+      continue;
+    }
+
+    // Fetch new candles with a small overlap to avoid gaps
+    const fetchHours = Math.min(Math.ceil(hoursSinceLastCandle) + 1, config.FETCH_HOURS);
+    const newCandles = await fetchCandles(poolAddress, { hours: fetchHours });
+
+    if (newCandles.length === 0) {
+      console.log(`  [skip] ${mint.slice(0, 12)} — no new candles available`);
+      results.push(data);
+      continue;
+    }
+
+    // Merge: keep existing candles + add truly new ones (dedup by timestamp)
+    const existingSet = new Set(existingCandles.map((c) => c.timestamp));
+    const genuinelyNew = newCandles.filter((c) => !existingSet.has(c.timestamp));
+
+    const mergedCandles = [...existingCandles, ...genuinelyNew]
+      .sort((a, b) => a.timestamp - b.timestamp);
+
+    // Trim to configured time window
+    const cutoff = nowTs - config.FETCH_HOURS * 3600;
+    const trimmedCandles = mergedCandles.filter((c) => c.timestamp >= cutoff);
+
+    const entry = {
+      ...data,
+      candles: trimmedCandles,
+      fetchedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    fs.writeFileSync(path.join(rawDir, `${mint}.json`), JSON.stringify(entry, null, 2));
+    results.push(entry);
+    updated++;
+    console.log(`  [updated] ${data.token.name || mint.slice(0, 12)} — +${genuinelyNew.length} new candles (total: ${trimmedCandles.length})`);
+  }
+
+  // Update manifest
+  const manifest = {
+    fetchedAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    config: { hours: config.FETCH_HOURS, timeframe: config.DEFAULT_TIMEFRAME, aggregate: config.DEFAULT_AGGREGATE },
+    tokens: results.map((r) => ({ mint: r.token.mint, name: r.token.name, candles: r.candles.length })),
+  };
+  fs.writeFileSync(path.join(rawDir, "_manifest.json"), JSON.stringify(manifest, null, 2));
+
+  if (onProgress) onProgress({ phase: "done", tokens: results.length, updated, skipped });
+  console.log(`  [update] Done: ${updated} updated, ${skipped} skipped, ${results.length} total`);
+
+  return results;
+}
+
+/**
  * Load previously fetched raw data from disk.
  */
 function loadRawData() {
@@ -213,4 +344,4 @@ function loadRawData() {
   }).filter(Boolean);
 }
 
-module.exports = { fetchAll, loadRawData, fetchCandles, findPool, fetchGraduatedPage };
+module.exports = { fetchAll, updateTokenData, loadRawData, fetchCandles, findPool, fetchGraduatedPage };
