@@ -20,18 +20,18 @@ const config = {
   // ─── Data Fetching ────────────────────────────────────────────────
   FETCH_HOURS: 72,                    // Pull this many hours of data
   DEFAULT_TIMEFRAME: "minute",        // GeckoTerminal timeframe
-  DEFAULT_AGGREGATE: "15",            // 15-minute candles
+  DEFAULT_AGGREGATE: "1",             // 1-minute candles (base resolution)
   DEFAULT_CURRENCY: "usd",
   MAX_TOKENS_TO_FETCH: 100,           // Top N graduated tokens to pull
   MIN_VOLUME_24H: 10000,              // Minimum 24h volume in USD
 
   // ─── Candle Timeframes (for aggregation) ──────────────────────────
-  // The base fetch is 15m. We can re-aggregate to these for experiments.
-  CANDLE_MINUTES: 15,                 // Primary analysis timeframe
-  AVAILABLE_TIMEFRAMES: [5, 15, 30, 60], // Minutes - switchable from dashboard
+  // The base fetch is 1m. We can re-aggregate to these for experiments.
+  CANDLE_MINUTES: 1,                  // Primary analysis timeframe
+  AVAILABLE_TIMEFRAMES: [1, 5, 15, 30, 60], // Minutes - switchable from dashboard
 
   // ─── Feature Engineering ──────────────────────────────────────────
-  SMA_PERIODS: [3, 5, 10, 20],       // Scaled for 15m candles (not hourly)
+  SMA_PERIODS: [3, 5, 10, 20],       // Scaled for 1m candles
   EMA_PERIODS: [3, 5, 12, 26],
   RSI_PERIOD: 14,
   MACD_FAST: 12,
@@ -44,12 +44,12 @@ const config = {
   STOCH_D_PERIOD: 3,
   CCI_PERIOD: 20,
   WILLIAMS_PERIOD: 14,
-  ROC_PERIODS: [1, 2, 4, 8, 16],     // Multi-scale for 15m
+  ROC_PERIODS: [1, 2, 4, 8, 16],     // Multi-scale for 1m
   OBV_ENABLED: true,
   VWAP_ENABLED: true,
 
   // ─── LightGBM / ML ───────────────────────────────────────────────
-  PREDICTION_HORIZON: 4,              // N candles ahead (4 x 15m = 1 hour)
+  PREDICTION_HORIZON: 4,              // N candles ahead (4 x 1m = 4 minutes)
   GROWTH_THRESHOLD: 0.05,             // Binary: does it go up 5%+ in next hour?
   MIN_CANDLES: 60,                    // Minimum candles per token for training
   TRAIN_RATIO: 0.70,
