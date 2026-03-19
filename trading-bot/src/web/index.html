@@ -380,12 +380,16 @@
     <div class="grid grid-2">
       <div class="card">
         <h3>ML Parameters</h3>
-        <div class="form-row"><div class="form-group"><label>Prediction Horizon (candles)</label><input type="number" id="cfgHorizon" value="4"></div></div>
+        <div class="form-row"><div class="form-group"><label>Prediction Horizon (candles)</label><input type="number" id="cfgHorizon" value="5"></div></div>
         <div class="form-row"><div class="form-group"><label>Growth Threshold (%)</label><input type="number" id="cfgThreshold" value="5" step="0.5"></div></div>
         <div class="form-row"><div class="form-group"><label>LightGBM Num Leaves</label><input type="number" id="cfgNumLeaves" value="31"></div></div>
         <div class="form-row"><div class="form-group"><label>Learning Rate</label><input type="number" id="cfgLR" value="0.05" step="0.01"></div></div>
         <div class="form-row"><div class="form-group"><label>N Estimators</label><input type="number" id="cfgEstimators" value="500"></div></div>
         <div class="form-row"><div class="form-group"><label>Early Stopping Rounds</label><input type="number" id="cfgEarlyStopping" value="50"></div></div>
+        <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
+          <button onclick="applyMLParams()" id="btnApplyML">Apply &amp; Retrain</button>
+          <span id="mlApplyStatus" style="font-size:10px;color:var(--text-dim)"></span>
+        </div>
       </div>
       <div class="card">
         <h3>EMH / Pattern Decay</h3>
@@ -393,6 +397,10 @@
         <div class="form-row"><div class="form-group"><label>Min Windows for Decay</label><input type="number" id="cfgMinWindows" value="3"></div></div>
         <div class="form-row"><div class="form-group"><label>Alpha Decay Threshold</label><input type="number" id="cfgAlphaThreshold" value="0.3" step="0.05"></div></div>
         <div class="form-row"><div class="form-group"><label>Freshness Lookback</label><input type="number" id="cfgFreshnessLookback" value="6"></div></div>
+        <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
+          <button onclick="applyDecayParams()" id="btnApplyDecay">Apply &amp; Re-analyze</button>
+          <span id="decayApplyStatus" style="font-size:10px;color:var(--text-dim)"></span>
+        </div>
       </div>
     </div>
   </div>
@@ -481,6 +489,10 @@
       <div class="card">
         <h3>Screening Status</h3>
         <div id="screenStatus" style="font-size:12px;color:var(--text-dim)">Not run yet</div>
+        <div style="margin-top:12px">
+          <button onclick="updateBuyTokens()" id="btnUpdateBuy" class="secondary" disabled>Update Buy Signal Candles</button>
+          <div id="updateBuyStatus" style="font-size:10px;color:var(--text-dim);margin-top:4px"></div>
+        </div>
       </div>
     </div>
 
@@ -661,7 +673,7 @@ async function loadConfig() {
   $('cfgTimeframe').value = cfg.CANDLE_MINUTES || 15;
   $('cfgFetchHours').value = cfg.FETCH_HOURS || 72;
   $('cfgMaxTokens').value = cfg.MAX_TOKENS_TO_FETCH || 100;
-  $('cfgHorizon').value = cfg.PREDICTION_HORIZON || 4;
+  $('cfgHorizon').value = cfg.PREDICTION_HORIZON || 5;
   $('cfgThreshold').value = (cfg.GROWTH_THRESHOLD || 0.05) * 100;
   $('cfgNumLeaves').value = cfg.LGBM_NUM_LEAVES || 31;
   $('cfgLR').value = cfg.LGBM_LEARNING_RATE || 0.05;
@@ -697,6 +709,67 @@ async function saveConfig() {
   };
   await fetch('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   addLog('Config updated', 'success');
+}
+
+async function applyMLParams() {
+  const btn = $('btnApplyML');
+  const status = $('mlApplyStatus');
+  btn.disabled = true;
+  btn.textContent = 'Applying...';
+  status.textContent = '';
+  try {
+    // 1. Save config
+    await saveConfig();
+    // 2. Re-engineer features with new horizon/threshold
+    status.textContent = 'Re-engineering features...';
+    addLog('Re-engineering features with new ML params...', 'info');
+    const featRes = await fetch('/api/features', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+    const featData = await featRes.json();
+    if (featData.success === false) {
+      status.innerHTML = '<span style="color:var(--red)">Features failed</span>';
+      addLog('Feature engineering failed: ' + (featData.error || 'unknown'), 'error');
+      return;
+    }
+    addLog('Features re-engineered: ' + (featData.totalSamples || 0) + ' samples', 'success');
+    // 3. Retrain model
+    status.textContent = 'Training model...';
+    addLog('Retraining model with new parameters...', 'info');
+    const trainRes = await fetch('/api/train', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+    await trainRes.json();
+    status.innerHTML = '<span style="color:var(--green)">Applied</span>';
+    addLog('ML parameters applied — model retrained', 'success');
+    refreshAll();
+  } catch (err) {
+    status.innerHTML = '<span style="color:var(--red)">Error</span>';
+    addLog('Apply ML params error: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Apply & Retrain';
+  }
+}
+
+async function applyDecayParams() {
+  const btn = $('btnApplyDecay');
+  const status = $('decayApplyStatus');
+  btn.disabled = true;
+  btn.textContent = 'Applying...';
+  status.textContent = '';
+  try {
+    await saveConfig();
+    status.textContent = 'Running decay analysis...';
+    addLog('Re-running decay analysis with new params...', 'info');
+    const res = await fetch('/api/decay', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+    await res.json();
+    status.innerHTML = '<span style="color:var(--green)">Applied</span>';
+    addLog('Decay parameters applied — analysis re-run', 'success');
+    refreshAll();
+  } catch (err) {
+    status.innerHTML = '<span style="color:var(--red)">Error</span>';
+    addLog('Apply decay params error: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Apply & Re-analyze';
+  }
 }
 
 // ─── Data Refresh ─────────────────────────────────────────────────
@@ -1027,7 +1100,13 @@ async function runScreening() {
   }
 }
 
+let lastBuyTokenIds = [];
+
 function displayScreeningResults(data) {
+  // Track buy signal token IDs for incremental updates
+  lastBuyTokenIds = (data.buy_signals || []).map(t => t.token_id);
+  $('btnUpdateBuy').disabled = lastBuyTokenIds.length === 0;
+
   // Summary
   const s = data.summary || {};
   $('screenSummary').innerHTML = `
@@ -1072,6 +1151,37 @@ function displayScreeningResults(data) {
         <td><span class="tag ${tagClass}">${t.signal}</span></td>
       </tr>`;
     }).join('');
+  }
+}
+
+async function updateBuyTokens() {
+  if (lastBuyTokenIds.length === 0) return;
+  const btn = $('btnUpdateBuy');
+  const status = $('updateBuyStatus');
+  btn.disabled = true;
+  btn.textContent = 'Updating...';
+  status.textContent = `Downloading new candles for ${lastBuyTokenIds.length} buy signal token(s)...`;
+  addLog(`Updating candles for ${lastBuyTokenIds.length} buy signal tokens...`, 'info');
+  try {
+    const res = await fetch('/api/update-tokens', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mints: lastBuyTokenIds }),
+    });
+    const data = await res.json();
+    if (data.success === false) {
+      status.innerHTML = `<span style="color:var(--red)">${data.error}</span>`;
+      addLog('Update buy tokens failed: ' + data.error, 'error');
+      return;
+    }
+    status.innerHTML = `<span style="color:var(--green)">Updated ${data.updated || 0} tokens (+${data.newCandles || 0} candles)</span>`;
+    addLog(`Buy signal tokens updated: ${data.updated || 0} tokens, ${data.newCandles || 0} new candles`, 'success');
+  } catch (err) {
+    status.innerHTML = `<span style="color:var(--red)">${err.message}</span>`;
+    addLog('Update buy tokens error: ' + err.message, 'error');
+  } finally {
+    btn.disabled = lastBuyTokenIds.length === 0;
+    btn.textContent = 'Update Buy Signal Candles';
   }
 }
 
