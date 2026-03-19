@@ -17,8 +17,17 @@ import sys
 import json
 import os
 import platform
+import warnings
 import numpy as np
 import pandas as pd
+
+# Suppress sklearn warnings about single-class ROC AUC
+warnings.filterwarnings("ignore", category=UserWarning, module="sklearn")
+try:
+    from sklearn.exceptions import UndefinedMetricWarning
+    warnings.filterwarnings("ignore", category=UndefinedMetricWarning)
+except ImportError:
+    pass
 
 try:
     import lightgbm as lgb

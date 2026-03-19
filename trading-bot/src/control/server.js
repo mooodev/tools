@@ -61,6 +61,11 @@ function startServer() {
     orchestrator.runFetch();
   });
 
+  app.post("/api/update-data", async (_req, res) => {
+    res.json({ started: true });
+    orchestrator.runUpdate();
+  });
+
   app.post("/api/features", (req, res) => {
     const timeframe = req.body?.timeframe || config.CANDLE_MINUTES;
     const result = orchestrator.runFeatures(timeframe);

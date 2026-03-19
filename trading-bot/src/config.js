@@ -24,6 +24,8 @@ const config = {
   DEFAULT_CURRENCY: "usd",
   MAX_TOKENS_TO_FETCH: 100,           // Top N graduated tokens to pull
   MIN_VOLUME_24H: 10000,              // Minimum 24h volume in USD
+  MIN_MARKET_CAP: 0,                  // Minimum market cap filter (0 = no filter)
+  TOKEN_FILTER: "graduated",          // Token filter: "graduated", "all"
 
   // ─── Candle Timeframes (for aggregation) ──────────────────────────
   // The base fetch is 1m. We can re-aggregate to these for experiments.
