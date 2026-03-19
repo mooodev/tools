@@ -344,4 +344,83 @@ function loadRawData() {
   }).filter(Boolean);
 }
 
-module.exports = { fetchAll, updateTokenData, loadRawData, fetchCandles, findPool, fetchGraduatedPage };
+/**
+ * Update candle data for specific tokens by mint address.
+ * Used to incrementally refresh buy-signal tokens.
+ */
+async function updateSpecificTokens(mints, onProgress) {
+  const rawDir = config.RAW_DIR;
+  if (!fs.existsSync(rawDir)) {
+    return { updated: 0, newCandles: 0, error: "No existing data directory" };
+  }
+
+  let updated = 0;
+  let totalNewCandles = 0;
+
+  for (let i = 0; i < mints.length; i++) {
+    const mint = mints[i];
+    const filePath = path.join(rawDir, `${mint}.json`);
+
+    if (!fs.existsSync(filePath)) {
+      console.log(`  [skip] ${mint.slice(0, 12)} — no existing data file`);
+      continue;
+    }
+
+    if (onProgress) onProgress({ phase: "candles", current: i + 1, total: mints.length, mint });
+
+    let data;
+    try {
+      data = JSON.parse(fs.readFileSync(filePath, "utf8"));
+    } catch {
+      continue;
+    }
+
+    const poolAddress = data.token?.poolAddress;
+    if (!poolAddress) continue;
+
+    const existingCandles = data.candles || [];
+    const latestTimestamp = existingCandles.length > 0
+      ? Math.max(...existingCandles.map((c) => c.timestamp))
+      : 0;
+
+    if (latestTimestamp === 0) continue;
+
+    const nowTs = Math.floor(Date.now() / 1000);
+    const hoursSinceLastCandle = (nowTs - latestTimestamp) / 3600;
+
+    if (hoursSinceLastCandle < 0.02) {
+      console.log(`  [skip] ${mint.slice(0, 12)} — already up to date`);
+      continue;
+    }
+
+    const fetchHours = Math.min(Math.ceil(hoursSinceLastCandle) + 1, config.FETCH_HOURS);
+    const newCandles = await fetchCandles(poolAddress, { hours: fetchHours });
+
+    if (newCandles.length === 0) continue;
+
+    const existingSet = new Set(existingCandles.map((c) => c.timestamp));
+    const genuinelyNew = newCandles.filter((c) => !existingSet.has(c.timestamp));
+
+    const mergedCandles = [...existingCandles, ...genuinelyNew]
+      .sort((a, b) => a.timestamp - b.timestamp);
+
+    const cutoff = nowTs - config.FETCH_HOURS * 3600;
+    const trimmedCandles = mergedCandles.filter((c) => c.timestamp >= cutoff);
+
+    const entry = {
+      ...data,
+      candles: trimmedCandles,
+      fetchedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    fs.writeFileSync(filePath, JSON.stringify(entry, null, 2));
+    updated++;
+    totalNewCandles += genuinelyNew.length;
+    console.log(`  [updated] ${(data.token.name || mint).slice(0, 20)} — +${genuinelyNew.length} new candles`);
+  }
+
+  return { updated, newCandles: totalNewCandles };
+}
+
+module.exports = { fetchAll, updateTokenData, updateSpecificTokens, loadRawData, fetchCandles, findPool, fetchGraduatedPage };

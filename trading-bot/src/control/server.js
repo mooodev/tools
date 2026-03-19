@@ -101,6 +101,15 @@ function startServer() {
     res.json(result);
   });
 
+  app.post("/api/update-tokens", async (req, res) => {
+    const mints = req.body?.mints;
+    if (!mints || !Array.isArray(mints) || mints.length === 0) {
+      return res.json({ success: false, error: "No token mints provided" });
+    }
+    const result = await orchestrator.runUpdateTokens(mints);
+    res.json(result);
+  });
+
   app.post("/api/monitor", async (req, res) => {
     res.json({ started: true });
     orchestrator.runMonitor(req.body?.timeframe);

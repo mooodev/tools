@@ -8,7 +8,7 @@ const path = require("path");
 const fs = require("fs");
 const os = require("os");
 const { config } = require("../config");
-const { fetchAll, updateTokenData, loadRawData } = require("../data/fetcher");
+const { fetchAll, updateTokenData, updateSpecificTokens, loadRawData } = require("../data/fetcher");
 const { aggregateCandles } = require("../data/aggregator");
 const { exportTrainingData } = require("../features/engineer");
 
@@ -207,6 +207,25 @@ class Orchestrator {
       const result = await this._runPython("screen", args);
       return { success: true, ...result };
     } catch (err) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  // ─── Update Specific Tokens (by mint) ─────────────────────
+
+  async runUpdateTokens(mints) {
+    this._emit({ status: "fetching", error: null, fetchProgress: { phase: "updating" } });
+    try {
+      const result = await updateSpecificTokens(mints, (progress) => {
+        this._emit({ fetchProgress: progress });
+      });
+      this._emit({
+        status: "idle",
+        fetchProgress: { phase: "done", tokens: result.updated },
+      });
+      return { success: true, ...result };
+    } catch (err) {
+      this._emit({ status: "error", error: err.message });
       return { success: false, error: err.message };
     }
   }
