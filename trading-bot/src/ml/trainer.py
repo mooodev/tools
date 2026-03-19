@@ -66,9 +66,16 @@ def train(csv_path, config_json, output_dir):
     cfg = json.loads(config_json) if isinstance(config_json, str) else config_json
 
     # Auto-compute scale_pos_weight for class imbalance
-    pos_count = np.sum(y == 1)
-    neg_count = np.sum(y == 0)
+    pos_count = int(np.sum(y == 1))
+    neg_count = int(np.sum(y == 0))
+    positive_rate = pos_count / max(pos_count + neg_count, 1)
     scale_pos_weight = neg_count / max(pos_count, 1)
+
+    warnings = []
+    if pos_count < 10:
+        warnings.append(f"Very few positive samples ({pos_count}). Lower GROWTH_THRESHOLD or fetch more data.")
+    if positive_rate < 0.01:
+        warnings.append(f"Extreme class imbalance: only {positive_rate*100:.2f}% positive. Model will likely predict all negatives.")
 
     params = {
         "objective": "binary",
@@ -123,16 +130,28 @@ def train(csv_path, config_json, output_dir):
     y_pred_proba = model.predict(X_test)
     y_pred = (y_pred_proba >= 0.5).astype(int)
 
+    test_classes = len(np.unique(y_test))
+    test_pos = int(np.sum(y_test == 1))
+    test_neg = int(np.sum(y_test == 0))
+
+    if test_classes < 2:
+        warnings.append(f"Test set has only one class ({test_pos} positive, {test_neg} negative). Metrics are unreliable.")
+
+    # Build confusion matrix ensuring 2x2 shape
+    cm = confusion_matrix(y_test, y_pred, labels=[0, 1])
+
     metrics = {
         "accuracy": float(accuracy_score(y_test, y_pred)),
         "precision": float(precision_score(y_test, y_pred, zero_division=0)),
         "recall": float(recall_score(y_test, y_pred, zero_division=0)),
         "f1": float(f1_score(y_test, y_pred, zero_division=0)),
-        "auc": float(roc_auc_score(y_test, y_pred_proba)) if len(np.unique(y_test)) > 1 else 0.0,
+        "auc": float(roc_auc_score(y_test, y_pred_proba)) if test_classes > 1 else 0.0,
         "samples": {"train": len(y_train), "val": len(y_val), "test": len(y_test)},
-        "class_balance": {"positive": int(pos_count), "negative": int(neg_count)},
+        "class_balance": {"positive": pos_count, "negative": neg_count},
+        "test_balance": {"positive": test_pos, "negative": test_neg},
         "best_iteration": model.best_iteration,
-        "confusion_matrix": confusion_matrix(y_test, y_pred).tolist(),
+        "confusion_matrix": cm.tolist(),
+        "positive_rate": round(positive_rate * 100, 2),
     }
 
     # Feature importance (gain-based — what features ACTUALLY drive splits)
@@ -156,6 +175,7 @@ def train(csv_path, config_json, output_dir):
         "feature_importance": feature_importance,
         "model_path": model_path,
         "params": {k: v for k, v in params.items() if k != "verbose"},
+        "warnings": warnings,
     }
 
     with open(os.path.join(output_dir, "train_result.json"), "w") as f:

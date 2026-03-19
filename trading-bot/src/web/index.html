@@ -267,6 +267,7 @@
   <div class="tab" data-tab="config">Config</div>
   <div class="tab" data-tab="training">Training</div>
   <div class="tab" data-tab="decay">Pattern Decay</div>
+  <div class="tab" data-tab="screening">Token Screening</div>
   <div class="tab" data-tab="logs">Logs</div>
 </div>
 
@@ -390,6 +391,11 @@
       </div>
     </div>
 
+    <div class="card" style="margin-bottom:16px">
+      <h3>Training Warnings</h3>
+      <div id="trainWarnings" style="font-size:12px;color:var(--text-dim)">No warnings</div>
+    </div>
+
     <div class="card">
       <h3>Training Details</h3>
       <div id="trainDetails" style="font-size:12px;color:var(--text-dim)">No training results yet</div>
@@ -425,6 +431,47 @@
       <h3>Window AUC Over Time</h3>
       <div id="aucTimeline" style="height:120px;position:relative;overflow:hidden">
         <canvas id="aucCanvas" style="width:100%;height:100%"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ TOKEN SCREENING PANEL ═══ -->
+  <div class="panel" id="panel-screening">
+    <div class="grid grid-3" style="margin-bottom:16px">
+      <div class="card">
+        <h3>Screen Tokens</h3>
+        <p style="font-size:11px;color:var(--text-dim);margin-bottom:12px">
+          Run predictions on all tokens and rank by pump probability.
+          Requires a trained model.
+        </p>
+        <button onclick="runScreening()" id="btnScreen">Screen Tokens</button>
+      </div>
+      <div class="card">
+        <h3>Signal Summary</h3>
+        <div id="screenSummary" style="font-size:14px">
+          <p style="color:var(--text-dim);font-size:12px">Run screening first</p>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Screening Status</h3>
+        <div id="screenStatus" style="font-size:12px;color:var(--text-dim)">Not run yet</div>
+      </div>
+    </div>
+
+    <div class="grid grid-2">
+      <div class="card">
+        <h3>Buy Signals (Highest Probability)</h3>
+        <table>
+          <thead><tr><th>Token</th><th>Probability</th><th>Avg Prob</th><th>Consistency</th><th>Signal</th></tr></thead>
+          <tbody id="buySignalsBody"><tr><td colspan="5" style="color:var(--text-dim)">Run screening first</td></tr></tbody>
+        </table>
+      </div>
+      <div class="card">
+        <h3>All Tokens Ranked</h3>
+        <table>
+          <thead><tr><th>Token</th><th>Probability</th><th style="width:30%">Bar</th><th>Signal</th></tr></thead>
+          <tbody id="allTokensBody"><tr><td colspan="4" style="color:var(--text-dim)">Run screening first</td></tr></tbody>
+        </table>
       </div>
     </div>
   </div>
@@ -474,9 +521,16 @@ document.querySelectorAll('.tab').forEach(tab => {
 
 // ─── SSE ──────────────────────────────────────────────────────────
 const evtSource = new EventSource('/api/events');
+let previousStatus = 'idle';
 evtSource.onmessage = (e) => {
   try {
     const state = JSON.parse(e.data);
+    const newStatus = state.status || 'idle';
+    // Refresh data when a pipeline step completes (status transitions from busy → idle)
+    if (previousStatus !== 'idle' && newStatus === 'idle') {
+      refreshAll();
+    }
+    previousStatus = newStatus;
     updateStatus(state);
   } catch {}
 };
@@ -641,6 +695,16 @@ async function refreshTrainResult() {
     const result = await fetch('/api/train-result').then(r => r.json());
     if (!result) return;
 
+    if (result.error) {
+      $('modelStatus').innerHTML = `<div style="color:var(--red);font-size:12px">${result.error}</div>`;
+      $('trainWarnings').innerHTML = `<div style="background:rgba(255,107,107,0.1);border:1px solid var(--red);border-radius:4px;padding:8px;color:var(--red)">${result.error}</div>`;
+      return;
+    }
+
+    // Clear previous degenerate warnings
+    const prevWarn = $('quickMetrics').parentNode.querySelector('.degenerate-warning');
+    if (prevWarn) prevWarn.remove();
+
     const m = result.metrics;
     if (m) {
       $('mAccuracy').textContent = (m.accuracy * 100).toFixed(1) + '%';
@@ -654,14 +718,38 @@ async function refreshTrainResult() {
       // Confusion matrix
       if (m.confusion_matrix) {
         const cm = m.confusion_matrix;
-        $('confusionMatrix').innerHTML = `
-          <table style="margin:0 auto;width:auto">
-            <tr><td></td><th style="text-align:center">Pred 0</th><th style="text-align:center">Pred 1</th></tr>
-            <tr><th>Actual 0</th><td style="background:rgba(0,206,201,0.15);text-align:center;padding:12px 24px;font-weight:700">${cm[0][0]}</td>
-                <td style="background:rgba(255,107,107,0.15);text-align:center;padding:12px 24px">${cm[0][1]}</td></tr>
-            <tr><th>Actual 1</th><td style="background:rgba(255,107,107,0.15);text-align:center;padding:12px 24px">${cm[1][0]}</td>
-                <td style="background:rgba(0,184,148,0.15);text-align:center;padding:12px 24px;font-weight:700">${cm[1][1]}</td></tr>
-          </table>`;
+        if (cm.length >= 2 && cm[0].length >= 2) {
+          $('confusionMatrix').innerHTML = `
+            <table style="margin:0 auto;width:auto">
+              <tr><td></td><th style="text-align:center">Pred 0</th><th style="text-align:center">Pred 1</th></tr>
+              <tr><th>Actual 0</th><td style="background:rgba(0,206,201,0.15);text-align:center;padding:12px 24px;font-weight:700">${cm[0][0]}</td>
+                  <td style="background:rgba(255,107,107,0.15);text-align:center;padding:12px 24px">${cm[0][1]}</td></tr>
+              <tr><th>Actual 1</th><td style="background:rgba(255,107,107,0.15);text-align:center;padding:12px 24px">${cm[1][0]}</td>
+                  <td style="background:rgba(0,184,148,0.15);text-align:center;padding:12px 24px;font-weight:700">${cm[1][1]}</td></tr>
+            </table>`;
+        } else {
+          $('confusionMatrix').innerHTML = `
+            <div style="color:var(--orange);font-size:12px;padding:16px">
+              <strong>Single-class test set</strong><br>
+              Only one class present in test data. The model cannot be properly evaluated.<br>
+              Try lowering the Growth Threshold or fetching more data.
+            </div>`;
+        }
+      }
+
+      // Degenerate metrics warning
+      if (m.auc === 0 && m.precision === 0 && m.f1 === 0) {
+        const warn = document.createElement('div');
+        warn.className = 'degenerate-warning';
+        warn.style.cssText = 'background:rgba(255,107,107,0.1);border:1px solid var(--red);border-radius:6px;padding:12px;margin-top:12px;font-size:11px;color:var(--red)';
+        warn.innerHTML = `<strong>Warning: Degenerate training results</strong><br>
+          The test set contains only one class (likely all negatives). This means:<br>
+          - The model predicts all samples as class 0 (no pump)<br>
+          - 100% accuracy is misleading — it never predicts a pump<br>
+          - AUC/Precision/F1 are all 0 because there are no positive predictions<br><br>
+          <strong>Fixes:</strong> Lower the Growth Threshold (currently ${((m.class_balance?.positive || 0) / ((m.class_balance?.positive || 0) + (m.class_balance?.negative || 1)) * 100).toFixed(1)}% positive rate is very low),
+          or fetch more tokens/longer time range to get more positive samples.`;
+        $('quickMetrics').parentNode.appendChild(warn);
       }
 
       // Class distribution
@@ -704,15 +792,37 @@ async function refreshTrainResult() {
       $('featureTableBody').innerHTML = tbody;
     }
 
+    // Training warnings
+    if (result.warnings && result.warnings.length > 0) {
+      $('trainWarnings').innerHTML = result.warnings.map(w =>
+        `<div style="background:rgba(255,107,107,0.1);border:1px solid var(--red);border-radius:4px;padding:8px;margin-bottom:6px;color:var(--red)">${w}</div>`
+      ).join('');
+    } else {
+      $('trainWarnings').innerHTML = '<span style="color:var(--green)">No warnings — training looks healthy</span>';
+    }
+
     // Training details
-    $('trainDetails').innerHTML = `<pre style="white-space:pre-wrap">${JSON.stringify(result.params, null, 2)}</pre>`;
+    const details = { ...result.params };
+    if (m.test_balance) {
+      details._test_positive = m.test_balance.positive;
+      details._test_negative = m.test_balance.negative;
+    }
+    if (m.positive_rate !== undefined) details._positive_rate = m.positive_rate + '%';
+    $('trainDetails').innerHTML = `<pre style="white-space:pre-wrap">${JSON.stringify(details, null, 2)}</pre>`;
   } catch {}
 }
 
 async function refreshDecayResult() {
   try {
     const result = await fetch('/api/decay-result').then(r => r.json());
-    if (!result || result.error) return;
+    if (!result) return;
+    if (result.error) {
+      $('emergingList').innerHTML = `<p style="color:var(--orange);font-size:12px">${result.error}</p>`;
+      $('stableList').innerHTML = `<p style="color:var(--orange);font-size:12px">${result.error}</p>`;
+      $('tradedOutList').innerHTML = `<p style="color:var(--orange);font-size:12px">${result.error}</p>`;
+      $('regimeDetail').textContent = result.error;
+      return;
+    }
 
     // Regime badge
     const badge = $('regimeBadge');
@@ -828,6 +938,82 @@ function drawAucTimeline(metrics) {
     const y = pad.t + (h - pad.t - pad.b) * (1 - (aucs[i] - minAuc) / (maxAuc - minAuc));
     ctx.fillStyle = aucs[i] > 0.55 ? '#00b894' : aucs[i] > 0.5 ? '#fdcb6e' : '#ff6b6b';
     ctx.beginPath(); ctx.arc(x, y, 3, 0, Math.PI * 2); ctx.fill();
+  }
+}
+
+// ─── Token Screening ──────────────────────────────────────────────
+async function runScreening() {
+  $('btnScreen').disabled = true;
+  $('btnScreen').textContent = 'Screening...';
+  $('screenStatus').innerHTML = '<span style="color:var(--orange)">Running predictions on all tokens...</span>';
+  addLog('Starting token screening...', 'info');
+  try {
+    const res = await fetch('/api/screen', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const data = await res.json();
+    if (data.error || data.success === false) {
+      $('screenStatus').innerHTML = `<span style="color:var(--red)">${data.error}</span>`;
+      addLog('Screening failed: ' + data.error, 'error');
+      return;
+    }
+    displayScreeningResults(data);
+    addLog(`Screening complete: ${data.screened || 0} tokens screened`, 'success');
+  } catch (err) {
+    $('screenStatus').innerHTML = `<span style="color:var(--red)">${err.message}</span>`;
+    addLog('Screening error: ' + err.message, 'error');
+  } finally {
+    $('btnScreen').disabled = false;
+    $('btnScreen').textContent = 'Screen Tokens';
+  }
+}
+
+function displayScreeningResults(data) {
+  // Summary
+  const s = data.summary || {};
+  $('screenSummary').innerHTML = `
+    <div style="display:flex;gap:20px;align-items:center">
+      <div><span style="color:var(--green);font-size:24px;font-weight:700">${s.buy || 0}</span><div class="metric-label">BUY</div></div>
+      <div><span style="color:var(--orange);font-size:24px;font-weight:700">${s.hold || 0}</span><div class="metric-label">HOLD</div></div>
+      <div><span style="color:var(--red);font-size:24px;font-weight:700">${s.avoid || 0}</span><div class="metric-label">AVOID</div></div>
+    </div>`;
+
+  $('screenStatus').innerHTML = `<span style="color:var(--green)">${data.screened || 0} tokens screened</span>`;
+
+  // Buy signals table
+  const buys = data.buy_signals || [];
+  if (buys.length === 0) {
+    $('buySignalsBody').innerHTML = '<tr><td colspan="5" style="color:var(--text-dim)">No buy signals detected</td></tr>';
+  } else {
+    $('buySignalsBody').innerHTML = buys.map(t => {
+      const signalColor = t.signal === 'BUY' ? 'var(--green)' : t.signal === 'AVOID' ? 'var(--red)' : 'var(--orange)';
+      return `<tr>
+        <td style="font-size:10px;font-family:monospace">${(t.token_id || '').slice(0, 12)}...</td>
+        <td style="color:var(--green);font-weight:700">${(t.probability * 100).toFixed(1)}%</td>
+        <td>${(t.avg_probability * 100).toFixed(1)}%</td>
+        <td>${t.consistency.toFixed(3)}</td>
+        <td><span class="tag emerging">${t.signal}</span></td>
+      </tr>`;
+    }).join('');
+  }
+
+  // All tokens table
+  const all = data.top_tokens || [];
+  if (all.length === 0) {
+    $('allTokensBody').innerHTML = '<tr><td colspan="4" style="color:var(--text-dim)">No tokens</td></tr>';
+  } else {
+    $('allTokensBody').innerHTML = all.map(t => {
+      const pct = (t.probability * 100).toFixed(1);
+      const barColor = t.signal === 'BUY' ? 'var(--green)' : t.signal === 'AVOID' ? 'var(--red)' : 'var(--orange)';
+      const tagClass = t.signal === 'BUY' ? 'emerging' : t.signal === 'AVOID' ? 'traded_out' : 'stable';
+      return `<tr>
+        <td style="font-size:10px;font-family:monospace">${(t.token_id || '').slice(0, 12)}...</td>
+        <td style="font-size:11px">${pct}%</td>
+        <td><div class="bar-container"><div class="bar-fill" style="width:${pct}%;background:${barColor}"></div></div></td>
+        <td><span class="tag ${tagClass}">${t.signal}</span></td>
+      </tr>`;
+    }).join('');
   }
 }
 
