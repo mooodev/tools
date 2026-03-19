@@ -99,12 +99,20 @@ class Orchestrator {
     try {
       const configJson = JSON.stringify(config);
       const result = await this._runPython("train", [csvPath, configJson, config.MODEL_DIR]);
+
+      // If Python returned an error (e.g. not enough data), save it for dashboard
+      if (result.error) {
+        const trainPath = path.join(config.MODEL_DIR, "train_result.json");
+        fs.mkdirSync(config.MODEL_DIR, { recursive: true });
+        fs.writeFileSync(trainPath, JSON.stringify(result, null, 2));
+      }
+
       this._emit({
         status: "idle",
         lastTrain: new Date().toISOString(),
         trainResult: result,
       });
-      return { success: true, ...result };
+      return { success: !result.error, ...result };
     } catch (err) {
       this._emit({ status: "error", error: err.message });
       return { success: false, error: err.message };
@@ -125,12 +133,20 @@ class Orchestrator {
     try {
       const configJson = JSON.stringify(config);
       const result = await this._runPython("decay", [csvPath, configJson, config.MODEL_DIR]);
+
+      // If Python returned an error (e.g. not enough windows), save it so dashboard can display
+      if (result.error) {
+        const decayPath = path.join(config.MODEL_DIR, "decay_analysis.json");
+        fs.mkdirSync(config.MODEL_DIR, { recursive: true });
+        fs.writeFileSync(decayPath, JSON.stringify(result, null, 2));
+      }
+
       this._emit({
         status: "idle",
         lastDecay: new Date().toISOString(),
         decayResult: result,
       });
-      return { success: true, ...result };
+      return { success: !result.error, ...result };
     } catch (err) {
       this._emit({ status: "error", error: err.message });
       return { success: false, error: err.message };
