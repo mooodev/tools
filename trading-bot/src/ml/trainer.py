@@ -82,9 +82,11 @@ def train(csv_path, config_json, output_dir):
 
     warnings = []
     if pos_count < 10:
-        warnings.append(f"Very few positive samples ({pos_count}). Lower GROWTH_THRESHOLD or fetch more data.")
+        warnings.append(f"Very few positive samples ({pos_count}). Lower GROWTH_THRESHOLD or increase PREDICTION_HORIZON.")
     if positive_rate < 0.01:
-        warnings.append(f"Extreme class imbalance: only {positive_rate*100:.2f}% positive. Model will likely predict all negatives.")
+        warnings.append(f"Extreme class imbalance: only {positive_rate*100:.2f}% positive. Model will likely predict all negatives. Lower GROWTH_THRESHOLD or increase PREDICTION_HORIZON.")
+    elif positive_rate < 0.05:
+        warnings.append(f"Low positive rate ({positive_rate*100:.1f}%). Target 5-15% for best results. Consider lowering GROWTH_THRESHOLD or increasing PREDICTION_HORIZON.")
 
     params = {
         "objective": "binary",
@@ -306,7 +308,7 @@ def analyze_pattern_decay(csv_path, config_json, output_dir):
         windows.append((start, end))
 
     if len(windows) < cfg.get("DECAY_MIN_WINDOWS", 3):
-        return {"error": f"Not enough windows: {len(windows)} (need {cfg.get('DECAY_MIN_WINDOWS', 3)})"}
+        return {"error": f"Not enough windows: {len(windows)} (need {cfg.get('DECAY_MIN_WINDOWS', 3)}). Try fetching more data (increase FETCH_HOURS)."}
 
     # Train a quick model on each window, extract feature importance
     window_importances = []
@@ -385,8 +387,13 @@ def analyze_pattern_decay(csv_path, config_json, output_dir):
             "positive_rate": float(np.mean(y_w)),
         })
 
+    skipped = len(windows) - len(window_importances)
     if len(window_importances) < 2:
-        return {"error": "Not enough valid windows for decay analysis"}
+        return {
+            "error": f"Not enough valid windows for decay analysis. "
+                     f"{skipped}/{len(windows)} windows skipped (likely single-class due to extreme class imbalance). "
+                     f"Lower GROWTH_THRESHOLD or increase PREDICTION_HORIZON to get more positive labels."
+        }
 
     # Compute alpha decay for each feature
     feature_decay = {}

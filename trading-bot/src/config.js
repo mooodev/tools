@@ -51,8 +51,8 @@ const config = {
   VWAP_ENABLED: true,
 
   // ─── LightGBM / ML ───────────────────────────────────────────────
-  PREDICTION_HORIZON: 4,              // N candles ahead (4 x 1m = 4 minutes)
-  GROWTH_THRESHOLD: 0.05,             // Binary: does it go up 5%+ in next hour?
+  PREDICTION_HORIZON: 15,             // N candles ahead (15 x 1m = 15 minutes)
+  GROWTH_THRESHOLD: 0.02,             // Binary: does it go up 2%+ in prediction horizon?
   MIN_CANDLES: 60,                    // Minimum candles per token for training
   TRAIN_RATIO: 0.70,
   VAL_RATIO: 0.15,
