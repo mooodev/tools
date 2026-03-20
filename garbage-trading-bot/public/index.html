@@ -203,6 +203,20 @@
           <option value="DESC">Descending</option>
         </select>
       </div>
+      <div class="config-row">
+        <label>Require Banner/Logo</label>
+        <select id="cfg-REQUIRE_IMAGE">
+          <option value="false">No</option>
+          <option value="true">Yes</option>
+        </select>
+      </div>
+      <div class="config-row">
+        <label>Require Twitter</label>
+        <select id="cfg-REQUIRE_TWITTER">
+          <option value="false">No</option>
+          <option value="true">Yes</option>
+        </select>
+      </div>
     </div>
 
     <div class="config-section">
@@ -577,6 +591,7 @@ $('#btnClearLog').addEventListener('click', () => {
 
 // ── Config ──
 const MS_FIELDS = ['PRICE_UPDATE_INTERVAL_MS', 'SCAN_INTERVAL_MS'];
+const BOOL_FIELDS = ['REQUIRE_IMAGE', 'REQUIRE_TWITTER'];
 
 async function loadConfig() {
   const cfg = await fetch('/api/config').then((r) => r.json());
@@ -585,7 +600,9 @@ async function loadConfig() {
   for (const [key, val] of Object.entries(cfg)) {
     const el = $(`#cfg-${key}`);
     if (!el) continue;
-    if (el.tagName === 'SELECT') {
+    if (BOOL_FIELDS.includes(key)) {
+      el.value = String(val);
+    } else if (el.tagName === 'SELECT') {
       el.value = val;
     } else if (MS_FIELDS.includes(key)) {
       el.value = val / 1000; // show as seconds
@@ -599,7 +616,14 @@ $('#btnSaveConfig').addEventListener('click', async () => {
   const updates = {};
   $$('[id^="cfg-"]').forEach((el) => {
     const key = el.id.replace('cfg-', '');
-    let val = el.tagName === 'SELECT' ? el.value : Number(el.value);
+    let val;
+    if (BOOL_FIELDS.includes(key)) {
+      val = el.value === 'true';
+    } else if (el.tagName === 'SELECT') {
+      val = el.value;
+    } else {
+      val = Number(el.value);
+    }
     if (MS_FIELDS.includes(key)) val = val * 1000; // convert sec → ms
     updates[key] = val;
   });

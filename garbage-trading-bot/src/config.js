@@ -21,6 +21,8 @@ const config = {
   MAX_PAGES_TO_SCAN: 20,           // max pages to scan per run
   SCAN_SORT: 'market_cap',
   SCAN_ORDER: 'ASC',               // ASC = lowest mcap first
+  REQUIRE_IMAGE: false,             // skip tokens without a banner/logo image
+  REQUIRE_TWITTER: false,           // skip tokens without a twitter link
 
   // ── Monitor ──
   PRICE_UPDATE_INTERVAL_MS: 3 * 60 * 1000,  // update prices every 3 minutes

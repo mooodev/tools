@@ -66,6 +66,8 @@ async function scanTokens({ onFound, onProgress, onLog, signal } = {}) {
   let skippedNoPool = 0;
   let skippedLowVolume = 0;
   let skippedHighMcap = 0;
+  let skippedNoImage = 0;
+  let skippedNoTwitter = 0;
 
   const log = (msg, level = 'info') => {
     console.log(`  [scanner] ${msg}`);
@@ -113,6 +115,20 @@ async function scanTokens({ onFound, onProgress, onLog, signal } = {}) {
       if (pumpMcap > config.MAX_MARKET_CAP_USD * 10) {
         log(`SKIP ${coin.symbol || coin.mint.slice(0, 8)} — pump mcap $${pumpMcap.toFixed(0)} exceeds pre-filter ($${(config.MAX_MARKET_CAP_USD * 10).toLocaleString()})`, 'skip');
         skippedPumpMcap++;
+        continue;
+      }
+
+      // Require banner/logo image if configured
+      if (config.REQUIRE_IMAGE && !coin.image_uri) {
+        log(`SKIP ${coin.symbol || coin.mint.slice(0, 8)} — no banner/logo image`, 'skip');
+        skippedNoImage++;
+        continue;
+      }
+
+      // Require twitter link if configured
+      if (config.REQUIRE_TWITTER && !coin.twitter) {
+        log(`SKIP ${coin.symbol || coin.mint.slice(0, 8)} — no twitter link`, 'skip');
+        skippedNoTwitter++;
         continue;
       }
 
@@ -169,7 +185,7 @@ async function scanTokens({ onFound, onProgress, onLog, signal } = {}) {
     }
   }
 
-  log(`Search finished — scanned: ${scanned}, matched: ${matched.length}, skipped: ${skippedPumpMcap} pump-mcap, ${skippedNoPool} no-pool, ${skippedLowVolume} low-vol, ${skippedHighMcap} high-mcap`);
+  log(`Search finished — scanned: ${scanned}, matched: ${matched.length}, skipped: ${skippedPumpMcap} pump-mcap, ${skippedNoImage} no-image, ${skippedNoTwitter} no-twitter, ${skippedNoPool} no-pool, ${skippedLowVolume} low-vol, ${skippedHighMcap} high-mcap`);
   if (onProgress) onProgress({ phase: 'done', scanned, matched: matched.length });
   return matched;
 }

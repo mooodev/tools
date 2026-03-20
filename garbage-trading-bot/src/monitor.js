@@ -72,6 +72,7 @@ async function runScan() {
   broadcast('status', { isScanning: true });
 
   console.log('[monitor] Starting token scan...');
+  broadcast('scan_log', { msg: 'Token scan started', level: 'info' });
   let newCount = 0;
 
   try {
@@ -120,6 +121,7 @@ async function runScan() {
   scanAbortController = null;
   lastScanTime = new Date().toISOString();
   broadcast('status', { isScanning: false, lastScanTime, newCount });
+  broadcast('scan_log', { msg: `Scan complete. ${newCount} new tokens found. Total monitored: ${monitorList.size}`, level: 'info' });
   console.log(`[monitor] Scan complete. ${newCount} new tokens found. Total monitored: ${monitorList.size}`);
 }
 
@@ -145,6 +147,7 @@ async function runPriceUpdate() {
   broadcast('status', { isUpdating: true });
 
   console.log(`[monitor] Updating prices for ${monitorList.size} tokens...`);
+  broadcast('scan_log', { msg: `Price update started for ${monitorList.size} tokens`, level: 'info' });
   let updated = 0;
   let removed = 0;
 
@@ -177,6 +180,7 @@ async function runPriceUpdate() {
   lastUpdateTime = new Date().toISOString();
   broadcast('status', { isUpdating: false, lastUpdateTime });
   broadcast('tokens_updated', getMonitoredTokens());
+  broadcast('scan_log', { msg: `Price update done. ${updated} updated, ${removed} removed.`, level: 'info' });
   console.log(`[monitor] Price update done. ${updated} updated, ${removed} removed.`);
 }
 
