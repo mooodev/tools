@@ -8,9 +8,13 @@ async function fetchGraduatedPage({ offset = 0, limit, sort, order } = {}) {
   const l = limit || config.COINS_PER_PAGE;
   const s = sort || config.SCAN_SORT;
   const o = order || config.SCAN_ORDER;
-  const url =
-    `${config.FRONTEND_API}/coins?offset=${offset}&limit=${l}` +
-    `&sort=${s}&order=${o}&includeNsfw=true&complete=true`;
+  const isGraduated = (config.TOKEN_FILTER || 'graduated') === 'graduated';
+  const params = new URLSearchParams({
+    offset: String(offset), limit: String(l), sort: s, order: o,
+    includeNsfw: 'true',
+    ...(isGraduated ? { complete: 'true' } : {}),
+  });
+  const url = `${config.FRONTEND_API}/coins?${params}`;
   const coins = await fetchJSON(url);
   return Array.isArray(coins) ? coins : [];
 }
