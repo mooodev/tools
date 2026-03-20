@@ -114,6 +114,29 @@
   .confusion-matrix { font-size: 12px; }
   .confusion-matrix td { text-align: center; min-width: 60px; }
   .confusion-matrix .header { color: #58a6ff; font-weight: 600; }
+  .token-link {
+    color: #58a6ff; text-decoration: none; cursor: pointer;
+    transition: color 0.15s;
+  }
+  .token-link:hover { color: #79c0ff; text-decoration: underline; }
+  .price-info { font-size: 12px; color: #8b949e; margin-top: 8px; }
+  .price-info span { color: #c9d1d9; }
+  .trade-row { transition: background 0.15s; }
+  .trade-row:hover { background: #1c2128; }
+  .badge {
+    display: inline-block; padding: 2px 8px; border-radius: 4px;
+    font-size: 11px; font-weight: 600;
+  }
+  .badge.success { background: #238636; color: #fff; }
+  .badge.pending { background: #30363d; color: #d29922; }
+  .badge.loss { background: #30363d; color: #f85149; }
+  .profit { color: #3fb950; }
+  .loss-text { color: #f85149; }
+  .trade-count-badge {
+    background: #1f6feb; color: #fff; font-size: 10px; font-weight: 700;
+    border-radius: 10px; padding: 1px 6px; margin-left: 6px;
+    display: inline-block; min-width: 16px; text-align: center;
+  }
 </style>
 </head>
 <body>
@@ -129,6 +152,7 @@
 <nav>
   <button class="active" onclick="switchTab('train')">Train</button>
   <button onclick="switchTab('predict')">Predict</button>
+  <button onclick="switchTab('test')">Trading Test<span class="trade-count-badge" id="tradeCountBadge" style="display:none;">0</span></button>
   <button onclick="switchTab('info')">Info</button>
   <button onclick="switchTab('console')">Console</button>
 </nav>
@@ -200,6 +224,8 @@
         <div style="color:#8b949e;font-size:13px;" id="predTokenName"></div>
         <div class="signal" id="predSignal"></div>
         <div style="color:#8b949e;font-size:12px;" id="predConfidence"></div>
+        <div class="price-info" id="predPriceInfo"></div>
+        <div style="margin-top:8px;" id="predDexLink"></div>
       </div>
       <div style="margin-top:12px;">
         <div class="prob-bar-container">
@@ -217,6 +243,43 @@
           <div class="prob-bar"><div class="fill-bull" id="barBull" style="width:0%"></div></div>
           <span class="prob-bar-val" id="valBull">0%</span>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ Trading Test Tab ═════════════════════════════════════════ -->
+  <div class="tab" id="tab-test">
+    <div class="card">
+      <h2>Trading Test — Buy Signal Tracker</h2>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
+        <button class="btn" id="btnScreenAll" onclick="screenAllTokens()">Screen All Tokens</button>
+        <span style="font-size:12px;color:#8b949e;" id="screenStatus"></span>
+      </div>
+      <div style="font-size:12px;color:#8b949e;margin-bottom:8px;">
+        Buy signals are auto-tracked. Price updates every 60s. Target: ><span id="targetPct">10</span>% gain (model threshold).
+      </div>
+    </div>
+
+    <div class="card" id="tradeTableCard">
+      <h2>Active Trades <span style="font-size:12px;color:#8b949e;" id="tradeRefreshTime"></span></h2>
+      <div style="overflow-x:auto;">
+        <table id="tradeTable">
+          <thead>
+            <tr>
+              <th>Token</th>
+              <th>Signal Time</th>
+              <th>Buy Price</th>
+              <th>Current Price</th>
+              <th>Market Cap</th>
+              <th>Change</th>
+              <th>Status</th>
+              <th>Confidence</th>
+            </tr>
+          </thead>
+          <tbody id="tradeTableBody">
+            <tr><td colspan="8" style="text-align:center;color:#8b949e;">Click "Screen All Tokens" to find buy signals</td></tr>
+          </tbody>
+        </table>
       </div>
     </div>
   </div>
@@ -262,6 +325,10 @@ let stopRequested = false;
 let datasetMeta = null;
 let featureData = null;
 let labelData = null;
+
+// Trading test state
+let activeTrades = [];      // { mint, name, buyPrice, buyMarketCap, buyTime, currentPrice, currentMarketCap, confidence, bullProb }
+let tradeRefreshInterval = null;
 
 // ═══════════════════════════════════════════════════════════════
 //  Console logging
@@ -958,6 +1025,29 @@ async function runPrediction() {
     document.getElementById('valNeut').textContent = (probs[1] * 100).toFixed(1) + '%';
     document.getElementById('valBull').textContent = (probs[2] * 100).toFixed(1) + '%';
 
+    // Show price/marketcap/last candle time
+    const priceInfoEl = document.getElementById('predPriceInfo');
+    const dexLinkEl = document.getElementById('predDexLink');
+    if (data.lastCandle) {
+      const lc = data.lastCandle;
+      const timeStr = new Date(lc.timestamp * 1000).toLocaleString();
+      let info = `Price: <span>${formatPrice(lc.price)}</span>`;
+      if (lc.marketCap) info += ` | Market Cap: <span>${formatMarketCap(lc.marketCap)}</span>`;
+      info += ` | Last Candle: <span>${timeStr}</span>`;
+      priceInfoEl.innerHTML = info;
+    } else {
+      priceInfoEl.innerHTML = '';
+    }
+
+    // Show dexscreener link for buy signals
+    if (maxIdx === 2) { // Bullish = BUY
+      dexLinkEl.innerHTML = `<a class="token-link" href="https://dexscreener.com/solana/${mint}" target="_blank" rel="noopener">View on DexScreener ↗</a>`;
+      // Auto-add to trading test
+      addToTradingTest(mint, data.tokenName, data.lastCandle, probs[2]);
+    } else {
+      dexLinkEl.innerHTML = '';
+    }
+
     log(`Prediction: ${classNames[maxIdx]} (${(probs[maxIdx] * 100).toFixed(1)}%)`, 'success');
     log(`  Bearish: ${(probs[0]*100).toFixed(1)}%, Neutral: ${(probs[1]*100).toFixed(1)}%, Bullish: ${(probs[2]*100).toFixed(1)}%`);
 
@@ -1014,6 +1104,188 @@ function updateInfoTab() {
       document.getElementById('featureList').innerHTML =
         ds.featureNames.map(f => `<div>${f}</div>`).join('');
     }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  Formatting helpers
+// ═══════════════════════════════════════════════════════════════
+
+function formatPrice(p) {
+  if (p == null) return '-';
+  if (p < 0.000001) return p.toExponential(4);
+  if (p < 0.01) return p.toFixed(8);
+  if (p < 1) return p.toFixed(6);
+  return p.toFixed(4);
+}
+
+function formatMarketCap(mc) {
+  if (mc == null) return '-';
+  if (mc >= 1e9) return '$' + (mc / 1e9).toFixed(2) + 'B';
+  if (mc >= 1e6) return '$' + (mc / 1e6).toFixed(2) + 'M';
+  if (mc >= 1e3) return '$' + (mc / 1e3).toFixed(2) + 'K';
+  return '$' + mc.toFixed(2);
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  Trading Test
+// ═══════════════════════════════════════════════════════════════
+
+function getTargetPct() {
+  return (cfg.GROWTH_THRESHOLD_UP || 0.10) * 100;
+}
+
+function addToTradingTest(mint, name, lastCandle, bullProb) {
+  // Don't add duplicates
+  if (activeTrades.find(t => t.mint === mint)) return;
+
+  const trade = {
+    mint,
+    name,
+    buyPrice: lastCandle ? lastCandle.price : null,
+    buyMarketCap: lastCandle ? lastCandle.marketCap : null,
+    buyTime: Date.now(),
+    currentPrice: lastCandle ? lastCandle.price : null,
+    currentMarketCap: lastCandle ? lastCandle.marketCap : null,
+    confidence: bullProb,
+  };
+
+  activeTrades.push(trade);
+  updateTradeCountBadge();
+  renderTradeTable();
+  startTradeRefresh();
+  log(`Added ${name} to Trading Test tracker`, 'success');
+}
+
+async function screenAllTokens() {
+  const btn = document.getElementById('btnScreenAll');
+  const status = document.getElementById('screenStatus');
+  btn.disabled = true;
+  status.textContent = 'Screening...';
+
+  try {
+    // Load model if not in memory
+    if (!trainedModel) {
+      trainedModel = await loadModelFromServer();
+      if (!trainedModel) {
+        log('No model available. Train a model first.', 'error');
+        btn.disabled = false;
+        status.textContent = '';
+        return;
+      }
+    }
+
+    const res = await fetch('/api/tokens');
+    const tokens = await res.json();
+    let screened = 0;
+    let buySignals = 0;
+
+    for (const token of tokens) {
+      try {
+        const dataRes = await fetch(`/api/token/${token.mint}/predict-data`);
+        if (!dataRes.ok) continue;
+        const data = await dataRes.json();
+
+        const inputTensor = tf.tensor3d([data.lastWindow]);
+        const prediction = trainedModel.predict(inputTensor);
+        const probs = await prediction.data();
+        inputTensor.dispose();
+        prediction.dispose();
+
+        // BUY signal: bullish prob > bearish prob
+        if (probs[2] > probs[0]) {
+          addToTradingTest(token.mint, data.tokenName, data.lastCandle, probs[2]);
+          buySignals++;
+        }
+
+        screened++;
+        if (screened % 10 === 0) {
+          status.textContent = `Screened ${screened}/${tokens.length}...`;
+        }
+      } catch {}
+    }
+
+    status.textContent = `Done. ${buySignals} buy signals from ${screened} tokens.`;
+    log(`Screening complete: ${buySignals} buy signals from ${screened} tokens`, 'success');
+  } catch (err) {
+    log(`Screening error: ${err.message}`, 'error');
+    status.textContent = 'Error.';
+  }
+
+  btn.disabled = false;
+}
+
+function renderTradeTable() {
+  const tbody = document.getElementById('tradeTableBody');
+  const targetPct = getTargetPct();
+
+  document.getElementById('targetPct').textContent = targetPct.toFixed(0);
+
+  if (activeTrades.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#8b949e;">No active trades. Screen tokens or predict individual tokens to add buy signals.</td></tr>';
+    return;
+  }
+
+  // Sort: successes first, then by change descending
+  const sorted = [...activeTrades].sort((a, b) => {
+    const changeA = a.buyPrice ? ((a.currentPrice - a.buyPrice) / a.buyPrice) * 100 : 0;
+    const changeB = b.buyPrice ? ((b.currentPrice - b.buyPrice) / b.buyPrice) * 100 : 0;
+    return changeB - changeA;
+  });
+
+  tbody.innerHTML = sorted.map(trade => {
+    const change = trade.buyPrice ? ((trade.currentPrice - trade.buyPrice) / trade.buyPrice) * 100 : 0;
+    const isSuccess = change >= targetPct;
+    const isProfit = change > 0;
+    const changeClass = isProfit ? 'profit' : 'loss-text';
+    const statusBadge = isSuccess
+      ? '<span class="badge success">Success</span>'
+      : `<span class="badge pending">Pending</span>`;
+    const buyTimeStr = new Date(trade.buyTime).toLocaleString();
+
+    return `<tr class="trade-row">
+      <td><a class="token-link" href="https://dexscreener.com/solana/${trade.mint}" target="_blank" rel="noopener">${trade.name}</a></td>
+      <td style="font-size:11px;">${buyTimeStr}</td>
+      <td>${formatPrice(trade.buyPrice)}</td>
+      <td>${formatPrice(trade.currentPrice)}</td>
+      <td>${formatMarketCap(trade.currentMarketCap)}</td>
+      <td class="${changeClass}">${change >= 0 ? '+' : ''}${change.toFixed(2)}%</td>
+      <td>${statusBadge}</td>
+      <td>${(trade.confidence * 100).toFixed(1)}%</td>
+    </tr>`;
+  }).join('');
+}
+
+async function refreshTradePrices() {
+  if (activeTrades.length === 0) return;
+
+  for (const trade of activeTrades) {
+    try {
+      const res = await fetch(`/api/token/${trade.mint}/price`);
+      if (!res.ok) continue;
+      const data = await res.json();
+      trade.currentPrice = data.price;
+      trade.currentMarketCap = data.marketCap;
+    } catch {}
+  }
+
+  renderTradeTable();
+  document.getElementById('tradeRefreshTime').textContent =
+    `(updated ${new Date().toLocaleTimeString()})`;
+}
+
+function startTradeRefresh() {
+  if (tradeRefreshInterval) return;
+  tradeRefreshInterval = setInterval(refreshTradePrices, 60000); // every 60 seconds
+}
+
+function updateTradeCountBadge() {
+  const badge = document.getElementById('tradeCountBadge');
+  if (activeTrades.length > 0) {
+    badge.textContent = activeTrades.length;
+    badge.style.display = 'inline-block';
+  } else {
+    badge.style.display = 'none';
   }
 }
 
