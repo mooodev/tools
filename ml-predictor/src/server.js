@@ -11,7 +11,7 @@ const express = require("express");
 const path = require("path");
 const fs = require("fs");
 const config = require("./config");
-const { loadDataset, listAvailableTokens, processToken, loadTokenMeta } = require("./data-loader");
+const { loadDataset, listAvailableTokens, processToken, loadTokenMeta, loadCandles } = require("./data-loader");
 const { applyScaler, createSequences } = require("./features");
 
 function startServer() {
@@ -156,11 +156,46 @@ function startServer() {
       }
 
       const meta = loadTokenMeta(mint);
+
+      // Get last candle price/marketcap/time info
+      const candleData = loadCandles(mint);
+      let lastCandle = null;
+      if (candleData && candleData.candles && candleData.candles.length > 0) {
+        const c = candleData.candles[candleData.candles.length - 1];
+        lastCandle = {
+          price: c.close,
+          marketCap: c.marketCap || null,
+          timestamp: c.timestamp,
+        };
+      }
+
       res.json({
         mint,
         tokenName: meta?.name || meta?.symbol || mint.slice(0, 12),
         lastWindow: X[X.length - 1],
         nWindows: X.length,
+        lastCandle,
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ─── API: Token price (latest candle) ───────────────────────────
+
+  app.get("/api/token/:mint/price", (req, res) => {
+    try {
+      const { mint } = req.params;
+      const candleData = loadCandles(mint);
+      if (!candleData || !candleData.candles || candleData.candles.length === 0) {
+        return res.status(404).json({ error: "No candle data." });
+      }
+      const c = candleData.candles[candleData.candles.length - 1];
+      res.json({
+        mint,
+        price: c.close,
+        marketCap: c.marketCap || null,
+        timestamp: c.timestamp,
       });
     } catch (err) {
       res.status(500).json({ error: err.message });
