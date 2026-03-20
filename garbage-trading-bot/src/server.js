@@ -38,6 +38,16 @@ function createServer() {
     monitor.runPriceUpdate();
   });
 
+  app.post('/api/auto-scan/start', (_req, res) => {
+    monitor.startLoops();
+    res.json({ ok: true, message: 'Auto-scan started' });
+  });
+
+  app.post('/api/auto-scan/stop', (_req, res) => {
+    monitor.stopLoops();
+    res.json({ ok: true, message: 'Auto-scan stopped' });
+  });
+
   app.delete('/api/tokens/:mint', (req, res) => {
     const removed = monitor.removeToken(req.params.mint);
     res.json({ ok: removed });

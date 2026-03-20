@@ -50,42 +50,79 @@ async function getPoolInfo(mintAddress) {
  * Yields results via onFound(token) callback.
  * Returns the full list of matched tokens.
  */
-async function scanTokens({ onFound, onProgress } = {}) {
+async function scanTokens({ onFound, onProgress, onLog } = {}) {
   const matched = [];
   let scanned = 0;
+  let skippedPumpMcap = 0;
+  let skippedNoPool = 0;
+  let skippedLowVolume = 0;
+  let skippedHighMcap = 0;
+
+  const log = (msg, level = 'info') => {
+    console.log(`  [scanner] ${msg}`);
+    if (onLog) onLog(msg, level);
+  };
+
+  log(`Search started — filters: minVol=$${config.MIN_DAILY_VOLUME_USD.toLocaleString()}, maxMcap=$${config.MAX_MARKET_CAP_USD.toLocaleString()}, pages=${config.MAX_PAGES_TO_SCAN}, sort=${config.SCAN_SORT} ${config.SCAN_ORDER}`);
 
   for (let page = 0; page < config.MAX_PAGES_TO_SCAN; page++) {
     const offset = page * config.COINS_PER_PAGE;
     if (onProgress) onProgress({ phase: 'fetching_page', page: page + 1, scanned });
 
+    log(`Fetching page ${page + 1}/${config.MAX_PAGES_TO_SCAN} (offset ${offset})...`);
+
     let coins;
     try {
       coins = await fetchGraduatedPage({ offset });
     } catch (err) {
-      console.error(`  [scanner] Failed to fetch page ${page}: ${err.message}`);
+      log(`Failed to fetch page ${page + 1}: ${err.message}`, 'err');
       break;
     }
 
-    if (coins.length === 0) break;
+    if (coins.length === 0) {
+      log(`Page ${page + 1} returned 0 coins — end of results`);
+      break;
+    }
+
+    log(`Page ${page + 1}: got ${coins.length} coins, evaluating...`);
 
     for (const coin of coins) {
       scanned++;
 
       // Quick pre-filter on pump.fun market cap (rough, may be stale)
       const pumpMcap = coin.usd_market_cap || 0;
-      if (pumpMcap > config.MAX_MARKET_CAP_USD * 10) continue; // generous pre-filter
+      if (pumpMcap > config.MAX_MARKET_CAP_USD * 10) {
+        log(`SKIP ${coin.symbol || coin.mint.slice(0, 8)} — pump mcap $${pumpMcap.toFixed(0)} exceeds pre-filter ($${(config.MAX_MARKET_CAP_USD * 10).toLocaleString()})`, 'skip');
+        skippedPumpMcap++;
+        continue;
+      }
 
       // Get live pool data from GeckoTerminal
+      log(`Checking ${coin.symbol || coin.mint.slice(0, 8)} (pump mcap: $${pumpMcap.toFixed(0)})...`);
       const pool = await getPoolInfo(coin.mint);
-      if (!pool) continue;
+      if (!pool) {
+        log(`SKIP ${coin.symbol || coin.mint.slice(0, 8)} — no pool data found on GeckoTerminal`, 'skip');
+        skippedNoPool++;
+        continue;
+      }
 
       const { volumeUsd24h, marketCapUsd, priceUsd, fdvUsd, poolAddress } = pool;
 
       // Apply strict filters
-      if (volumeUsd24h < config.MIN_DAILY_VOLUME_USD) continue;
-      if (marketCapUsd > config.MAX_MARKET_CAP_USD && fdvUsd > config.MAX_MARKET_CAP_USD) continue;
+      if (volumeUsd24h < config.MIN_DAILY_VOLUME_USD) {
+        log(`SKIP ${coin.symbol} — volume $${volumeUsd24h.toFixed(0)} < min $${config.MIN_DAILY_VOLUME_USD.toLocaleString()}`, 'skip');
+        skippedLowVolume++;
+        continue;
+      }
+      if (marketCapUsd > config.MAX_MARKET_CAP_USD && fdvUsd > config.MAX_MARKET_CAP_USD) {
+        log(`SKIP ${coin.symbol} — mcap $${marketCapUsd.toFixed(0)} & fdv $${fdvUsd.toFixed(0)} both exceed max $${config.MAX_MARKET_CAP_USD.toLocaleString()}`, 'skip');
+        skippedHighMcap++;
+        continue;
+      }
 
       const effectiveMcap = marketCapUsd || fdvUsd;
+
+      log(`MATCH ${coin.symbol} — mcap: $${effectiveMcap.toFixed(2)}, vol: $${volumeUsd24h.toFixed(0)}, price: $${priceUsd}`, 'match');
 
       const token = {
         mint: coin.mint,
@@ -107,9 +144,13 @@ async function scanTokens({ onFound, onProgress } = {}) {
       if (onFound) onFound(token);
     }
 
-    if (coins.length < config.COINS_PER_PAGE) break;
+    if (coins.length < config.COINS_PER_PAGE) {
+      log(`Page ${page + 1} had fewer coins than expected (${coins.length}/${config.COINS_PER_PAGE}) — no more pages`);
+      break;
+    }
   }
 
+  log(`Search finished — scanned: ${scanned}, matched: ${matched.length}, skipped: ${skippedPumpMcap} pump-mcap, ${skippedNoPool} no-pool, ${skippedLowVolume} low-vol, ${skippedHighMcap} high-mcap`);
   if (onProgress) onProgress({ phase: 'done', scanned, matched: matched.length });
   return matched;
 }
