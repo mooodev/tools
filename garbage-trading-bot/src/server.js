@@ -33,6 +33,11 @@ function createServer() {
     monitor.runScan().then(() => monitor.runPriceUpdate());
   });
 
+  app.post('/api/scan/stop', (_req, res) => {
+    const stopped = monitor.stopScan();
+    res.json({ ok: stopped, message: stopped ? 'Scan stopped' : 'No scan running' });
+  });
+
   app.post('/api/update-prices', async (_req, res) => {
     res.json({ ok: true, message: 'Price update started' });
     monitor.runPriceUpdate();
