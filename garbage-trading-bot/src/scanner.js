@@ -53,6 +53,7 @@ async function getPoolInfo(mintAddress) {
 async function scanTokens({ onFound, onProgress, onLog } = {}) {
   const matched = [];
   let scanned = 0;
+  let skippedNotGraduated = 0;
   let skippedPumpMcap = 0;
   let skippedNoPool = 0;
   let skippedLowVolume = 0;
@@ -88,6 +89,13 @@ async function scanTokens({ onFound, onProgress, onLog } = {}) {
 
     for (const coin of coins) {
       scanned++;
+
+      // Only process tokens that have graduated from pump.fun bonding curve
+      if (!coin.complete || !coin.raydium_pool) {
+        log(`SKIP ${coin.symbol || coin.mint?.slice(0, 8)} — not graduated from pump.fun (complete=${coin.complete}, raydium_pool=${!!coin.raydium_pool})`, 'skip');
+        skippedNotGraduated++;
+        continue;
+      }
 
       // Quick pre-filter on pump.fun market cap (rough, may be stale)
       const pumpMcap = coin.usd_market_cap || 0;
@@ -150,7 +158,7 @@ async function scanTokens({ onFound, onProgress, onLog } = {}) {
     }
   }
 
-  log(`Search finished — scanned: ${scanned}, matched: ${matched.length}, skipped: ${skippedPumpMcap} pump-mcap, ${skippedNoPool} no-pool, ${skippedLowVolume} low-vol, ${skippedHighMcap} high-mcap`);
+  log(`Search finished — scanned: ${scanned}, matched: ${matched.length}, skipped: ${skippedNotGraduated} not-graduated, ${skippedPumpMcap} pump-mcap, ${skippedNoPool} no-pool, ${skippedLowVolume} low-vol, ${skippedHighMcap} high-mcap`);
   if (onProgress) onProgress({ phase: 'done', scanned, matched: matched.length });
   return matched;
 }
