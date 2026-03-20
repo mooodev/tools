@@ -23,6 +23,7 @@ let scanTimer = null;
 let updateTimer = null;
 let isScanning = false;
 let isUpdating = false;
+let isAutoScanRunning = false;
 let lastScanTime = null;
 let lastUpdateTime = null;
 let sseClients = [];
@@ -52,6 +53,7 @@ function getStatus() {
     totalMonitored: monitorList.size,
     isScanning,
     isUpdating,
+    isAutoScanRunning,
     lastScanTime,
     lastUpdateTime,
     scanIntervalMs: config.SCAN_INTERVAL_MS,
@@ -72,6 +74,9 @@ async function runScan() {
 
   try {
     await scanTokens({
+      onLog: (msg, level) => {
+        broadcast('scan_log', { msg, level });
+      },
       onFound: (token) => {
         if (monitorList.has(token.mint)) return;
         if (monitorList.size >= config.MAX_MONITORED_TOKENS) return;
@@ -179,18 +184,18 @@ function clearAll() {
 
 /**
  * Start the automated scan + price update loops.
+ * Does NOT run an initial scan — all controls are manual via dashboard.
  */
 function startLoops() {
   stopLoops();
 
-  // Initial scan immediately
-  runScan().then(() => runPriceUpdate());
-
   scanTimer = setInterval(() => runScan(), config.SCAN_INTERVAL_MS);
   updateTimer = setInterval(() => runPriceUpdate(), config.PRICE_UPDATE_INTERVAL_MS);
+  isAutoScanRunning = true;
 
+  broadcast('status', { isAutoScanRunning: true });
   console.log(
-    `[monitor] Loops started — scan every ${config.SCAN_INTERVAL_MS / 1000}s, update every ${config.PRICE_UPDATE_INTERVAL_MS / 1000}s`
+    `[monitor] Auto-scan started — scan every ${config.SCAN_INTERVAL_MS / 1000}s, update every ${config.PRICE_UPDATE_INTERVAL_MS / 1000}s`
   );
 }
 
@@ -202,12 +207,17 @@ function stopLoops() {
   if (updateTimer) clearInterval(updateTimer);
   scanTimer = null;
   updateTimer = null;
+  isAutoScanRunning = false;
+
+  broadcast('status', { isAutoScanRunning: false });
+  console.log('[monitor] Auto-scan stopped');
 }
 
 /**
  * Restart loops (after config change).
  */
 function restartLoops() {
+  if (!isAutoScanRunning) return; // only restart if was running
   stopLoops();
   startLoops();
 }

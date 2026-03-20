@@ -14,5 +14,5 @@ app.listen(config.PORT, () => {
   console.log(`    Scan interval:     every ${config.SCAN_INTERVAL_MS / 1000}s`);
   console.log('');
 
-  monitor.startLoops();
+  console.log('  Auto-scan is OFF. Use the dashboard to start scanning.\n');
 });

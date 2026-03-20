@@ -126,6 +126,7 @@
   <div class="toolbar">
     <button class="btn primary" id="btnScan">Scan Now</button>
     <button class="btn" id="btnRefresh">Update Prices</button>
+    <button class="btn" id="btnAutoScan">Start Auto-Scan</button>
     <button class="btn danger" id="btnClear">Clear All</button>
     <div class="spacer"></div>
     <input type="text" class="search" id="searchInput" placeholder="Filter by name or symbol...">
@@ -152,7 +153,7 @@
     </table>
     <div class="empty-state" id="emptyState">
       <h3>No tokens monitored yet</h3>
-      <p>Click "Scan Now" or wait for the automatic scan to find graduated pump.fun tokens matching your filters.</p>
+      <p>Click "Scan Now" to search for graduated pump.fun tokens matching your filters, or "Start Auto-Scan" for periodic scanning.</p>
     </div>
   </div>
 </div>
@@ -410,6 +411,31 @@ $('#btnRefresh').addEventListener('click', () => {
   setTimeout(() => ($('#btnRefresh').disabled = false), 3000);
 });
 
+let autoScanRunning = false;
+
+function updateAutoScanBtn() {
+  const btn = $('#btnAutoScan');
+  if (autoScanRunning) {
+    btn.textContent = 'Stop Auto-Scan';
+    btn.classList.add('danger');
+    btn.classList.remove('primary');
+  } else {
+    btn.textContent = 'Start Auto-Scan';
+    btn.classList.remove('danger');
+    btn.classList.add('primary');
+  }
+}
+
+$('#btnAutoScan').addEventListener('click', () => {
+  if (autoScanRunning) {
+    fetch('/api/auto-scan/stop', { method: 'POST' });
+    addLog('Auto-scan stopped', 'info');
+  } else {
+    fetch('/api/auto-scan/start', { method: 'POST' });
+    addLog('Auto-scan started', 'info');
+  }
+});
+
 $('#btnClear').addEventListener('click', () => {
   if (confirm('Remove all monitored tokens?')) {
     fetch('/api/clear', { method: 'POST' });
@@ -454,14 +480,23 @@ function connectSSE() {
     const s = JSON.parse(e.data);
     if (s.isScanning !== undefined) {
       $('#scanDot').className = 'dot ' + (s.isScanning ? 'on scanning' : 'off');
-      if (s.isScanning) addLog('Scan started...', 'info');
     }
     if (s.isUpdating !== undefined) {
       $('#updateDot').className = 'dot ' + (s.isUpdating ? 'on scanning' : 'off');
     }
+    if (s.isAutoScanRunning !== undefined) {
+      autoScanRunning = s.isAutoScanRunning;
+      updateAutoScanBtn();
+    }
     if (s.lastScanTime) $('#statLastScan').textContent = fmtTime(s.lastScanTime);
     if (s.lastUpdateTime) $('#statLastUpdate').textContent = fmtTime(s.lastUpdateTime);
     if (s.newCount !== undefined) addLog(`Scan done. ${s.newCount} new tokens found.`, s.newCount > 0 ? 'new' : 'info');
+  });
+
+  es.addEventListener('scan_log', (e) => {
+    const { msg, level } = JSON.parse(e.data);
+    const logType = level === 'err' ? 'err' : level === 'match' ? 'new' : 'info';
+    addLog(msg, logType);
   });
 
   es.addEventListener('scan_progress', (e) => {
@@ -556,6 +591,8 @@ async function init() {
   if (status.lastScanTime) $('#statLastScan').textContent = fmtTime(status.lastScanTime);
   if (status.lastUpdateTime) $('#statLastUpdate').textContent = fmtTime(status.lastUpdateTime);
   $('#tokenCount').textContent = `${tokens.length} tokens`;
+  autoScanRunning = !!status.isAutoScanRunning;
+  updateAutoScanBtn();
 }
 
 init();
