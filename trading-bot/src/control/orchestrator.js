@@ -19,9 +19,7 @@ class Orchestrator {
       lastFetch: null,
       lastFeatures: null,
       lastTrain: null,
-      lastDecay: null,
       trainResult: null,
-      decayResult: null,
       fetchProgress: null,
       error: null,
     };
@@ -139,38 +137,6 @@ class Orchestrator {
     }
   }
 
-  // ─── Pattern Decay Analysis ─────────────────────────────────────
-
-  async runDecayAnalysis() {
-    this._emit({ status: "analyzing_decay", error: null });
-
-    const csvPath = path.join(config.FEATURES_DIR, "training_data.csv");
-    if (!fs.existsSync(csvPath)) {
-      this._emit({ status: "error", error: "No training data. Run features first." });
-      return { success: false, error: "No training data CSV" };
-    }
-
-    try {
-      const configJson = JSON.stringify(config);
-      const result = await this._runPython("decay", [csvPath, configJson, config.MODEL_DIR]);
-
-      // Save decay result so the dashboard can display it
-      const decayPath = path.join(config.MODEL_DIR, "decay_analysis.json");
-      fs.mkdirSync(config.MODEL_DIR, { recursive: true });
-      fs.writeFileSync(decayPath, JSON.stringify(result, null, 2));
-
-      this._emit({
-        status: "idle",
-        lastDecay: new Date().toISOString(),
-        decayResult: result,
-      });
-      return { success: !result.error, ...result };
-    } catch (err) {
-      this._emit({ status: "error", error: err.message });
-      return { success: false, error: err.message };
-    }
-  }
-
   // ─── Predict ────────────────────────────────────────────────────
 
   async runPredict(csvPath) {
@@ -271,15 +237,11 @@ class Orchestrator {
     const trainResult = await this.runTrain();
     if (!trainResult.success) return trainResult;
 
-    // 4. Decay analysis
-    const decayResult = await this.runDecayAnalysis();
-
     return {
       success: true,
       fetch: fetchResult,
       features: featResult,
       train: trainResult,
-      decay: decayResult,
     };
   }
 

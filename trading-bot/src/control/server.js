@@ -77,11 +77,6 @@ function startServer() {
     orchestrator.runTrain();
   });
 
-  app.post("/api/decay", async (_req, res) => {
-    res.json({ started: true });
-    orchestrator.runDecayAnalysis();
-  });
-
   app.post("/api/predict", async (req, res) => {
     const result = await orchestrator.runPredict(req.body?.csvPath);
     res.json(result);
@@ -139,14 +134,6 @@ function startServer() {
 
   app.get("/api/train-result", (_req, res) => {
     const resultPath = path.join(config.MODEL_DIR, "train_result.json");
-    if (!fs.existsSync(resultPath)) return res.json(null);
-    try {
-      return res.json(JSON.parse(fs.readFileSync(resultPath, "utf8")));
-    } catch { return res.json(null); }
-  });
-
-  app.get("/api/decay-result", (_req, res) => {
-    const resultPath = path.join(config.MODEL_DIR, "decay_analysis.json");
     if (!fs.existsSync(resultPath)) return res.json(null);
     try {
       return res.json(JSON.parse(fs.readFileSync(resultPath, "utf8")));

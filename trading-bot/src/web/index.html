@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>EMH Trading Bot — Pattern Decay Dashboard</title>
+  <title>EMH Trading Bot — Dashboard</title>
   <style>
     :root {
       --bg: #0a0a0f;
@@ -198,8 +198,6 @@
     .tag.emerging { background: rgba(0,184,148,0.2); color: var(--green); }
     .tag.stable { background: rgba(116,185,255,0.2); color: var(--blue); }
     .tag.traded_out { background: rgba(255,107,107,0.2); color: var(--red); }
-    .tag.weak { background: rgba(253,203,110,0.2); color: var(--orange); }
-    .tag.unknown { background: rgba(136,136,160,0.2); color: var(--text-dim); }
 
     .log-box {
       background: var(--bg);
@@ -217,35 +215,6 @@
     .log-box .log-success { color: var(--green); }
     .log-box .log-error { color: var(--red); }
 
-    .freshness-meter {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .freshness-bar {
-      flex: 1;
-      height: 6px;
-      background: var(--surface2);
-      border-radius: 3px;
-      overflow: hidden;
-    }
-    .freshness-fill {
-      height: 100%;
-      border-radius: 3px;
-      transition: width 0.5s, background 0.5s;
-    }
-
-    .regime-badge {
-      padding: 6px 14px;
-      border-radius: 20px;
-      font-size: 13px;
-      font-weight: 600;
-      display: inline-block;
-    }
-    .regime-badge.patterns_emerging { background: rgba(0,184,148,0.2); color: var(--green); }
-    .regime-badge.patterns_decaying { background: rgba(255,107,107,0.2); color: var(--red); }
-    .regime-badge.stable { background: rgba(116,185,255,0.2); color: var(--blue); }
-
     @media (max-width: 900px) {
       .grid-2, .grid-3 { grid-template-columns: 1fr; }
     }
@@ -255,7 +224,7 @@
 
 <div class="header">
   <h1>EMH TRADING BOT</h1>
-  <span style="font-size:11px;color:var(--text-dim)">Pattern Decay Dashboard</span>
+  <span style="font-size:11px;color:var(--text-dim)">Trading Dashboard</span>
   <div class="status">
     <div class="status-dot" id="statusDot"></div>
     <span id="statusText">idle</span>
@@ -266,7 +235,6 @@
   <div class="tab active" data-tab="control">Control</div>
   <div class="tab" data-tab="config">Config</div>
   <div class="tab" data-tab="training">Training</div>
-  <div class="tab" data-tab="decay">Pattern Decay</div>
   <div class="tab" data-tab="screening">Token Screening</div>
   <div class="tab" data-tab="logs">Logs</div>
 </div>
@@ -283,7 +251,6 @@
           <button onclick="api('update-data')" id="btnUpdate" class="secondary" title="Only download new candles for existing tokens">1b. Update Data (incremental)</button>
           <button onclick="api('features')" id="btnFeatures" class="secondary">2. Engineer Features</button>
           <button onclick="api('train')" id="btnTrain" class="secondary">3. Train LightGBM</button>
-          <button onclick="api('decay')" id="btnDecay" class="secondary">4. Analyze Decay</button>
           <hr style="border-color:var(--border);width:100%">
           <button onclick="api('pipeline')" class="success">Run Full Pipeline</button>
         </div>
@@ -310,13 +277,6 @@
           <div><div class="metric small" id="mAuc">—</div><div class="metric-label">AUC-ROC</div></div>
           <div><div class="metric small" id="mPrecision">—</div><div class="metric-label">Precision</div></div>
           <div><div class="metric small" id="mF1">—</div><div class="metric-label">F1 Score</div></div>
-        </div>
-      </div>
-      <div class="card">
-        <h3>Market Regime</h3>
-        <div id="regimeDisplay" style="text-align:center;padding:20px">
-          <div class="regime-badge stable" id="regimeBadge">UNKNOWN</div>
-          <div class="metric-label" style="margin-top:12px" id="regimeDetail">Run decay analysis to detect regime</div>
         </div>
       </div>
     </div>
@@ -391,17 +351,6 @@
           <span id="mlApplyStatus" style="font-size:10px;color:var(--text-dim)"></span>
         </div>
       </div>
-      <div class="card">
-        <h3>EMH / Pattern Decay</h3>
-        <div class="form-row"><div class="form-group"><label>Decay Window (hours)</label><input type="number" id="cfgDecayWindow" value="12"></div></div>
-        <div class="form-row"><div class="form-group"><label>Min Windows for Decay</label><input type="number" id="cfgMinWindows" value="3"></div></div>
-        <div class="form-row"><div class="form-group"><label>Alpha Decay Threshold</label><input type="number" id="cfgAlphaThreshold" value="0.3" step="0.05"></div></div>
-        <div class="form-row"><div class="form-group"><label>Freshness Lookback</label><input type="number" id="cfgFreshnessLookback" value="6"></div></div>
-        <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
-          <button onclick="applyDecayParams()" id="btnApplyDecay">Apply &amp; Re-analyze</button>
-          <span id="decayApplyStatus" style="font-size:10px;color:var(--text-dim)"></span>
-        </div>
-      </div>
     </div>
   </div>
 
@@ -433,39 +382,6 @@
     <div class="card">
       <h3>Training Details</h3>
       <div id="trainDetails" style="font-size:12px;color:var(--text-dim)">No training results yet</div>
-    </div>
-  </div>
-
-  <!-- ═══ PATTERN DECAY PANEL ═══ -->
-  <div class="panel" id="panel-decay">
-    <div class="grid grid-3" style="margin-bottom:16px">
-      <div class="card">
-        <h3>Emerging Patterns</h3>
-        <div id="emergingList"><p style="color:var(--text-dim);font-size:12px">Run decay analysis</p></div>
-      </div>
-      <div class="card">
-        <h3>Stable Patterns</h3>
-        <div id="stableList"><p style="color:var(--text-dim);font-size:12px">Run decay analysis</p></div>
-      </div>
-      <div class="card">
-        <h3>Traded-Out Patterns</h3>
-        <div id="tradedOutList"><p style="color:var(--text-dim);font-size:12px">Run decay analysis</p></div>
-      </div>
-    </div>
-
-    <div class="card" style="margin-bottom:16px">
-      <h3>Feature Freshness Rankings</h3>
-      <table id="freshnessTable">
-        <thead><tr><th>Feature</th><th>Freshness</th><th style="width:30%">Freshness Bar</th><th>Status</th><th>Decay Rate</th><th>Trend</th></tr></thead>
-        <tbody id="freshnessTableBody"><tr><td colspan="6" style="color:var(--text-dim)">Run decay analysis first</td></tr></tbody>
-      </table>
-    </div>
-
-    <div class="card">
-      <h3>Window AUC Over Time</h3>
-      <div id="aucTimeline" style="height:120px;position:relative;overflow:hidden">
-        <canvas id="aucCanvas" style="width:100%;height:100%"></canvas>
-      </div>
     </div>
   </div>
 
@@ -538,12 +454,10 @@ const stepButtons = {
   'update-data': 'btnUpdate',
   features: 'btnFeatures',
   train: 'btnTrain',
-  decay: 'btnDecay',
 };
 const statusToStep = {
   fetching: 'fetch',
   training: 'train',
-  analyzing_decay: 'decay',
 };
 const completedSteps = new Set();
 
@@ -556,7 +470,6 @@ document.querySelectorAll('.tab').forEach(tab => {
     currentTab = tab.dataset.tab;
     $('panel-' + currentTab).classList.add('active');
     // Auto-refresh data when switching to data-dependent tabs
-    if (currentTab === 'decay') refreshDecayResult();
     if (currentTab === 'training') refreshTrainResult();
   });
 });
@@ -583,7 +496,7 @@ function updateStatus(state) {
   text.textContent = state.status || 'idle';
 
   dot.className = 'status-dot';
-  if (['fetching', 'training', 'analyzing_decay'].includes(state.status)) {
+  if (['fetching', 'training'].includes(state.status)) {
     dot.classList.add('busy');
   } else if (state.status === 'error') {
     dot.classList.add('error');
@@ -606,7 +519,6 @@ function updateStatus(state) {
   if (state.lastFetch) markStepDone('fetch');
   if (state.lastFeatures) markStepDone('features');
   if (state.lastTrain) markStepDone('train');
-  if (state.lastDecay) markStepDone('decay');
 
   if (state.trainLog) {
     addLog(state.trainLog, 'info');
@@ -679,10 +591,6 @@ async function loadConfig() {
   $('cfgLR').value = cfg.LGBM_LEARNING_RATE || 0.05;
   $('cfgEstimators').value = cfg.LGBM_N_ESTIMATORS || 500;
   $('cfgEarlyStopping').value = cfg.LGBM_EARLY_STOPPING_ROUNDS || 50;
-  $('cfgDecayWindow').value = cfg.DECAY_WINDOW_HOURS || 12;
-  $('cfgMinWindows').value = cfg.DECAY_MIN_WINDOWS || 3;
-  $('cfgAlphaThreshold').value = cfg.ALPHA_DECAY_THRESHOLD || 0.3;
-  $('cfgFreshnessLookback').value = cfg.FRESHNESS_LOOKBACK_WINDOWS || 6;
   $('cfgMinVolume').value = cfg.MIN_VOLUME_24H || 10000;
   $('cfgMinMcap').value = cfg.MIN_MARKET_CAP || 0;
   $('cfgTokenFilter').value = cfg.TOKEN_FILTER || 'graduated';
@@ -699,10 +607,6 @@ async function saveConfig() {
     LGBM_LEARNING_RATE: parseFloat($('cfgLR').value),
     LGBM_N_ESTIMATORS: parseInt($('cfgEstimators').value),
     LGBM_EARLY_STOPPING_ROUNDS: parseInt($('cfgEarlyStopping').value),
-    DECAY_WINDOW_HOURS: parseInt($('cfgDecayWindow').value),
-    DECAY_MIN_WINDOWS: parseInt($('cfgMinWindows').value),
-    ALPHA_DECAY_THRESHOLD: parseFloat($('cfgAlphaThreshold').value),
-    FRESHNESS_LOOKBACK_WINDOWS: parseInt($('cfgFreshnessLookback').value),
     MIN_VOLUME_24H: parseInt($('cfgMinVolume').value),
     MIN_MARKET_CAP: parseInt($('cfgMinMcap').value),
     TOKEN_FILTER: $('cfgTokenFilter').value,
@@ -748,33 +652,9 @@ async function applyMLParams() {
   }
 }
 
-async function applyDecayParams() {
-  const btn = $('btnApplyDecay');
-  const status = $('decayApplyStatus');
-  btn.disabled = true;
-  btn.textContent = 'Applying...';
-  status.textContent = '';
-  try {
-    await saveConfig();
-    status.textContent = 'Running decay analysis...';
-    addLog('Re-running decay analysis with new params...', 'info');
-    const res = await fetch('/api/decay', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
-    await res.json();
-    status.innerHTML = '<span style="color:var(--green)">Applied</span>';
-    addLog('Decay parameters applied — analysis re-run', 'success');
-    refreshAll();
-  } catch (err) {
-    status.innerHTML = '<span style="color:var(--red)">Error</span>';
-    addLog('Apply decay params error: ' + err.message, 'error');
-  } finally {
-    btn.disabled = false;
-    btn.textContent = 'Apply & Re-analyze';
-  }
-}
-
 // ─── Data Refresh ─────────────────────────────────────────────────
 async function refreshAll() {
-  await Promise.all([refreshDataStatus(), refreshTrainResult(), refreshDecayResult()]);
+  await Promise.all([refreshDataStatus(), refreshTrainResult()]);
 }
 
 async function refreshDataStatus() {
@@ -917,159 +797,6 @@ async function refreshTrainResult() {
     if (m.positive_rate !== undefined) details._positive_rate = m.positive_rate + '%';
     $('trainDetails').innerHTML = `<pre style="white-space:pre-wrap">${JSON.stringify(details, null, 2)}</pre>`;
   } catch {}
-}
-
-async function refreshDecayResult() {
-  try {
-    const res = await fetch('/api/decay-result');
-    const result = await res.json();
-    if (!result) {
-      // No decay file exists yet - show helpful message
-      $('emergingList').innerHTML = `<p style="color:var(--text-dim);font-size:12px">Run decay analysis first (Step 4)</p>`;
-      $('stableList').innerHTML = `<p style="color:var(--text-dim);font-size:12px">Run decay analysis first (Step 4)</p>`;
-      $('tradedOutList').innerHTML = `<p style="color:var(--text-dim);font-size:12px">Run decay analysis first (Step 4)</p>`;
-      return;
-    }
-    if (result.error) {
-      const errorMsg = `<p style="color:var(--orange);font-size:12px">${result.error}</p>`;
-      $('emergingList').innerHTML = errorMsg;
-      $('stableList').innerHTML = errorMsg;
-      $('tradedOutList').innerHTML = errorMsg;
-      $('freshnessTableBody').innerHTML = `<tr><td colspan="6" style="color:var(--orange)">${result.error}</td></tr>`;
-      $('regimeDetail').textContent = result.error;
-      return;
-    }
-
-    // Regime badge
-    const badge = $('regimeBadge');
-    badge.textContent = (result.regime || 'unknown').replace(/_/g, ' ').toUpperCase();
-    badge.className = 'regime-badge ' + (result.regime || 'stable');
-    $('regimeDetail').textContent = `AUC trend: ${result.regime_trend >= 0 ? '+' : ''}${(result.regime_trend * 100).toFixed(2)}% | ${result.windows_analyzed} windows analyzed`;
-
-    // Emerging/stable/traded-out lists
-    const emergingFeatures = result.emerging_features || [];
-    const tradedOutFeatures = result.traded_out_features || [];
-    const freshestFeatures = result.freshest_features || [];
-
-    renderFeatureList($('emergingList'), emergingFeatures, 'emerging');
-    renderFeatureList($('tradedOutList'), tradedOutFeatures, 'traded_out');
-
-    // Stable features (from freshest_features where status === 'stable')
-    const stableFeatures = freshestFeatures.filter(f => f.status === 'stable');
-    renderFeatureList($('stableList'), stableFeatures, 'stable');
-
-    // Freshness table
-    if (result.feature_decay && typeof result.feature_decay === 'object') {
-      const entries = Object.entries(result.feature_decay)
-        .filter(([, data]) => data && typeof data.freshness_score === 'number')
-        .sort((a, b) => b[1].freshness_score - a[1].freshness_score);
-
-      if (entries.length === 0) {
-        $('freshnessTableBody').innerHTML = '<tr><td colspan="6" style="color:var(--text-dim)">No feature decay data available</td></tr>';
-      } else {
-        let tbody = '';
-        for (const [name, data] of entries) {
-          const freshPct = (data.freshness_score * 100).toFixed(0);
-          const freshColor = data.freshness_score > 0.7 ? 'var(--green)' :
-                             data.freshness_score > 0.4 ? 'var(--orange)' : 'var(--red)';
-          const trend = data.trend || 0;
-          const trendArrow = trend > 0.001 ? '&#9650;' : trend < -0.001 ? '&#9660;' : '&#9644;';
-          const trendColor = trend > 0.001 ? 'var(--green)' : trend < -0.001 ? 'var(--red)' : 'var(--text-dim)';
-
-          tbody += `<tr>
-            <td style="font-size:11px">${name}</td>
-            <td style="font-size:11px">${freshPct}%</td>
-            <td><div class="freshness-bar"><div class="freshness-fill" style="width:${freshPct}%;background:${freshColor}"></div></div></td>
-            <td><span class="tag ${data.status || 'unknown'}">${(data.status || 'unknown').replace(/_/g, ' ')}</span></td>
-            <td style="font-size:11px">${((data.decay_rate || 0) * 100).toFixed(1)}%</td>
-            <td style="color:${trendColor}">${trendArrow}</td>
-          </tr>`;
-        }
-        $('freshnessTableBody').innerHTML = tbody;
-      }
-    }
-
-    // AUC timeline
-    if (result.window_metrics && result.window_metrics.length > 0) {
-      drawAucTimeline(result.window_metrics);
-    }
-  } catch (err) {
-    console.error('Error loading decay results:', err);
-    $('emergingList').innerHTML = `<p style="color:var(--red);font-size:12px">Error loading decay data: ${err.message}</p>`;
-  }
-}
-
-function renderFeatureList(el, features, status) {
-  if (!features || features.length === 0) {
-    el.innerHTML = `<p style="color:var(--text-dim);font-size:12px">None</p>`;
-    return;
-  }
-  el.innerHTML = features.slice(0, 8).map(f =>
-    `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--border)">
-      <span style="font-size:11px">${f.name}</span>
-      <span class="tag ${status}">${(f.freshness * 100).toFixed(0)}%</span>
-    </div>`
-  ).join('');
-}
-
-function drawAucTimeline(metrics) {
-  const canvas = $('aucCanvas');
-  const ctx = canvas.getContext('2d');
-  canvas.width = canvas.offsetWidth * 2;
-  canvas.height = canvas.offsetHeight * 2;
-  ctx.scale(2, 2);
-
-  const w = canvas.offsetWidth;
-  const h = canvas.offsetHeight;
-  const pad = { t: 10, r: 10, b: 20, l: 35 };
-
-  ctx.clearRect(0, 0, w, h);
-
-  const aucs = metrics.map(m => m.auc);
-  const minAuc = Math.min(...aucs) - 0.02;
-  const maxAuc = Math.max(...aucs) + 0.02;
-
-  // Grid
-  ctx.strokeStyle = 'rgba(42,42,58,0.5)';
-  ctx.lineWidth = 0.5;
-  for (let i = 0; i <= 4; i++) {
-    const y = pad.t + (h - pad.t - pad.b) * i / 4;
-    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(w - pad.r, y); ctx.stroke();
-    ctx.fillStyle = '#8888a0';
-    ctx.font = '9px monospace';
-    ctx.textAlign = 'right';
-    ctx.fillText((maxAuc - (maxAuc - minAuc) * i / 4).toFixed(2), pad.l - 4, y + 3);
-  }
-
-  // AUC line
-  ctx.strokeStyle = '#6c5ce7';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  for (let i = 0; i < aucs.length; i++) {
-    const x = pad.l + (w - pad.l - pad.r) * i / (aucs.length - 1);
-    const y = pad.t + (h - pad.t - pad.b) * (1 - (aucs[i] - minAuc) / (maxAuc - minAuc));
-    if (i === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
-  }
-  ctx.stroke();
-
-  // 0.5 reference line
-  if (minAuc < 0.5 && maxAuc > 0.5) {
-    const y = pad.t + (h - pad.t - pad.b) * (1 - (0.5 - minAuc) / (maxAuc - minAuc));
-    ctx.strokeStyle = 'rgba(255,107,107,0.4)';
-    ctx.lineWidth = 1;
-    ctx.setLineDash([4, 4]);
-    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(w - pad.r, y); ctx.stroke();
-    ctx.setLineDash([]);
-  }
-
-  // Points
-  for (let i = 0; i < aucs.length; i++) {
-    const x = pad.l + (w - pad.l - pad.r) * i / (aucs.length - 1);
-    const y = pad.t + (h - pad.t - pad.b) * (1 - (aucs[i] - minAuc) / (maxAuc - minAuc));
-    ctx.fillStyle = aucs[i] > 0.55 ? '#00b894' : aucs[i] > 0.5 ? '#fdcb6e' : '#ff6b6b';
-    ctx.beginPath(); ctx.arc(x, y, 3, 0, Math.PI * 2); ctx.fill();
-  }
 }
 
 // ─── Token Screening ──────────────────────────────────────────────

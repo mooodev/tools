@@ -3,16 +3,11 @@
 /**
  * EMH Trading Bot — Main Entry Point
  *
- * Based on Efficient Market Hypothesis (Fama, 1970):
- *   Patterns exist but decay as market participants discover them.
- *   Find fresh patterns. Trade them. Detect when they die.
- *
  * Usage:
  *   node src/index.js dashboard    — Start web dashboard (default)
  *   node src/index.js fetch        — Fetch 72h candle data
  *   node src/index.js features     — Engineer features from raw data
  *   node src/index.js train        — Train LightGBM model
- *   node src/index.js decay        — Run pattern decay analysis
  *   node src/index.js predict      — Run predictions
  *   node src/index.js screen       — Screen tokens (rank by buy probability)
  *   node src/index.js monitor      — Live monitor (fetch → features → screen)
@@ -55,12 +50,6 @@ async function main() {
       console.log("\n  Training LightGBM...\n");
       const trainResult = await orchestrator.runTrain();
       console.log("\n  Train result:", JSON.stringify(trainResult, null, 2));
-      break;
-
-    case "decay":
-      console.log("\n  Analyzing pattern decay (EMH analysis)...\n");
-      const decayResult = await orchestrator.runDecayAnalysis();
-      console.log("\n  Decay result:", JSON.stringify(decayResult, null, 2));
       break;
 
     case "predict":
@@ -114,14 +103,14 @@ async function main() {
       break;
 
     case "pipeline":
-      console.log("\n  Running full pipeline (fetch → features → train → decay)...\n");
+      console.log("\n  Running full pipeline (fetch → features → train)...\n");
       const pipelineResult = await orchestrator.runFullPipeline();
       console.log("\n  Pipeline result:", JSON.stringify(pipelineResult, null, 2));
       break;
 
     default:
       console.log(`  Unknown command: ${command}`);
-      console.log(`  Available: dashboard, fetch, features, train, decay, predict, screen, monitor, pipeline`);
+      console.log(`  Available: dashboard, fetch, features, train, predict, screen, monitor, pipeline`);
       process.exit(1);
   }
 }

@@ -9,7 +9,6 @@
     "train": "node src/index.js train",
     "predict": "node src/index.js predict",
     "backtest": "node src/index.js backtest",
-    "decay": "node src/index.js decay",
     "dashboard": "node src/index.js dashboard",
     "setup-python": "pip install lightgbm pandas numpy scikit-learn matplotlib"
   },

@@ -71,12 +71,6 @@ const config = {
   LGBM_EARLY_STOPPING_ROUNDS: 50,
   LGBM_SCALE_POS_WEIGHT: 1.0,       // Auto-computed from class balance
 
-  // ─── Pattern Decay / EMH ─────────────────────────────────────────
-  DECAY_WINDOW_HOURS: 12,            // Rolling window for feature importance
-  DECAY_MIN_WINDOWS: 3,              // Need at least 3 windows to compute decay
-  ALPHA_DECAY_THRESHOLD: 0.3,        // Feature considered "traded out" if importance drops 30%+
-  FRESHNESS_LOOKBACK_WINDOWS: 6,     // Compare last N windows for trend
-
   // ─── Paths ────────────────────────────────────────────────────────
   DATA_DIR: path.join(__dirname, "..", "data"),
   RAW_DIR: path.join(__dirname, "..", "data", "raw"),
