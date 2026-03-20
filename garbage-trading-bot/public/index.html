@@ -66,6 +66,8 @@
   .token-img { width: 24px; height: 24px; border-radius: 50%; background: var(--border); }
   .token-name { font-weight: 500; }
   .token-symbol { color: var(--text2); font-size: 11px; }
+  .token-link { display: flex; align-items: center; gap: 8px; text-decoration: none; color: inherit; cursor: pointer; }
+  .token-link:hover .token-name { color: var(--accent); text-decoration: underline; }
   .mint-link { font-family: monospace; font-size: 11px; color: var(--text2); }
   .remove-btn { background: none; border: none; color: var(--text2); cursor: pointer; font-size: 14px; padding: 2px 6px; border-radius: 4px; }
   .remove-btn:hover { color: var(--red); background: rgba(248,81,73,0.1); }
@@ -346,11 +348,13 @@ function renderTokens() {
       (t) => `<tr data-mint="${t.mint}">
       <td>
         <div class="token-info">
-          ${t.imageUri ? `<img class="token-img" src="${t.imageUri}" onerror="this.style.display='none'">` : '<div class="token-img"></div>'}
-          <div>
-            <div class="token-name">${esc(t.symbol)}</div>
-            <div class="token-symbol">${esc(t.name)}</div>
-          </div>
+          <a class="token-link" href="https://dexscreener.com/solana/${t.mint}" target="_blank" rel="noopener noreferrer" title="View on DexScreener">
+            ${t.imageUri ? `<img class="token-img" src="${t.imageUri}" onerror="this.style.display='none'">` : '<div class="token-img"></div>'}
+            <div>
+              <div class="token-name">${esc(t.symbol)}</div>
+              <div class="token-symbol">${esc(t.name)}</div>
+            </div>
+          </a>
         </div>
       </td>
       <td>${fmtUsd(t.foundPrice)}</td>
@@ -406,10 +410,31 @@ $('#searchInput').addEventListener('input', (e) => {
 });
 
 // ── Actions ──
+let isScanRunning = false;
+
+function updateScanBtn() {
+  const btn = $('#btnScan');
+  if (isScanRunning) {
+    btn.textContent = 'Stop Scan';
+    btn.classList.add('danger');
+    btn.classList.remove('primary');
+    btn.disabled = false;
+  } else {
+    btn.textContent = 'Scan Now';
+    btn.classList.remove('danger');
+    btn.classList.add('primary');
+    btn.disabled = false;
+  }
+}
+
 $('#btnScan').addEventListener('click', () => {
-  $('#btnScan').disabled = true;
-  fetch('/api/scan', { method: 'POST' });
-  setTimeout(() => ($('#btnScan').disabled = false), 5000);
+  if (isScanRunning) {
+    fetch('/api/scan/stop', { method: 'POST' });
+    addLog('Stopping scan...', 'info');
+  } else {
+    fetch('/api/scan', { method: 'POST' });
+    addLog('Scan started', 'info');
+  }
 });
 
 $('#btnRefresh').addEventListener('click', () => {
@@ -492,6 +517,8 @@ function connectSSE() {
     const s = JSON.parse(e.data);
     if (s.isScanning !== undefined) {
       $('#scanDot').className = 'dot ' + (s.isScanning ? 'on scanning' : 'off');
+      isScanRunning = s.isScanning;
+      updateScanBtn();
     }
     if (s.isUpdating !== undefined) {
       $('#updateDot').className = 'dot ' + (s.isUpdating ? 'on scanning' : 'off');
@@ -613,6 +640,8 @@ async function init() {
   $('#tokenCount').textContent = `${tokens.length} tokens`;
   autoScanRunning = !!status.isAutoScanRunning;
   updateAutoScanBtn();
+  isScanRunning = !!status.isScanning;
+  updateScanBtn();
 }
 
 init();

@@ -27,6 +27,7 @@ let isAutoScanRunning = false;
 let lastScanTime = null;
 let lastUpdateTime = null;
 let sseClients = [];
+let scanAbortController = null;
 
 function addSSEClient(res) {
   sseClients.push(res);
@@ -67,6 +68,7 @@ function getStatus() {
 async function runScan() {
   if (isScanning) return;
   isScanning = true;
+  scanAbortController = new AbortController();
   broadcast('status', { isScanning: true });
 
   console.log('[monitor] Starting token scan...');
@@ -74,6 +76,7 @@ async function runScan() {
 
   try {
     await scanTokens({
+      signal: scanAbortController.signal,
       onLog: (msg, level) => {
         broadcast('scan_log', { msg, level });
       },
@@ -114,9 +117,21 @@ async function runScan() {
   }
 
   isScanning = false;
+  scanAbortController = null;
   lastScanTime = new Date().toISOString();
   broadcast('status', { isScanning: false, lastScanTime, newCount });
   console.log(`[monitor] Scan complete. ${newCount} new tokens found. Total monitored: ${monitorList.size}`);
+}
+
+/**
+ * Stop a currently running scan.
+ */
+function stopScan() {
+  if (scanAbortController) {
+    scanAbortController.abort();
+    return true;
+  }
+  return false;
 }
 
 /**
@@ -227,6 +242,7 @@ module.exports = {
   getStatus,
   runScan,
   runPriceUpdate,
+  stopScan,
   removeToken,
   clearAll,
   startLoops,

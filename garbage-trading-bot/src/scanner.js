@@ -59,7 +59,7 @@ async function getPoolInfo(mintAddress) {
  * Yields results via onFound(token) callback.
  * Returns the full list of matched tokens.
  */
-async function scanTokens({ onFound, onProgress, onLog } = {}) {
+async function scanTokens({ onFound, onProgress, onLog, signal } = {}) {
   const matched = [];
   let scanned = 0;
   let skippedPumpMcap = 0;
@@ -75,6 +75,11 @@ async function scanTokens({ onFound, onProgress, onLog } = {}) {
   log(`Search started — filters: minVol=$${config.MIN_DAILY_VOLUME_USD.toLocaleString()}, maxMcap=$${config.MAX_MARKET_CAP_USD.toLocaleString()}, pages=${config.MAX_PAGES_TO_SCAN}, sort=${config.SCAN_SORT} ${config.SCAN_ORDER}`);
 
   for (let page = 0; page < config.MAX_PAGES_TO_SCAN; page++) {
+    if (signal && signal.aborted) {
+      log('Scan stopped by user', 'info');
+      break;
+    }
+
     const offset = page * config.COINS_PER_PAGE;
     if (onProgress) onProgress({ phase: 'fetching_page', page: page + 1, scanned });
 
@@ -96,6 +101,10 @@ async function scanTokens({ onFound, onProgress, onLog } = {}) {
     log(`Page ${page + 1}: got ${coins.length} coins, evaluating...`);
 
     for (const coin of coins) {
+      if (signal && signal.aborted) {
+        log('Scan stopped by user', 'info');
+        break;
+      }
       scanned++;
 
       // Quick pre-filter on pump.fun market cap (rough, may be stale)
