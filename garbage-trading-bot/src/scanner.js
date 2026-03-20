@@ -30,7 +30,12 @@ async function getPoolInfo(mintAddress) {
     const pools = resp?.data;
     if (!pools || pools.length === 0) return null;
 
-    const best = pools[0];
+    // Pick pool with highest 24h volume instead of relying on default sort
+    const best = pools.reduce((a, b) => {
+      const volA = parseFloat(a.attributes?.volume_usd?.h24 || '0');
+      const volB = parseFloat(b.attributes?.volume_usd?.h24 || '0');
+      return volB > volA ? b : a;
+    });
     const attr = best.attributes;
     return {
       poolAddress: attr.address,
@@ -94,7 +99,8 @@ async function scanTokens({ onFound, onProgress, onLog } = {}) {
       scanned++;
 
       // Quick pre-filter on pump.fun market cap (rough, may be stale)
-      const pumpMcap = coin.usd_market_cap || 0;
+      // Note: listing endpoint returns "market_cap" (not "usd_market_cap")
+      const pumpMcap = coin.market_cap || 0;
       if (pumpMcap > config.MAX_MARKET_CAP_USD * 10) {
         log(`SKIP ${coin.symbol || coin.mint.slice(0, 8)} — pump mcap $${pumpMcap.toFixed(0)} exceeds pre-filter ($${(config.MAX_MARKET_CAP_USD * 10).toLocaleString()})`, 'skip');
         skippedPumpMcap++;
