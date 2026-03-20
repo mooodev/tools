@@ -249,6 +249,7 @@
         <div class="btn-row" style="flex-direction:column;gap:8px">
           <button onclick="api('fetch')" id="btnFetch">1. Fetch 72h Data</button>
           <button onclick="api('update-data')" id="btnUpdate" class="secondary" title="Only download new candles for existing tokens">1b. Update Data (incremental)</button>
+          <button onclick="toggleAutoUpdate()" id="btnAutoUpdate" class="secondary" title="Toggle automatic periodic token data updates">Auto Update: OFF</button>
           <button onclick="api('features')" id="btnFeatures" class="secondary">2. Engineer Features</button>
           <button onclick="api('train')" id="btnTrain" class="secondary">3. Train LightGBM</button>
           <hr style="border-color:var(--border);width:100%">
@@ -322,6 +323,22 @@
             <option value="all">All Tokens</option>
           </select>
         </div>
+        <div class="form-group">
+          <label>Sort By</label>
+          <select id="cfgDefaultSort">
+            <option value="created_timestamp">Date Created</option>
+            <option value="market_cap">Market Cap</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Sort Order</label>
+          <select id="cfgDefaultSortOrder">
+            <option value="DESC">Descending</option>
+            <option value="ASC">Ascending</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
         <div class="form-group">
           <label>Min Market Cap ($)</label>
           <input type="number" id="cfgMinMcap" value="0" placeholder="0 = no filter">
@@ -526,6 +543,9 @@ function updateStatus(state) {
   if (state.error) {
     addLog('ERROR: ' + state.error, 'error');
   }
+  if (state.autoUpdateEnabled !== undefined) {
+    updateAutoUpdateBtn(state.autoUpdateEnabled);
+  }
   if (state.fetchProgress) {
     const fp = state.fetchProgress;
     if (fp.phase === 'tokens') addLog(`Fetched ${fp.count}/${fp.total} tokens`, 'info');
@@ -594,6 +614,8 @@ async function loadConfig() {
   $('cfgMinVolume').value = cfg.MIN_VOLUME_24H || 10000;
   $('cfgMinMcap').value = cfg.MIN_MARKET_CAP || 0;
   $('cfgTokenFilter').value = cfg.TOKEN_FILTER || 'graduated';
+  $('cfgDefaultSort').value = cfg.DEFAULT_SORT || 'created_timestamp';
+  $('cfgDefaultSortOrder').value = cfg.DEFAULT_SORT_ORDER || 'DESC';
 }
 
 async function saveConfig() {
@@ -610,6 +632,8 @@ async function saveConfig() {
     MIN_VOLUME_24H: parseInt($('cfgMinVolume').value),
     MIN_MARKET_CAP: parseInt($('cfgMinMcap').value),
     TOKEN_FILTER: $('cfgTokenFilter').value,
+    DEFAULT_SORT: $('cfgDefaultSort').value,
+    DEFAULT_SORT_ORDER: $('cfgDefaultSortOrder').value,
   };
   await fetch('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   addLog('Config updated', 'success');
@@ -909,6 +933,35 @@ async function updateBuyTokens() {
   } finally {
     btn.disabled = lastBuyTokenIds.length === 0;
     btn.textContent = 'Update Buy Signal Candles';
+  }
+}
+
+// ─── Auto Update Toggle ───────────────────────────────────────────
+async function toggleAutoUpdate() {
+  const btn = $('btnAutoUpdate');
+  btn.disabled = true;
+  try {
+    const res = await fetch('/api/auto-update', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+    const data = await res.json();
+    updateAutoUpdateBtn(data.autoUpdateEnabled);
+    addLog(`Auto-update ${data.autoUpdateEnabled ? 'enabled' : 'disabled'}`, data.autoUpdateEnabled ? 'success' : 'info');
+  } catch (err) {
+    addLog('Auto-update toggle error: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function updateAutoUpdateBtn(enabled) {
+  const btn = $('btnAutoUpdate');
+  if (enabled) {
+    btn.textContent = 'Auto Update: ON';
+    btn.classList.remove('secondary');
+    btn.classList.add('success');
+  } else {
+    btn.textContent = 'Auto Update: OFF';
+    btn.classList.remove('success');
+    btn.classList.add('secondary');
   }
 }
 

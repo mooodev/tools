@@ -9,9 +9,29 @@ const { config } = require("../config");
 const { fetchJSON, sleep } = require("../lib/api-client");
 
 /**
+ * Compute and log the average price change % across candles.
+ */
+function logAvgChange(label, candles) {
+  if (!candles || candles.length < 2) return;
+  let totalChange = 0;
+  let count = 0;
+  for (let i = 1; i < candles.length; i++) {
+    const prev = candles[i - 1].close;
+    if (prev > 0) {
+      totalChange += ((candles[i].close - prev) / prev) * 100;
+      count++;
+    }
+  }
+  if (count > 0) {
+    const avg = (totalChange / count).toFixed(4);
+    console.log(`  [price] ${label} — avg change: ${avg}% over ${count} candles`);
+  }
+}
+
+/**
  * Fetch a page of graduated tokens from pump.fun.
  */
-async function fetchGraduatedPage({ offset = 0, limit = config.COINS_PER_PAGE, sort = "market_cap", order = "DESC" } = {}) {
+async function fetchGraduatedPage({ offset = 0, limit = config.COINS_PER_PAGE, sort = config.DEFAULT_SORT || "created_timestamp", order = config.DEFAULT_SORT_ORDER || "DESC" } = {}) {
   const isGraduated = (config.TOKEN_FILTER || "graduated") === "graduated";
   const params = new URLSearchParams({
     offset: String(offset), limit: String(limit), sort, order,
@@ -213,6 +233,7 @@ async function fetchAll(onProgress) {
     fs.writeFileSync(path.join(rawDir, `${mint}.json`), JSON.stringify(entry, null, 2));
     results.push(entry);
     console.log(`  [ok] ${token.name || mint.slice(0, 12)} — ${candles.length} candles, vol=$${Math.round(pool.volumeUsd24h)}`);
+    logAvgChange(token.name || mint.slice(0, 12), candles);
   }
 
   // Save manifest
@@ -317,6 +338,7 @@ async function updateTokenData(onProgress) {
     results.push(entry);
     updated++;
     console.log(`  [updated] ${data.token.name || mint.slice(0, 12)} — +${genuinelyNew.length} new candles (total: ${trimmedCandles.length})`);
+    logAvgChange(data.token.name || mint.slice(0, 12), trimmedCandles);
   }
 
   // Update manifest
@@ -423,6 +445,7 @@ async function updateSpecificTokens(mints, onProgress) {
     updated++;
     totalNewCandles += genuinelyNew.length;
     console.log(`  [updated] ${(data.token.name || mint).slice(0, 20)} — +${genuinelyNew.length} new candles`);
+    logAvgChange((data.token.name || mint).slice(0, 20), trimmedCandles);
   }
 
   return { updated, newCandles: totalNewCandles };

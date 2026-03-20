@@ -110,6 +110,11 @@ function startServer() {
     orchestrator.runMonitor(req.body?.timeframe);
   });
 
+  app.post("/api/auto-update", (_req, res) => {
+    const enabled = orchestrator.toggleAutoUpdate();
+    res.json({ autoUpdateEnabled: enabled });
+  });
+
   // ─── Data Endpoints ─────────────────────────────────────────────
 
   app.get("/api/raw-data", (_req, res) => {

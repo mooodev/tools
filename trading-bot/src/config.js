@@ -26,6 +26,8 @@ const config = {
   MIN_VOLUME_24H: 10000,              // Minimum 24h volume in USD
   MIN_MARKET_CAP: 0,                  // Minimum market cap filter (0 = no filter)
   TOKEN_FILTER: "graduated",          // Token filter: "graduated", "all"
+  DEFAULT_SORT: "created_timestamp",   // Default sort field for token fetching
+  DEFAULT_SORT_ORDER: "DESC",          // Default sort order: "ASC" or "DESC"
 
   // ─── Candle Timeframes (for aggregation) ──────────────────────────
   // The base fetch is 1m. We can re-aggregate to these for experiments.
@@ -77,6 +79,10 @@ const config = {
   FEATURES_DIR: path.join(__dirname, "..", "data", "features"),
   MODEL_DIR: path.join(__dirname, "..", "models"),
   PYTHON_DIR: path.join(__dirname, "ml"),
+
+  // ─── Auto Update ──────────────────────────────────────────────────
+  AUTO_UPDATE_ENABLED: false,           // Auto-update token data on a timer
+  AUTO_UPDATE_INTERVAL_MS: 60000,       // Auto-update interval (default 60s)
 
   // ─── Dashboard ────────────────────────────────────────────────────
   WEB_PORT: 3001,

@@ -22,8 +22,10 @@ class Orchestrator {
       trainResult: null,
       fetchProgress: null,
       error: null,
+      autoUpdateEnabled: false,
     };
     this.listeners = [];
+    this._autoUpdateTimer = null;
   }
 
   onUpdate(fn) {
@@ -348,6 +350,39 @@ class Orchestrator {
 
       proc.on("error", (err) => reject(err));
     });
+  }
+
+  // ─── Auto Update Timer ──────────────────────────────────────────
+
+  startAutoUpdate() {
+    if (this._autoUpdateTimer) return;
+    const interval = config.AUTO_UPDATE_INTERVAL_MS || 60000;
+    this._autoUpdateTimer = setInterval(async () => {
+      if (this.state.status !== "idle") return; // skip if busy
+      console.log("  [auto-update] Running scheduled token data update...");
+      await this.runUpdate();
+    }, interval);
+    this._emit({ autoUpdateEnabled: true });
+    console.log(`  [auto-update] Started (interval: ${interval / 1000}s)`);
+  }
+
+  stopAutoUpdate() {
+    if (this._autoUpdateTimer) {
+      clearInterval(this._autoUpdateTimer);
+      this._autoUpdateTimer = null;
+    }
+    this._emit({ autoUpdateEnabled: false });
+    console.log("  [auto-update] Stopped");
+  }
+
+  toggleAutoUpdate() {
+    if (this._autoUpdateTimer) {
+      this.stopAutoUpdate();
+      return false;
+    } else {
+      this.startAutoUpdate();
+      return true;
+    }
   }
 
   getState() {
