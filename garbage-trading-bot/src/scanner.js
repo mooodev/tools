@@ -20,13 +20,30 @@ async function fetchGraduatedPage({ offset = 0, limit, sort, order } = {}) {
  * Returns { poolAddress, volumeUsd24h, reserveInUsd, priceUsd } or null.
  */
 async function getPoolInfo(mintAddress) {
-  const url = `${config.GECKO_API}/networks/${config.GECKO_NETWORK}/tokens/${mintAddress}/pools?page=1`;
+  const url = `${config.GECKO_API}/networks/${config.GECKO_NETWORK}/tokens/${mintAddress}/pools?page=1&include=dex`;
   try {
     const resp = await fetchJSON(url, { rateLimitMs: config.GECKO_RATE_LIMIT_MS });
     const pools = resp?.data;
     if (!pools || pools.length === 0) return null;
 
-    const best = pools[0];
+    // Build a map of DEX IDs to names from the included resources
+    const dexMap = new Map();
+    if (resp.included) {
+      for (const inc of resp.included) {
+        if (inc.type === 'dex') {
+          dexMap.set(inc.id, inc.attributes?.identifier || inc.id);
+        }
+      }
+    }
+
+    // Filter out pump-fun bonding curve pools — only keep graduated DEX pools
+    const graduatedPools = pools.filter((pool) => {
+      const dexId = pool.relationships?.dex?.data?.id;
+      const dexName = dexMap.get(dexId) || dexId || '';
+      return !dexName.toLowerCase().includes('pump');
+    });
+
+    const best = graduatedPools[0] || pools[0];
     const attr = best.attributes;
     return {
       poolAddress: attr.address,
