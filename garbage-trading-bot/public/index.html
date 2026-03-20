@@ -458,8 +458,13 @@ async function removeToken(mint) {
 }
 
 // ── SSE ──
+let sseRetries = 0;
+const MAX_SSE_RETRIES = 10;
+
 function connectSSE() {
   const es = new EventSource('/api/events');
+
+  es.onopen = () => { sseRetries = 0; };
 
   es.addEventListener('token_found', (e) => {
     const t = JSON.parse(e.data);
@@ -516,7 +521,15 @@ function connectSSE() {
   });
 
   es.onerror = () => {
-    setTimeout(connectSSE, 3000);
+    es.close();
+    if (sseRetries >= MAX_SSE_RETRIES) {
+      addLog('Server unreachable. Click to reconnect.', 'err');
+      return;
+    }
+    const delay = Math.min(3000 * Math.pow(2, sseRetries), 30000);
+    sseRetries++;
+    addLog(`Connection lost. Retrying in ${Math.round(delay / 1000)}s...`, 'err');
+    setTimeout(connectSSE, delay);
   };
 }
 
