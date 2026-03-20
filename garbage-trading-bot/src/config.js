@@ -14,6 +14,7 @@ const config = {
   RETRY_BASE_DELAY_MS: 2000,
 
   // ── Scanning Filters ──
+  TOKEN_FILTER: 'graduated',       // Token filter: "graduated", "all"
   MIN_DAILY_VOLUME_USD: 100_000,   // tokens must have >$100k 24h volume
   MAX_MARKET_CAP_USD: 2_000,       // tokens must have <$2k current mcap
   COINS_PER_PAGE: 50,
