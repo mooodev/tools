@@ -39,7 +39,12 @@ async function findPool(tokenAddress) {
   try {
     const data = await fetchJSON(url, { rateLimitMs: config.GECKO_RATE_LIMIT_MS });
     if (!data.data || data.data.length === 0) return null;
-    const pool = data.data[0];
+    // Pick pool with highest 24h volume instead of relying on default sort
+    const pool = data.data.reduce((a, b) => {
+      const volA = parseFloat(a.attributes?.volume_usd?.h24 || '0');
+      const volB = parseFloat(b.attributes?.volume_usd?.h24 || '0');
+      return volB > volA ? b : a;
+    });
     const attrs = pool.attributes;
     return {
       poolAddress: attrs.address,
@@ -133,7 +138,7 @@ function applyTokenFilters(tokens) {
   const minMcap = config.MIN_MARKET_CAP || 0;
   if (minMcap > 0) {
     filtered = filtered.filter((t) => {
-      const mcap = t.usd_market_cap || t.market_cap || 0;
+      const mcap = t.market_cap || 0;
       return mcap >= minMcap;
     });
   }
@@ -197,7 +202,7 @@ async function fetchAll(onProgress) {
         poolAddress: pool.poolAddress,
         volumeUsd24h: pool.volumeUsd24h,
         reserveInUsd: pool.reserveInUsd,
-        marketCap: token.usd_market_cap || token.market_cap || 0,
+        marketCap: token.market_cap || 0,
       },
       candles,
       fetchedAt: new Date().toISOString(),
