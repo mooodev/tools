@@ -1,0 +1,14 @@
+{
+  "name": "pump-trading-dashboard",
+  "version": "1.0.0",
+  "description": "Dashboard for monitoring MLX pump.fun trading bot training",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.0",
+    "ws": "^8.16.0"
+  }
+}

@@ -10,12 +10,35 @@ pump.fun tokens using hourly candle data. The single metric to optimize is
 
 | File | Role | Mutable? |
 |------|------|----------|
-| `prepare.py` | Data loading, feature engineering, trading simulation | **NO** |
+| `prepare.py` | Data loading, 34 technical indicators, trading simulation | **NO** |
 | `train.py` | Model architecture, hyperparameters, training loop | **YES** |
 | `program.md` | This protocol document | **NO** |
 | `run.py` | Experiment runner (git-based keep/revert loop) | **NO** |
 | `results.tsv` | Experiment log | Append only |
+| `metrics.jsonl` | Live training metrics (read by dashboard) | Auto |
 | `data/*.json` | Candle data files | **NO** |
+| `dashboard/` | Node.js monitoring dashboard | **NO** |
+
+## Technical Indicators (34 features)
+
+The `prepare.py` module computes these per-candle features:
+
+**Raw OHLCV (0-9):** log return, high-low range, candle body, upper/lower wick,
+log volume, volume change, close/SMA5 ratio, close/SMA12 ratio, 5-period volatility.
+
+**Moving Averages (10-14):** EMA(9), EMA(21), SMA(20) ratios to close,
+EMA(9)/EMA(21) crossover, SMA(5)/SMA(20) crossover.
+
+**RSI (15-17):** RSI(14), RSI(7) (normalized to [-1,1]), RSI momentum (delta).
+
+**MACD (18-20):** MACD line, signal line, histogram (all normalized by close).
+
+**Bollinger Bands (21-23):** Upper band distance, lower band distance, bandwidth.
+
+**Volume (24-27):** Volume/SMA(5), Volume/SMA(20) ratios, OBV change, VWAP ratio.
+
+**Momentum (28-33):** ROC(6), ROC(12), Stochastic %K(14), %D(3),
+ATR(14)/close, 12-period volatility.
 
 ## Experiment Protocol
 
@@ -56,6 +79,25 @@ Secondary metrics to monitor (but not optimize directly):
 - `n_trades` — number of trades taken (too few = not useful)
 - `max_drawdown` — worst peak-to-trough decline
 
+## Dashboard
+
+The Node.js dashboard at `dashboard/` provides real-time monitoring:
+
+```bash
+cd dashboard && npm install && npm start
+# Open http://localhost:3456
+```
+
+Features:
+- Start/stop training from the browser
+- Live charts: loss curve, Sharpe ratio, win rate, cumulative returns
+- Stats cards: current Sharpe, return, win rate, trades, drawdown
+- Experiment history table
+- Real-time training log output
+
+The dashboard reads `metrics.jsonl` (written by `train.py` each epoch) and
+`results.tsv` (written by `run.py` after each experiment).
+
 ## Data Format
 
 Input JSON files in `data/` have this structure:
@@ -93,3 +135,4 @@ Input JSON files in `data/` have this structure:
 - Consider asymmetric loss (penalize false longs more than missed longs).
 - Volume spikes often precede large moves — pay attention to volume features.
 - Mean reversion and momentum can coexist at different timescales.
+- The 34 indicators give rich signal — the model may benefit from feature selection.

@@ -9,12 +9,16 @@ Run: uv run train.py   (or: python train.py)
 
 import time
 import math
+import json
 import mlx.core as mx
 import mlx.nn as nn
 import mlx.optimizers as optim
 import numpy as np
+from pathlib import Path
 
 from prepare import prepare_data, simulate_trading, NUM_FEATURES
+
+METRICS_FILE = Path(__file__).parent / "metrics.jsonl"
 
 # ── Hyperparameters (MUTABLE — autoresearch tunes these) ─────────────────────
 
@@ -29,6 +33,14 @@ NUM_LAYERS = 3
 NUM_HEADS = 4
 DROPOUT = 0.1
 TRADE_THRESHOLD = 0.0     # go long when prediction > this
+
+
+# ── Metrics Logging ─────────────────────────────────────────────────────────
+
+def log_metrics(data):
+    """Append a JSON line to metrics.jsonl for the dashboard."""
+    with open(METRICS_FILE, "a") as f:
+        f.write(json.dumps(data) + "\n")
 
 
 # ── Model Architecture (MUTABLE) ────────────────────────────────────────────
@@ -131,6 +143,9 @@ def train():
     print("AUTORESEARCH — Pump.fun Trading Bot (MLX)")
     print("=" * 60)
 
+    # Clear metrics file
+    METRICS_FILE.write_text("")
+
     # ── Data ──
     data = prepare_data(window_size=WINDOW_SIZE, horizon=FORECAST_HORIZON)
     X_train, y_train = data["X_train"], data["y_train"]
@@ -152,9 +167,7 @@ def train():
     )
     mx.eval(model.parameters())
 
-    n_params = sum(p.size for p in model.parameters().values()
-                   if hasattr(p, 'size'))
-    # Count params properly
+    # Count params
     def count_params(params):
         total = 0
         if isinstance(params, dict):
@@ -221,6 +234,13 @@ def train():
         avg_loss = epoch_loss / max(n_batches, 1)
         train_losses.append(avg_loss)
 
+        # Log every epoch (loss only)
+        metric_entry = {
+            "epoch": epoch,
+            "train_loss": round(avg_loss, 8),
+            "elapsed": round(time.time() - start_time, 1),
+        }
+
         # ── Validation ──
         if epoch % 5 == 0 or time.time() - start_time >= TIME_BUDGET * 0.95:
             model.eval()
@@ -245,6 +265,17 @@ def train():
             if metrics["sharpe"] > best_val_sharpe:
                 best_val_sharpe = metrics["sharpe"]
                 best_epoch = epoch
+
+            # Add val metrics to log entry
+            metric_entry.update({
+                "val_sharpe": metrics["sharpe"],
+                "val_total_return": metrics["total_return"],
+                "val_win_rate": metrics["win_rate"],
+                "val_n_trades": metrics["n_trades"],
+                "val_max_drawdown": metrics["max_drawdown"],
+            })
+
+        log_metrics(metric_entry)
 
     # ── Final Evaluation ──
     print("\n" + "=" * 60)
@@ -284,6 +315,27 @@ def train():
     print(f"Total time: {total_time:.1f}s | Epochs: {epoch}")
     print(f"Max drawdown (val): {val_metrics['max_drawdown']:.6f}")
     print(f"Parameters: {n_params:,}")
+
+    # Log final summary
+    log_metrics({
+        "epoch": epoch,
+        "final": True,
+        "train_loss": round(train_losses[-1], 8) if train_losses else 0,
+        "train_sharpe": train_metrics["sharpe"],
+        "train_total_return": train_metrics["total_return"],
+        "train_win_rate": train_metrics["win_rate"],
+        "train_n_trades": train_metrics["n_trades"],
+        "val_sharpe": val_metrics["sharpe"],
+        "val_total_return": val_metrics["total_return"],
+        "val_win_rate": val_metrics["win_rate"],
+        "val_n_trades": val_metrics["n_trades"],
+        "val_max_drawdown": val_metrics["max_drawdown"],
+        "best_val_sharpe": best_val_sharpe,
+        "best_epoch": best_epoch,
+        "total_time": round(total_time, 1),
+        "n_params": n_params,
+        "elapsed": round(total_time, 1),
+    })
 
     # ── Output for autoresearch ──
     # The primary metric is val_sharpe (higher = better)
