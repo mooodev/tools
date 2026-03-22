@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pump.fun MLX Trading Bot</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --border: #30363d;
+      --text: #e6edf3;
+      --text-muted: #8b949e;
+      --green: #3fb950;
+      --red: #f85149;
+      --blue: #58a6ff;
+      --purple: #bc8cff;
+      --orange: #d29922;
+      --cyan: #39d2c0;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro', 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+    .header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .header h1 {
+      font-size: 18px;
+      font-weight: 600;
+    }
+    .header h1 span { color: var(--blue); }
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 500;
+    }
+    .status-badge.running { background: rgba(63,185,80,0.15); color: var(--green); }
+    .status-badge.stopped { background: rgba(139,148,158,0.15); color: var(--text-muted); }
+    .status-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+    .status-badge.running .status-dot { background: var(--green); animation: pulse 2s infinite; }
+    .status-badge.stopped .status-dot { background: var(--text-muted); }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+    .controls {
+      display: flex; gap: 8px; align-items: center;
+    }
+    .btn {
+      padding: 6px 16px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface);
+      color: var(--text);
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      transition: 0.15s;
+    }
+    .btn:hover { border-color: var(--text-muted); }
+    .btn.primary { background: var(--green); color: #000; border-color: var(--green); }
+    .btn.primary:hover { opacity: 0.9; }
+    .btn.danger { background: var(--red); color: #fff; border-color: var(--red); }
+    .btn.danger:hover { opacity: 0.9; }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    select.mode-select {
+      padding: 6px 12px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface);
+      color: var(--text);
+      font-size: 13px;
+    }
+
+    .main { padding: 20px 24px; }
+
+    /* Stats Cards */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+    }
+    .stat-card .label { font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
+    .stat-card .value { font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .stat-card .value.positive { color: var(--green); }
+    .stat-card .value.negative { color: var(--red); }
+    .stat-card .value.neutral { color: var(--blue); }
+
+    /* Charts */
+    .charts-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    .chart-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+    }
+    .chart-card h3 {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      color: var(--text-muted);
+    }
+    .chart-card canvas { width: 100% !important; }
+
+    /* Results Table */
+    .results-section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 20px;
+    }
+    .results-section h3 {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      color: var(--text-muted);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    th { text-align: left; padding: 8px; color: var(--text-muted); border-bottom: 1px solid var(--border); }
+    td { padding: 8px; border-bottom: 1px solid var(--border); font-variant-numeric: tabular-nums; }
+    tr.kept td:nth-child(4) { color: var(--green); }
+    tr.reverted td:nth-child(4) { color: var(--red); }
+
+    /* Log */
+    .log-section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+    }
+    .log-section h3 {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      color: var(--text-muted);
+      display: flex;
+      justify-content: space-between;
+    }
+    #log-output {
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 12px;
+      line-height: 1.5;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px;
+      max-height: 300px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+      color: var(--text-muted);
+    }
+
+    /* Data files */
+    .data-files {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 20px;
+    }
+    .data-files h3 {
+      font-size: 14px; font-weight: 600;
+      margin-bottom: 12px; color: var(--text-muted);
+    }
+    .file-tag {
+      display: inline-block;
+      padding: 4px 10px;
+      margin: 2px 4px;
+      background: rgba(88,166,255,0.1);
+      border: 1px solid rgba(88,166,255,0.3);
+      border-radius: 4px;
+      font-size: 12px;
+      color: var(--blue);
+    }
+
+    @media (max-width: 900px) {
+      .charts-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Pump.fun <span>MLX Trading Bot</span></h1>
+    <div style="display:flex; align-items:center; gap: 16px;">
+      <div id="status-badge" class="status-badge stopped">
+        <span class="status-dot"></span>
+        <span id="status-text">Idle</span>
+      </div>
+      <div class="controls">
+        <select id="mode-select" class="mode-select">
+          <option value="baseline">Baseline</option>
+          <option value="experiment">Experiment</option>
+          <option value="auto">Auto (1 run)</option>
+        </select>
+        <button id="btn-start" class="btn primary" onclick="startTraining()">Start</button>
+        <button id="btn-stop" class="btn danger" onclick="stopTraining()" disabled>Stop</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="main">
+    <!-- Stats -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="label">Val Sharpe</div>
+        <div class="value neutral" id="stat-sharpe">--</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Total Return</div>
+        <div class="value" id="stat-return">--</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Win Rate</div>
+        <div class="value" id="stat-winrate">--</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Trades</div>
+        <div class="value neutral" id="stat-trades">--</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Epoch</div>
+        <div class="value neutral" id="stat-epoch">--</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Max Drawdown</div>
+        <div class="value" id="stat-drawdown">--</div>
+      </div>
+    </div>
+
+    <!-- Data Files -->
+    <div class="data-files">
+      <h3>Loaded Token Data</h3>
+      <div id="data-files-list"><em style="color:var(--text-muted)">No data files loaded</em></div>
+    </div>
+
+    <!-- Charts -->
+    <div class="charts-grid">
+      <div class="chart-card">
+        <h3>Training Loss</h3>
+        <canvas id="chart-loss"></canvas>
+      </div>
+      <div class="chart-card">
+        <h3>Validation Sharpe Ratio</h3>
+        <canvas id="chart-sharpe"></canvas>
+      </div>
+      <div class="chart-card">
+        <h3>Win Rate</h3>
+        <canvas id="chart-winrate"></canvas>
+      </div>
+      <div class="chart-card">
+        <h3>Cumulative Return</h3>
+        <canvas id="chart-return"></canvas>
+      </div>
+    </div>
+
+    <!-- Experiment Results -->
+    <div class="results-section">
+      <h3>Experiment History</h3>
+      <table>
+        <thead>
+          <tr><th>Time</th><th>Experiment</th><th>Val Sharpe</th><th>Kept?</th><th>Notes</th></tr>
+        </thead>
+        <tbody id="results-body"></tbody>
+      </table>
+    </div>
+
+    <!-- Log -->
+    <div class="log-section">
+      <h3>
+        <span>Training Log</span>
+        <button class="btn" onclick="clearLog()" style="font-size:11px; padding:2px 8px;">Clear</button>
+      </h3>
+      <div id="log-output"></div>
+    </div>
+  </div>
+
+  <script>
+    // ── Chart Setup ──────────────────────────────────────────────────────────
+    const chartOpts = {
+      responsive: true,
+      animation: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: '#21262d' }, ticks: { color: '#8b949e', font: { size: 10 } } },
+        y: { grid: { color: '#21262d' }, ticks: { color: '#8b949e', font: { size: 10 } } },
+      },
+    };
+
+    const lossChart = new Chart(document.getElementById('chart-loss'), {
+      type: 'line',
+      data: { labels: [], datasets: [{ data: [], borderColor: '#58a6ff', borderWidth: 1.5, pointRadius: 0, tension: 0.3 }] },
+      options: { ...chartOpts, scales: { ...chartOpts.scales, y: { ...chartOpts.scales.y, title: { display: true, text: 'Loss', color: '#8b949e' } } } },
+    });
+
+    const sharpeChart = new Chart(document.getElementById('chart-sharpe'), {
+      type: 'line',
+      data: { labels: [], datasets: [{ data: [], borderColor: '#3fb950', borderWidth: 1.5, pointRadius: 2, tension: 0.3 }] },
+      options: { ...chartOpts, scales: { ...chartOpts.scales, y: { ...chartOpts.scales.y, title: { display: true, text: 'Sharpe', color: '#8b949e' } } } },
+    });
+
+    const winrateChart = new Chart(document.getElementById('chart-winrate'), {
+      type: 'line',
+      data: { labels: [], datasets: [{ data: [], borderColor: '#bc8cff', borderWidth: 1.5, pointRadius: 2, tension: 0.3 }] },
+      options: {
+        ...chartOpts,
+        scales: {
+          ...chartOpts.scales,
+          y: { ...chartOpts.scales.y, min: 0, max: 1, title: { display: true, text: 'Win Rate', color: '#8b949e' },
+            ticks: { ...chartOpts.scales.y.ticks, callback: v => (v * 100).toFixed(0) + '%' } }
+        }
+      },
+    });
+
+    const returnChart = new Chart(document.getElementById('chart-return'), {
+      type: 'line',
+      data: { labels: [], datasets: [{ data: [], borderColor: '#d29922', borderWidth: 1.5, pointRadius: 2, tension: 0.3, fill: { target: 'origin', above: 'rgba(63,185,80,0.08)', below: 'rgba(248,81,73,0.08)' } }] },
+      options: { ...chartOpts, scales: { ...chartOpts.scales, y: { ...chartOpts.scales.y, title: { display: true, text: 'Cumulative Return', color: '#8b949e' } } } },
+    });
+
+    // ── State ────────────────────────────────────────────────────────────────
+    let ws = null;
+    let logEl = document.getElementById('log-output');
+
+    function connectWS() {
+      const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      ws = new WebSocket(`${proto}//${location.host}`);
+
+      ws.onmessage = (e) => {
+        const msg = JSON.parse(e.data);
+        handleMessage(msg);
+      };
+
+      ws.onclose = () => {
+        setTimeout(connectWS, 2000);
+      };
+    }
+
+    function handleMessage(msg) {
+      switch (msg.type) {
+        case 'init':
+          updateStatus(msg.status);
+          if (msg.metrics) updateCharts(msg.metrics);
+          if (msg.results) updateResults(msg.results);
+          break;
+        case 'started':
+          updateStatus({ running: true, mode: msg.mode });
+          break;
+        case 'finished':
+          updateStatus({ running: false });
+          break;
+        case 'metrics':
+          updateCharts(msg.data);
+          break;
+        case 'results':
+          updateResults(msg.data);
+          break;
+        case 'stdout':
+          appendLog(msg.data);
+          break;
+        case 'stderr':
+          appendLog(msg.data, true);
+          break;
+      }
+    }
+
+    function updateStatus(s) {
+      const badge = document.getElementById('status-badge');
+      const text = document.getElementById('status-text');
+      const btnStart = document.getElementById('btn-start');
+      const btnStop = document.getElementById('btn-stop');
+
+      if (s.running) {
+        badge.className = 'status-badge running';
+        text.textContent = `Training (${s.mode || 'running'})`;
+        btnStart.disabled = true;
+        btnStop.disabled = false;
+      } else {
+        badge.className = 'status-badge stopped';
+        text.textContent = 'Idle';
+        btnStart.disabled = false;
+        btnStop.disabled = true;
+      }
+    }
+
+    function updateCharts(metrics) {
+      if (!metrics.length) return;
+
+      const epochs = metrics.map(m => m.epoch);
+      const losses = metrics.map(m => m.train_loss);
+      const sharpes = metrics.filter(m => m.val_sharpe !== undefined).map(m => ({ e: m.epoch, v: m.val_sharpe }));
+      const winrates = metrics.filter(m => m.val_win_rate !== undefined).map(m => ({ e: m.epoch, v: m.val_win_rate }));
+      const returns = metrics.filter(m => m.val_total_return !== undefined).map(m => ({ e: m.epoch, v: m.val_total_return }));
+
+      // Loss chart
+      lossChart.data.labels = epochs;
+      lossChart.data.datasets[0].data = losses;
+      lossChart.update();
+
+      // Sharpe chart
+      if (sharpes.length) {
+        sharpeChart.data.labels = sharpes.map(s => s.e);
+        sharpeChart.data.datasets[0].data = sharpes.map(s => s.v);
+        sharpeChart.update();
+      }
+
+      // Win rate chart
+      if (winrates.length) {
+        winrateChart.data.labels = winrates.map(w => w.e);
+        winrateChart.data.datasets[0].data = winrates.map(w => w.v);
+        winrateChart.update();
+      }
+
+      // Return chart
+      if (returns.length) {
+        let cumulative = 0;
+        const cumReturns = returns.map(r => { cumulative += r.v; return { e: r.e, v: cumulative }; });
+        returnChart.data.labels = cumReturns.map(r => r.e);
+        returnChart.data.datasets[0].data = cumReturns.map(r => r.v);
+        returnChart.update();
+      }
+
+      // Update stat cards with latest
+      const latest = metrics[metrics.length - 1];
+      const latestVal = [...metrics].reverse().find(m => m.val_sharpe !== undefined);
+
+      if (latest) {
+        document.getElementById('stat-epoch').textContent = latest.epoch || '--';
+      }
+      if (latestVal) {
+        const sharpeEl = document.getElementById('stat-sharpe');
+        sharpeEl.textContent = latestVal.val_sharpe?.toFixed(4) || '--';
+        sharpeEl.className = 'value ' + (latestVal.val_sharpe > 0 ? 'positive' : latestVal.val_sharpe < 0 ? 'negative' : 'neutral');
+
+        const retEl = document.getElementById('stat-return');
+        const ret = latestVal.val_total_return;
+        retEl.textContent = ret != null ? (ret >= 0 ? '+' : '') + ret.toFixed(6) : '--';
+        retEl.className = 'value ' + (ret > 0 ? 'positive' : ret < 0 ? 'negative' : 'neutral');
+
+        const wrEl = document.getElementById('stat-winrate');
+        wrEl.textContent = latestVal.val_win_rate != null ? (latestVal.val_win_rate * 100).toFixed(1) + '%' : '--';
+        wrEl.className = 'value ' + (latestVal.val_win_rate > 0.5 ? 'positive' : 'negative');
+
+        document.getElementById('stat-trades').textContent = latestVal.val_n_trades ?? '--';
+
+        const ddEl = document.getElementById('stat-drawdown');
+        const dd = latestVal.val_max_drawdown;
+        ddEl.textContent = dd != null ? dd.toFixed(6) : '--';
+        ddEl.className = 'value ' + (dd > 0.01 ? 'negative' : 'neutral');
+      }
+    }
+
+    function updateResults(results) {
+      const tbody = document.getElementById('results-body');
+      tbody.innerHTML = results.map(r => {
+        const cls = r.kept === 'YES' ? 'kept' : 'reverted';
+        return `<tr class="${cls}">
+          <td>${r.timestamp || ''}</td>
+          <td>${r.experiment || ''}</td>
+          <td>${r.val_sharpe || ''}</td>
+          <td>${r.kept || ''}</td>
+          <td>${r.notes || ''}</td>
+        </tr>`;
+      }).reverse().join('');
+    }
+
+    function appendLog(text, isError) {
+      if (isError) {
+        logEl.innerHTML += `<span style="color:var(--red)">${escapeHtml(text)}</span>`;
+      } else {
+        logEl.innerHTML += escapeHtml(text);
+      }
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function clearLog() { logEl.innerHTML = ''; }
+
+    function escapeHtml(s) {
+      return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    // ── Controls ─────────────────────────────────────────────────────────────
+    async function startTraining() {
+      const mode = document.getElementById('mode-select').value;
+      try {
+        await fetch('/api/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode }),
+        });
+      } catch (e) {
+        alert('Failed to start: ' + e.message);
+      }
+    }
+
+    async function stopTraining() {
+      try {
+        await fetch('/api/stop', { method: 'POST' });
+      } catch (e) {
+        alert('Failed to stop: ' + e.message);
+      }
+    }
+
+    // Load data files
+    async function loadDataFiles() {
+      try {
+        const res = await fetch('/api/data-files');
+        const files = await res.json();
+        const el = document.getElementById('data-files-list');
+        if (files.length === 0) {
+          el.innerHTML = '<em style="color:var(--text-muted)">No data files in data/ directory</em>';
+        } else {
+          el.innerHTML = files.map(f =>
+            `<span class="file-tag">${f.tokenName} (${f.totalCandles} candles, ${f.timeframe})</span>`
+          ).join('');
+        }
+      } catch {}
+    }
+
+    // ── Init ─────────────────────────────────────────────────────────────────
+    connectWS();
+    loadDataFiles();
+  </script>
+</body>
+</html>
