@@ -134,7 +134,7 @@ def make_batches(X, y, batch_size, shuffle=True):
     if shuffle:
         np.random.shuffle(indices)
     for start in range(0, n, batch_size):
-        idx = indices[start:start + batch_size]
+        idx = indices[start:start + batch_size].tolist()
         yield X[idx], y[idx]
 
 
