@@ -11,6 +11,8 @@ from datetime import datetime, timedelta, timezone
 
 import requests
 
+from add_indicators import add_indicators
+
 API_URL = "https://api.hyperliquid.xyz/info"
 OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "1hdata")
 TOP_N = 50
@@ -96,13 +98,16 @@ def main():
         candles = fetch_candles(coin, start_ms, end_ms)
         print(f"  Got {len(candles)} candles")
 
+        print(f"  Adding indicators...")
+        candles = add_indicators(candles)
+
         out_path = os.path.join(OUTPUT_DIR, f"{coin}.json")
         with open(out_path, "w") as f:
             json.dump(candles, f, indent=2)
 
         time.sleep(REQUEST_DELAY)
 
-    print(f"\nDone! Data saved to {OUTPUT_DIR}/")
+    print(f"\nDone! Data with indicators saved to {OUTPUT_DIR}/")
 
 
 if __name__ == "__main__":
