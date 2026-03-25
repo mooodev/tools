@@ -13,10 +13,17 @@ Rate limiting strategy:
 
 import json
 import os
+import subprocess
+import sys
 import time
 from datetime import datetime, timedelta, timezone
 
-import requests
+try:
+    import requests
+except ModuleNotFoundError:
+    print("Installing requests...")
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "requests"])
+    import requests
 
 from add_indicators import add_indicators
 
