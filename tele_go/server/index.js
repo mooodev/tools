@@ -26,6 +26,12 @@ const io = new Server(server, {
 
 const store = new GameStore();
 
+// Create bot early so socket handlers can use it for notifications
+let bot = null;
+if (BOT_TOKEN) {
+  bot = createBot(BOT_TOKEN, WEBAPP_URL, store);
+}
+
 // Serve static files
 app.use(express.static(path.join(__dirname, '..', 'public')));
 app.use(express.json());
@@ -43,8 +49,7 @@ app.get('/api/game/:id', (req, res) => {
       white: session.players[WHITE] ? { name: session.players[WHITE].name } : null
     },
     spectatorCount: session.spectators.size,
-    settings: session.settings,
-    aiEnabled: session.aiEnabled
+    settings: session.settings
   });
 });
 
@@ -114,11 +119,10 @@ io.on('connection', (socket) => {
         white: session.players[WHITE] ? { name: session.players[WHITE].name, connected: session.players[WHITE].connected } : null
       },
       spectatorCount: session.spectators.size,
-      settings: session.settings,
-      aiEnabled: session.aiEnabled
+      settings: session.settings
     });
 
-    // Notify others
+    // Notify others in the game room
     socket.to(gameId).emit('playerJoined', {
       role: result.role,
       color: result.color,
@@ -129,6 +133,21 @@ io.on('connection', (socket) => {
       },
       spectatorCount: session.spectators.size
     });
+
+    // Notify game creator via bot when a new opponent joins
+    if (result.isNewJoin && bot && session.creatorChatId) {
+      bot.sendMessage(session.creatorChatId,
+        `🎮 *Game Started!*\n\n${userName || 'Someone'} accepted your invitation!`,
+        {
+          parse_mode: 'Markdown',
+          reply_markup: {
+            inline_keyboard: [[
+              { text: '🎮 Play Now', web_app: { url: `${WEBAPP_URL}?game=${gameId}` } }
+            ]]
+          }
+        }
+      ).catch(() => {}); // Ignore if notification fails
+    }
   });
 
   socket.on('move', ({ x, y }) => {
@@ -159,41 +178,6 @@ io.on('connection', (socket) => {
       captureCount: game.captures
     });
 
-    // AI response if enabled
-    if (session.aiEnabled && session.players[WHITE]?.id === 'ai' && game.currentPlayer === WHITE && !game.gameOver) {
-      setTimeout(() => {
-        const aiResult = getAISuggestion(game, session.aiDifficulty);
-        if (aiResult.move && !aiResult.pass) {
-          const aiMoveResult = game.playMove(aiResult.move.x, aiResult.move.y, WHITE);
-          if (aiMoveResult.success) {
-            io.to(currentGame).emit('movePlayed', {
-              x: aiResult.move.x,
-              y: aiResult.move.y,
-              color: WHITE,
-              captures: aiMoveResult.captured,
-              moveNumber: aiMoveResult.move.moveNumber,
-              currentPlayer: game.currentPlayer,
-              captureCount: game.captures,
-              isAI: true
-            });
-          }
-        } else {
-          game.pass(WHITE);
-          io.to(currentGame).emit('passed', {
-            color: WHITE,
-            currentPlayer: game.currentPlayer,
-            passCount: game.passCount,
-            isAI: true
-          });
-          if (game.gameOver) {
-            io.to(currentGame).emit('gameOver', {
-              result: game.result,
-              territory: game.territory ? game.territory.map(r => Array.from(r)) : null
-            });
-          }
-        }
-      }, 500 + Math.random() * 1000); // Slight delay for realism
-    }
   });
 
   socket.on('pass', () => {
@@ -263,24 +247,6 @@ io.on('connection', (socket) => {
     socket.emit('analysisResult', analysis);
   });
 
-  socket.on('enableAI', ({ difficulty }) => {
-    if (!currentGame) return;
-
-    const session = store.getGame(currentGame);
-    if (!session) return;
-
-    const result = store.joinAsAI(currentGame, difficulty || 'medium');
-    if (!result.error) {
-      io.to(currentGame).emit('aiJoined', {
-        difficulty: session.aiDifficulty,
-        players: {
-          black: session.players[BLACK] ? { name: session.players[BLACK].name } : null,
-          white: session.players[WHITE] ? { name: session.players[WHITE].name } : null
-        }
-      });
-    }
-  });
-
   socket.on('chat', ({ message }) => {
     if (!currentGame) return;
     const session = store.getGame(currentGame);
@@ -324,9 +290,8 @@ server.listen(PORT, () => {
   console.log(`\n⚫⚪ Tele Go server running on port ${PORT}`);
   console.log(`   Web app: ${WEBAPP_URL}`);
 
-  if (BOT_TOKEN) {
-    const bot = createBot(BOT_TOKEN, WEBAPP_URL, store);
-    console.log('   Telegram bot: starting...\n');
+  if (bot) {
+    console.log('   Telegram bot: running\n');
   } else {
     console.log('   ⚠️  No BOT_TOKEN — bot disabled, web app only\n');
   }

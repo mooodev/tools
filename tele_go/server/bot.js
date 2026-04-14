@@ -36,7 +36,7 @@ function createBot(token, webAppUrl, store) {
       `⚫⚪ *Tele Go* ⚪⚫\n\nPlay Go right here in Telegram!\n\n` +
       `🎮 *Features:*\n` +
       `• 9×9, 13×13, 19×19 boards\n` +
-      `• Play against friends or AI\n` +
+      `• Play against friends\n` +
       `• Share invite links\n` +
       `• Watch live games\n` +
       `• AI move suggestions\n` +
@@ -70,7 +70,8 @@ function createBot(token, webAppUrl, store) {
         size,
         komi,
         creatorId: String(query.from.id),
-        creatorName: query.from.first_name || 'Player'
+        creatorName: query.from.first_name || 'Player',
+        creatorChatId: chatId
       });
 
       bot.answerCallbackQuery(query.id, { text: 'Game created!' });
@@ -79,46 +80,17 @@ function createBot(token, webAppUrl, store) {
 
       bot.sendMessage(chatId,
         `🎯 *Game Created!*\n\n` +
-        `Board: ${size}×${size} | Komi: ${komi}\n` +
-        `Game ID: \`${session.id}\`\n\n` +
-        `Share this link to invite a friend:\n${inviteLink}\n\n` +
-        `Or play against AI — tap the game to begin!`,
+        `Board: ${size}×${size} | Komi: ${komi}\n\n` +
+        `Forward this message or share the link to invite a friend:\n${inviteLink}`,
         {
           parse_mode: 'Markdown',
           reply_markup: {
             inline_keyboard: [
-              [{ text: '🎮 Open Game', web_app: { url: `${webAppUrl}?game=${session.id}` } }],
+              [{ text: '🎮 Play', web_app: { url: `${webAppUrl}?game=${session.id}` } }],
               [{
                 text: '📤 Invite Friend',
                 url: `https://t.me/share/url?url=${encodeURIComponent(inviteLink)}&text=${encodeURIComponent(`Join my Go game! ${size}×${size}`)}`
-              }],
-              [{ text: '🤖 Play vs AI', callback_data: `ai_${session.id}_medium` }]
-            ]
-          }
-        }
-      );
-      return;
-    }
-
-    if (data.startsWith('ai_')) {
-      const parts = data.split('_');
-      const gameId = parts[1];
-      const difficulty = parts[2] || 'medium';
-
-      const result = store.joinAsAI(gameId, difficulty);
-      if (result.error) {
-        bot.answerCallbackQuery(query.id, { text: result.error, show_alert: true });
-        return;
-      }
-
-      bot.answerCallbackQuery(query.id, { text: 'AI opponent joined!' });
-      bot.sendMessage(chatId,
-        `🤖 *AI joined the game!*\nDifficulty: ${difficulty}\n\nTap to start playing:`,
-        {
-          parse_mode: 'Markdown',
-          reply_markup: {
-            inline_keyboard: [
-              [{ text: '🎮 Play Now', web_app: { url: `${webAppUrl}?game=${gameId}` } }]
+              }]
             ]
           }
         }
@@ -220,7 +192,7 @@ function createBot(token, webAppUrl, store) {
       `/help — This help message\n\n` +
       `*How to play:*\n` +
       `1. Create a game with /start\n` +
-      `2. Share the invite link with a friend\n` +
+      `2. Forward the game message or share the link with a friend\n` +
       `3. Both open the game in the web app\n` +
       `4. Take turns placing stones\n` +
       `5. Game ends when both pass or someone resigns\n\n` +

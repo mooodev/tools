@@ -137,7 +137,6 @@
     socket.on('playerDisconnected', handlePlayerDisconnected);
     socket.on('aiSuggestion', handleAISuggestion);
     socket.on('analysisResult', handleAnalysisResult);
-    socket.on('aiJoined', handleAIJoined);
     socket.on('chat', handleChat);
     socket.on('error', handleError);
     socket.on('disconnect', () => {
@@ -320,12 +319,6 @@
     // Set analysis markers on board
     const markers = AnalysisUI.getMarkers(data);
     BoardRenderer.setAnalysisMarkers(markers);
-  }
-
-  function handleAIJoined(data) {
-    updatePlayerInfo(data.players);
-    document.getElementById('waiting-overlay').style.display = 'none';
-    showToast(`AI (${data.difficulty}) joined!`);
   }
 
   function handleChat(data) {
@@ -529,12 +522,6 @@
     showToast('Analysis coming soon');
   }
 
-  function addAIOpponent() {
-    if (!socket) return;
-    Haptics.buttonTap();
-    socket.emit('enableAI', { difficulty: 'medium' });
-  }
-
   function showInviteOverlay() {
     Haptics.buttonTap();
     const overlay = document.getElementById('invite-overlay');
@@ -668,7 +655,7 @@
   function showWaitingOverlay() {
     const overlay = document.getElementById('waiting-overlay');
     overlay.querySelector('h3').textContent = 'Waiting for opponent';
-    overlay.querySelector('p').textContent = 'Share the invite link or add an AI opponent';
+    overlay.querySelector('p').textContent = 'Share the invite link to start playing';
 
     const baseUrl = window.location.origin;
     const inviteLink = `${baseUrl}?game=${gameId}`;
@@ -680,7 +667,6 @@
         <button id="waiting-copy-link" class="action-btn small">Copy</button>
       </div>
       <button id="waiting-share-tg" class="action-btn primary">Send via Telegram</button>
-      <button id="waiting-ai" class="action-btn">Play vs AI</button>
     `;
 
     document.getElementById('waiting-copy-link').onclick = () => {
@@ -702,8 +688,6 @@
         window.open(shareUrl, '_blank');
       }
     };
-
-    document.getElementById('waiting-ai').onclick = addAIOpponent;
 
     overlay.style.display = 'flex';
   }
@@ -772,7 +756,6 @@
     document.getElementById('btn-ai').addEventListener('click', requestAIHint);
     document.getElementById('btn-resign').addEventListener('click', resign);
     document.getElementById('btn-invite').addEventListener('click', showInviteOverlay);
-    document.getElementById('btn-ai-play').addEventListener('click', addAIOpponent);
     document.getElementById('btn-analyze').addEventListener('click', requestAnalysis);
 
     // Sound toggle
