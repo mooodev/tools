@@ -8,7 +8,7 @@ const Board3D = (() => {
   let animationId;
   let orbitAngle = 0, orbitRadius = 20, orbitHeight = 18;
   let targetOrbitAngle, targetOrbitRadius, targetOrbitHeight;
-  let isDragging = false, lastTouch = null, pinchDist = 0;
+  let isDragging = false, lastTouch = null, pinchDist = 0, activeTouchCount = 0;
   let boardData = null, lastMovePos = null;
   let showInfluence = false, influenceData = null, territoryData = null;
   let deadStones = new Set();
@@ -19,6 +19,7 @@ const Board3D = (() => {
   let onScoringTap = null;
   let myColor = 1;
   let entranceAnimActive = false, entranceStartTime = 0;
+  let dist2D = 20;
 
   // Materials
   let boardMat, blackStoneMat, whiteStoneMat, gridMat, starMat;
@@ -45,7 +46,6 @@ const Board3D = (() => {
 
     // Camera
     camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
-    resetCamera2D();
 
     // Raycaster
     raycaster = new THREE.Raycaster();
@@ -106,6 +106,7 @@ const Board3D = (() => {
 
     buildBoard();
     resize();
+    resetCamera2D();
     setupInput();
     animate();
   }
@@ -149,14 +150,23 @@ const Board3D = (() => {
     return [[3,3],[9,3],[15,3],[3,9],[9,9],[15,9],[3,15],[9,15],[15,15]];
   }
 
+  function calcDist2D() {
+    const boardExtent = boardSize + 1;
+    const halfFOV = (camera.fov * Math.PI / 180) / 2;
+    const aspect = camera.aspect || 1;
+    const dV = (boardExtent / 2) / Math.tan(halfFOV);
+    const dH = (boardExtent / 2) / (Math.tan(halfFOV) * aspect);
+    dist2D = Math.max(dV, dH) * 1.05;
+  }
+
   function resetCamera2D() {
     is3D = false;
     const half = (boardSize - 1) / 2;
-    const dist = boardSize * 0.75;
+    calcDist2D();
     targetOrbitAngle = 0;
     targetOrbitRadius = 0;
-    targetOrbitHeight = dist;
-    camera.position.set(half, dist, half);
+    targetOrbitHeight = dist2D;
+    camera.position.set(half, dist2D, half);
     camera.lookAt(half, 0, half);
     camera.up.set(0, 0, -1);
   }
@@ -186,6 +196,7 @@ const Board3D = (() => {
     renderer.setSize(w, h);
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
+    calcDist2D();
   }
 
   function setupInput() {
@@ -197,17 +208,17 @@ const Board3D = (() => {
         touchStartTime = Date.now();
         touchStartPos = { x: e.clientX, y: e.clientY };
       }
-      if (is3D) {
+      if (is3D && activeTouchCount < 2) {
         isDragging = true;
         lastTouch = { x: e.clientX, y: e.clientY };
       }
     });
 
     canvas.addEventListener('pointermove', (e) => {
-      if (is3D && isDragging && lastTouch) {
+      if (is3D && isDragging && lastTouch && activeTouchCount < 2) {
         const dx = e.clientX - lastTouch.x;
         const dy = e.clientY - lastTouch.y;
-        orbitAngle += dx * 0.008;
+        orbitAngle -= dx * 0.008;
         orbitHeight = Math.max(3, Math.min(boardSize * 1.2, orbitHeight - dy * 0.08));
         targetOrbitAngle = orbitAngle;
         targetOrbitHeight = orbitHeight;
@@ -231,37 +242,48 @@ const Board3D = (() => {
     });
 
     // Pinch zoom for 3D
-    let touches = [];
     canvas.addEventListener('touchstart', (e) => {
-      touches = Array.from(e.touches);
-      if (touches.length === 2) {
+      activeTouchCount = e.touches.length;
+      if (activeTouchCount === 2) {
+        isDragging = false;
         pinchDist = Math.hypot(
-          touches[0].clientX - touches[1].clientX,
-          touches[0].clientY - touches[1].clientY
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
         );
+        e.preventDefault();
       }
-    }, { passive: true });
+    }, { passive: false });
 
     canvas.addEventListener('touchmove', (e) => {
+      if (e.touches.length >= 2) e.preventDefault();
       if (!is3D) return;
-      const t = Array.from(e.touches);
-      if (t.length === 2 && pinchDist > 0) {
+      if (e.touches.length === 2 && pinchDist > 0) {
         const dist = Math.hypot(
-          t[0].clientX - t[1].clientX,
-          t[0].clientY - t[1].clientY
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
         );
         const scale = pinchDist / dist;
         orbitRadius = Math.max(boardSize * 0.4, Math.min(boardSize * 1.5, orbitRadius * scale));
         targetOrbitRadius = orbitRadius;
         pinchDist = dist;
       }
-    }, { passive: true });
+    }, { passive: false });
 
     canvas.addEventListener('wheel', (e) => {
       if (!is3D) return;
       orbitRadius = Math.max(boardSize * 0.4, Math.min(boardSize * 1.5, orbitRadius + e.deltaY * 0.02));
       targetOrbitRadius = orbitRadius;
     }, { passive: true });
+
+    canvas.addEventListener('touchend', (e) => {
+      activeTouchCount = e.touches.length;
+      if (activeTouchCount < 2) pinchDist = 0;
+    });
+
+    canvas.addEventListener('touchcancel', () => {
+      activeTouchCount = 0;
+      pinchDist = 0;
+    });
   }
 
   function screenToBoard(clientX, clientY) {
@@ -488,8 +510,7 @@ const Board3D = (() => {
       camera.lookAt(half, 0, half);
     } else {
       const half = (boardSize - 1) / 2;
-      const dist = boardSize * 0.75;
-      camera.position.lerp(new THREE.Vector3(half, dist, half), 0.12);
+      camera.position.lerp(new THREE.Vector3(half, dist2D, half), 0.12);
       camera.lookAt(half, 0, half);
       camera.up.set(0, 0, -1);
     }

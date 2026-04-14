@@ -3,7 +3,11 @@
   'use strict';
 
   const tg = window.Telegram && window.Telegram.WebApp;
-  if (tg) tg.expand();
+  if (tg) {
+    tg.expand();
+    if (tg.requestFullscreen) tg.requestFullscreen();
+    if (tg.disableVerticalSwipes) tg.disableVerticalSwipes();
+  }
 
   // ─── STATE ───
   let socket = null;
