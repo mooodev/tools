@@ -22,7 +22,7 @@ const Board3D = (() => {
   let dist2D = 20;
 
   // Materials
-  let boardMat, blackStoneMat, whiteStoneMat, gridMat, starMat;
+  let boardMat, boardSideMat, blackStoneMat, whiteStoneMat, gridMat, starMat;
   let ghostBlackMat, ghostWhiteMat;
   let lastMoveMat, territoryBlackMat, territoryWhiteMat;
   let deadMarkerMat;
@@ -72,7 +72,12 @@ const Board3D = (() => {
     scene.add(pointLight);
 
     // Materials
-    boardMat = new THREE.MeshLambertMaterial({ color: 0xc8956c });
+    const textureLoader = new THREE.TextureLoader();
+    const woodTexture = textureLoader.load('https://raw.githubusercontent.com/mooodev/tools/refs/heads/main/images/kayawood.webp');
+    woodTexture.wrapS = THREE.RepeatWrapping;
+    woodTexture.wrapT = THREE.RepeatWrapping;
+    boardMat = new THREE.MeshLambertMaterial({ map: woodTexture });
+    boardSideMat = new THREE.MeshLambertMaterial({ color: 0xa07030 });
     blackStoneMat = new THREE.MeshPhongMaterial({
       color: 0x1a1a1a, specular: 0x444444, shininess: 60
     });
@@ -117,9 +122,11 @@ const Board3D = (() => {
 
     // Board plane
     const bw = boardSize + 0.8;
-    const boardGeo = new THREE.BoxGeometry(bw, 0.3, bw);
-    const boardMesh = new THREE.Mesh(boardGeo, boardMat);
-    boardMesh.position.set(half, -0.15, half);
+    const boardGeo = new THREE.BoxGeometry(bw, 1.5, bw);
+    const boardMesh = new THREE.Mesh(boardGeo, [
+      boardSideMat, boardSideMat, boardMat, boardSideMat, boardSideMat, boardSideMat
+    ]);
+    boardMesh.position.set(half, -0.75, half);
     boardMesh.receiveShadow = true;
     boardGroup.add(boardMesh);
 
@@ -339,15 +346,33 @@ const Board3D = (() => {
     mesh.position.set(x, STONE_HEIGHT, y);
 
     if (animated) {
-      mesh.scale.set(0, 0, 0);
+      mesh.position.y = STONE_HEIGHT + 1.0;
       stoneAnimations.push({
-        mesh, startTime: performance.now(), duration: 350, type: 'place',
-        fromScale: 0, toScale: 1
+        mesh, startTime: performance.now(), duration: 150, type: 'slam'
       });
+      rattleNearby(x, y);
     }
 
     stonesGroup.add(mesh);
     stoneMeshes.set(key, mesh);
+  }
+
+  function rattleNearby(px, py) {
+    const now = performance.now();
+    for (const [key, mesh] of stoneMeshes) {
+      const [sx, sy] = key.split(',').map(Number);
+      if (sx === px && sy === py) continue;
+      const dist = Math.hypot(sx - px, sy - py);
+      if (dist > 3.5) continue;
+      // Remove any existing rattle on this stone
+      stoneAnimations = stoneAnimations.filter(a => !(a.type === 'rattle' && a.mesh === mesh));
+      const amplitude = Math.max(0, 1 - dist / 4);
+      stoneAnimations.push({
+        mesh, startTime: now, duration: 300, type: 'rattle',
+        baseX: sx, baseZ: sy, amplitude,
+        phase: Math.random() * Math.PI * 2
+      });
+    }
   }
 
   function removeStone(x, y, animated = true) {
@@ -520,16 +545,35 @@ const Board3D = (() => {
       const a = stoneAnimations[i];
       const t = Math.min(1, (now - a.startTime) / a.duration);
 
-      if (a.type === 'place') {
-        // Elastic ease: sin wave with log decay
-        const ease = t < 1 ?
-          1 - Math.cos(t * Math.PI * 2.5) * Math.exp(-t * 4) * (1 - t) :
-          1;
-        const s = a.fromScale + (a.toScale - a.fromScale) * Math.min(1, t + ease * 0.3);
-        const finalS = Math.max(0, Math.min(1.15, s));
-        a.mesh.scale.set(finalS, finalS, finalS);
-        // Subtle bounce height
-        a.mesh.position.y = STONE_HEIGHT + Math.sin(t * Math.PI) * 0.3 * (1 - t);
+      if (a.type === 'slam') {
+        if (t < 0.3) {
+          // Drop phase - cubic ease-in (accelerating fall)
+          const dropT = t / 0.3;
+          a.mesh.position.y = STONE_HEIGHT + 1.0 * (1 - dropT * dropT * dropT);
+        } else if (t < 0.55) {
+          // Impact squash - stone flattens on hit
+          const impactT = (t - 0.3) / 0.25;
+          const squash = Math.sin(impactT * Math.PI);
+          a.mesh.position.y = STONE_HEIGHT;
+          a.mesh.scale.set(1 + 0.2 * squash, 1 - 0.35 * squash, 1 + 0.2 * squash);
+        } else {
+          // Settle with micro-bounce
+          const settleT = (t - 0.55) / 0.45;
+          const bounce = Math.sin(settleT * Math.PI) * 0.04 * (1 - settleT);
+          a.mesh.position.y = STONE_HEIGHT + bounce;
+          a.mesh.scale.set(1, 1, 1);
+        }
+      }
+
+      if (a.type === 'rattle') {
+        const decay = (1 - t) * (1 - t);
+        const freq = 40;
+        a.mesh.position.y = STONE_HEIGHT + Math.sin(t * freq + a.phase) * a.amplitude * 0.06 * decay;
+        a.mesh.position.x = a.baseX + Math.sin(t * freq * 1.3 + a.phase) * a.amplitude * 0.04 * decay;
+        a.mesh.position.z = a.baseZ + Math.cos(t * freq * 0.9 + a.phase * 0.7) * a.amplitude * 0.04 * decay;
+        if (t >= 1) {
+          a.mesh.position.set(a.baseX, STONE_HEIGHT, a.baseZ);
+        }
       }
 
       if (a.type === 'capture') {
