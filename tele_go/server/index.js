@@ -48,6 +48,26 @@ app.get('/api/game/:id', (req, res) => {
   });
 });
 
+app.get('/api/games/active', (req, res) => {
+  const userId = req.query.userId;
+  if (!userId) return res.json({ games: [] });
+
+  const games = store.getPlayerGames(userId);
+  const activeGames = games.filter(s => !s.game.gameOver).map(session => ({
+    id: session.id,
+    size: session.settings.size,
+    players: {
+      black: session.players[BLACK]?.name || null,
+      white: session.players[WHITE]?.name || null
+    },
+    moveCount: session.game.moves.length,
+    myColor: session.players[BLACK]?.id === userId ? 'black' : 'white',
+    currentPlayer: session.game.currentPlayer
+  }));
+
+  res.json({ games: activeGames });
+});
+
 app.post('/api/game', (req, res) => {
   const { size = 19, komi = 6.5, userId, userName } = req.body;
   const session = store.createGame({

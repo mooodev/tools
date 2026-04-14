@@ -32,12 +32,46 @@
     const params = new URLSearchParams(window.location.search);
     gameId = params.get('game');
 
-    if (!gameId) {
-      showCreateGame();
+    if (gameId) {
+      connectToGame(gameId);
       return;
     }
 
-    connectToGame(gameId);
+    // Check for active games before showing create UI
+    const userId = getUserId();
+    fetch(`/api/games/active?userId=${encodeURIComponent(userId)}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.games && data.games.length > 0) {
+          showActiveGames(data.games);
+        } else {
+          showCreateGame();
+        }
+      })
+      .catch(() => showCreateGame());
+  }
+
+  function showActiveGames(games) {
+    const overlay = document.getElementById('waiting-overlay');
+    overlay.querySelector('h3').textContent = 'Your Games';
+    overlay.querySelector('p').textContent = 'You have active games in progress';
+
+    const actions = overlay.querySelector('.overlay-actions');
+    let html = '';
+    for (const g of games) {
+      const opponent = g.myColor === 'black'
+        ? (g.players.white || 'Waiting...')
+        : g.players.black;
+      const isMyTurn = g.currentPlayer === (g.myColor === 'black' ? 1 : 2);
+      const turnInfo = isMyTurn ? 'Your turn' : "Opponent's turn";
+      html += `<button class="action-btn primary" onclick="TeleGo.resumeGame('${g.id}')">
+        Continue ${g.size}×${g.size} vs ${opponent}<br>
+        <small>Move ${g.moveCount} · ${turnInfo}</small>
+      </button>`;
+    }
+    html += '<button class="action-btn" onclick="TeleGo.showNewGame()">New Game</button>';
+    actions.innerHTML = html;
+    overlay.style.display = 'flex';
   }
 
   function showCreateGame() {
@@ -71,6 +105,15 @@
           document.getElementById('waiting-overlay').style.display = 'none';
           connectToGame(gameId);
         });
+    },
+    resumeGame(id) {
+      gameId = id;
+      history.replaceState(null, '', `?game=${gameId}`);
+      document.getElementById('waiting-overlay').style.display = 'none';
+      connectToGame(gameId);
+    },
+    showNewGame() {
+      showCreateGame();
     }
   };
 
@@ -229,9 +272,6 @@
     Sounds.gameOver(won);
 
     showGameOverOverlay(data.result, data.resigned);
-
-    // Show analyze button
-    document.getElementById('btn-analyze').style.display = '';
 
     updateStatus();
     updateControls();
@@ -486,18 +526,7 @@
   }
 
   function requestAnalysis() {
-    if (!gameOver) {
-      showToast('Game must be finished for analysis');
-      return;
-    }
-    Haptics.buttonTap();
-
-    const overlay = document.getElementById('analysis-overlay');
-    document.getElementById('analysis-loading').style.display = 'block';
-    document.getElementById('analysis-content').style.display = 'none';
-    overlay.style.display = 'flex';
-
-    socket.emit('requestAnalysis');
+    showToast('Analysis coming soon');
   }
 
   function addAIOpponent() {
@@ -562,9 +591,7 @@
     document.getElementById('btn-ai').disabled = !isMyTurn;
     document.getElementById('btn-resign').disabled = !isPlayer || gameOver;
 
-    if (gameOver) {
-      document.getElementById('btn-analyze').style.display = '';
-    }
+    // Analysis disabled for now
   }
 
   // ── Overlays ──
@@ -643,13 +670,39 @@
     overlay.querySelector('h3').textContent = 'Waiting for opponent';
     overlay.querySelector('p').textContent = 'Share the invite link or add an AI opponent';
 
+    const baseUrl = window.location.origin;
+    const inviteLink = `${baseUrl}?game=${gameId}`;
+
     const actions = overlay.querySelector('.overlay-actions');
     actions.innerHTML = `
-      <button id="waiting-invite" class="action-btn primary">Invite Friend</button>
+      <div class="invite-link-box">
+        <input id="waiting-invite-link" type="text" readonly value="${inviteLink}">
+        <button id="waiting-copy-link" class="action-btn small">Copy</button>
+      </div>
+      <button id="waiting-share-tg" class="action-btn primary">Send via Telegram</button>
       <button id="waiting-ai" class="action-btn">Play vs AI</button>
     `;
 
-    document.getElementById('waiting-invite').onclick = showInviteOverlay;
+    document.getElementById('waiting-copy-link').onclick = () => {
+      const input = document.getElementById('waiting-invite-link');
+      input.select();
+      navigator.clipboard?.writeText(input.value)
+        .then(() => showToast('Link copied!'))
+        .catch(() => {
+          document.execCommand('copy');
+          showToast('Link copied!');
+        });
+    };
+
+    document.getElementById('waiting-share-tg').onclick = () => {
+      const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(inviteLink)}&text=${encodeURIComponent('Join my Go game!')}`;
+      if (tg?.openTelegramLink) {
+        tg.openTelegramLink(shareUrl);
+      } else {
+        window.open(shareUrl, '_blank');
+      }
+    };
+
     document.getElementById('waiting-ai').onclick = addAIOpponent;
 
     overlay.style.display = 'flex';
@@ -766,10 +819,11 @@
 
     document.getElementById('invite-telegram').addEventListener('click', () => {
       const link = document.getElementById('invite-link').value;
-      if (tg) {
-        tg.switchInlineQuery?.(`Join my Go game! ${link}`, ['users']);
+      const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent('Join my Go game!')}`;
+      if (tg?.openTelegramLink) {
+        tg.openTelegramLink(shareUrl);
       } else {
-        window.open(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent('Join my Go game!')}`, '_blank');
+        window.open(shareUrl, '_blank');
       }
       document.getElementById('invite-overlay').style.display = 'none';
     });
