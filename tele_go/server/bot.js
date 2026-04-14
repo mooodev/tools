@@ -81,7 +81,7 @@ function createBot(token, webAppUrl, store) {
       bot.sendMessage(chatId,
         `🎯 *Game Created!*\n\n` +
         `Board: ${size}×${size} | Komi: ${komi}\n\n` +
-        `Forward this message or share the link to invite a friend:\n${inviteLink}`,
+        `Forward this message or share the link to invite a friend:\n[${inviteLink}](${inviteLink})`,
         {
           parse_mode: 'Markdown',
           reply_markup: {
