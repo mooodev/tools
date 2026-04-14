@@ -90,7 +90,7 @@ function createBot(token, webAppUrl, store) {
               [{ text: '🎮 Open Game', web_app: { url: `${webAppUrl}?game=${session.id}` } }],
               [{
                 text: '📤 Invite Friend',
-                switch_inline_query: `Join my Go game! ${size}×${size} — ${inviteLink}`
+                url: `https://t.me/share/url?url=${encodeURIComponent(inviteLink)}&text=${encodeURIComponent(`Join my Go game! ${size}×${size}`)}`
               }],
               [{ text: '🤖 Play vs AI', callback_data: `ai_${session.id}_medium` }]
             ]
