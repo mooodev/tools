@@ -8,7 +8,7 @@ class GameStore {
     this.playerGames = new Map(); // oduserId -> Set<gameId>
   }
 
-  createGame({ size = 19, komi = 6.5, creatorId, creatorName }) {
+  createGame({ size = 19, komi = 6.5, creatorId, creatorName, creatorChatId }) {
     const gameId = uuidv4().slice(0, 8);
     const session = {
       id: gameId,
@@ -22,8 +22,7 @@ class GameStore {
       settings: { size, komi },
       chatMessages: [],
       inviteCode: gameId,
-      aiEnabled: false,
-      aiDifficulty: 'medium'
+      creatorChatId: creatorChatId || null
     };
 
     this.games.set(gameId, session);
@@ -48,26 +47,12 @@ class GameStore {
     if (!session.players[WHITE] && session.game.moves.length === 0) {
       session.players[WHITE] = { id: userId, name: userName || 'White', connected: false };
       this._trackPlayer(userId, gameId);
-      return { session, color: WHITE, role: 'player' };
+      return { session, color: WHITE, role: 'player', isNewJoin: true };
     }
 
     // Otherwise spectate
     session.spectators.set(userId, { name: userName || 'Spectator' });
     return { session, color: null, role: 'spectator' };
-  }
-
-  joinAsAI(gameId, difficulty = 'medium') {
-    const session = this.games.get(gameId);
-    if (!session) return { error: 'Game not found' };
-
-    if (!session.players[WHITE]) {
-      session.players[WHITE] = { id: 'ai', name: `AI (${difficulty})`, connected: true };
-      session.aiEnabled = true;
-      session.aiDifficulty = difficulty;
-      return { session, color: WHITE };
-    }
-
-    return { error: 'Game is full' };
   }
 
   getGame(gameId) {
