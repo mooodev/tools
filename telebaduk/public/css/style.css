@@ -40,6 +40,7 @@ html, body {
 .lobby-header {
   padding: 24px 20px 8px;
   text-align: center;
+  position: relative;
 }
 .lobby-title {
   font-size: 28px;
@@ -50,6 +51,30 @@ html, body {
   font-size: 13px;
   color: var(--text2);
   margin-top: 2px;
+}
+
+/* Language selector */
+.lang-selector {
+  position: absolute;
+  right: 20px;
+  top: 24px;
+  display: flex;
+  gap: 4px;
+}
+.lang-btn {
+  background: var(--bg3);
+  border: none;
+  color: var(--text2);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.lang-btn.active {
+  background: var(--accent);
+  color: #fff;
 }
 
 .tab-bar {
@@ -148,58 +173,17 @@ html, body {
 
 /* ── GAME SCREEN ── */
 .game-top {
-  padding: 8px 16px 4px;
+  padding: 6px 16px 2px;
   flex-shrink: 0;
-}
-
-.player-bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 0;
-}
-.player-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-.player-bar.opponent .player-dot { background: var(--white-stone); border: 1px solid #666; }
-.player-bar.self .player-dot { background: var(--black-stone); border: 1px solid #666; }
-.player-bar.is-black .player-dot { background: var(--black-stone); border: 1px solid #666; }
-.player-bar.is-white .player-dot { background: var(--white-stone); border: 1px solid #666; }
-
-.player-name {
-  font-size: 14px;
-  font-weight: 500;
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.player-captures {
-  font-size: 13px;
-  color: var(--text2);
-  flex-shrink: 0;
-}
-.player-captures::before { content: 'cap: '; }
-.player-territory {
-  font-size: 12px;
-  color: var(--accent);
-  flex-shrink: 0;
-  font-weight: 600;
-  min-width: 32px;
-  text-align: right;
 }
 
 .game-status {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--accent);
   text-align: center;
-  padding: 2px;
+  padding: 4px;
   font-weight: 500;
-  min-height: 18px;
+  min-height: 22px;
 }
 
 #board-container {
@@ -221,10 +205,61 @@ html, body {
   flex-shrink: 0;
 }
 
+/* Players row - both at bottom side by side */
+.players-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.player-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  flex: 1;
+  min-width: 0;
+  background: var(--bg2);
+  border-radius: 8px;
+}
+.player-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.player-bar.is-black .player-dot { background: var(--black-stone); border: 1px solid #666; }
+.player-bar.is-white .player-dot { background: var(--white-stone); border: 1px solid #666; }
+
+.player-name {
+  font-size: 13px;
+  font-weight: 500;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.player-captures {
+  font-size: 12px;
+  color: var(--accent);
+  flex-shrink: 0;
+  font-weight: 600;
+}
+.player-captures::before { content: '\2694 '; }
+.player-territory {
+  font-size: 11px;
+  color: var(--text2);
+  flex-shrink: 0;
+  font-weight: 600;
+  min-width: 28px;
+  text-align: right;
+}
+
 .controls {
   display: flex;
   gap: 6px;
-  padding-top: 8px;
+  padding-top: 6px;
   justify-content: center;
 }
 .ctrl-btn {
@@ -333,25 +368,6 @@ html, body {
 
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-
-/* Influence bar */
-.influence-bar {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  z-index: 10;
-  display: flex;
-}
-.influence-bar .inf-black {
-  background: rgba(30,30,30,0.8);
-  transition: flex 0.5s ease;
-}
-.influence-bar .inf-white {
-  background: rgba(230,220,200,0.8);
-  transition: flex 0.5s ease;
-}
 
 /* Scrollbar */
 ::-webkit-scrollbar { width: 4px; }

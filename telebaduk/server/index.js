@@ -134,6 +134,7 @@ io.on('connection', (socket) => {
       captured: result.captured,
       moveNumber: result.moveNumber,
       currentPlayer: session.game.currentPlayer,
+      captures: { ...session.game.captures },
       atariGroups: result.atariGroups.map(g => ({
         stones: g.stones,
         color: session.game.board[g.stones[0][1]][g.stones[0][0]] || color
