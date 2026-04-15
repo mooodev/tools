@@ -13,13 +13,24 @@ const Board3D = (() => {
   let showInfluence = false, influenceData = null, territoryData = null;
   let deadStones = new Set();
   let scoringMode = false;
-  let ghostStone = null; // { x, y, color }
-  let stoneAnimations = []; // { mesh, startTime, duration, type, ... }
-  let onIntersect = null; // callback(x, y)
+  let ghostStone = null;
+  let stoneAnimations = [];
+  let onIntersect = null;
   let onScoringTap = null;
   let myColor = 1;
   let entranceAnimActive = false, entranceStartTime = 0;
   let dist2D = 20;
+  let maxDist2D = 20;
+  let minDist2D = 5;
+
+  // Hold-to-place state
+  let pendingPlace = null;
+  let placeTimer = 0;
+  let placeReady = false;
+  let suppressInput = false;
+
+  // Abort controller for input cleanup
+  let inputAbort = null;
 
   // Materials
   let boardMat, boardSideMat, blackStoneMat, whiteStoneMat, gridMat, starMat;
@@ -27,10 +38,27 @@ const Board3D = (() => {
   let lastMoveMat, territoryBlackMat, territoryWhiteMat;
   let deadMarkerMat;
 
+  // Pre-created ghost mesh
+  let _ghostMesh = null;
+
   const STONE_RADIUS = 0.42;
   const STONE_HEIGHT = 0.15;
+  const stoneMeshes = new Map();
 
   function init(canvasEl, containerEl, size) {
+    // Cleanup previous instance
+    if (animationId) { cancelAnimationFrame(animationId); animationId = null; }
+    if (renderer) renderer.dispose();
+    if (inputAbort) inputAbort.abort();
+    stoneMeshes.clear();
+    stoneAnimations = [];
+    entranceAnimActive = false;
+    pendingPlace = null;
+    placeReady = false;
+    suppressInput = false;
+    ghostStone = null;
+    _ghostMesh = null;
+
     canvas = canvasEl;
     container = containerEl;
     boardSize = size;
@@ -38,58 +66,63 @@ const Board3D = (() => {
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0x1a1a1a);
 
-    // Renderer
     renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-    // Camera
     camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
-
-    // Raycaster
     raycaster = new THREE.Raycaster();
     mouse = new THREE.Vector2();
 
-    // Lights
-    const ambient = new THREE.AmbientLight(0xffffff, 0.5);
+    // Lights - pleasant soft shadows
+    const ambient = new THREE.AmbientLight(0xffffff, 0.6);
     scene.add(ambient);
 
-    const dirLight = new THREE.DirectionalLight(0xfff5e0, 0.7);
-    dirLight.position.set(5, 15, 8);
+    const dirLight = new THREE.DirectionalLight(0xfff5e0, 0.55);
+    dirLight.position.set(4, 20, 6);
     dirLight.castShadow = true;
-    dirLight.shadow.mapSize.set(1024, 1024);
+    dirLight.shadow.mapSize.set(2048, 2048);
     dirLight.shadow.camera.near = 1;
-    dirLight.shadow.camera.far = 40;
-    dirLight.shadow.camera.left = -12;
-    dirLight.shadow.camera.right = 12;
-    dirLight.shadow.camera.top = 12;
-    dirLight.shadow.camera.bottom = -12;
+    dirLight.shadow.camera.far = 50;
+    const se = boardSize * 0.7;
+    dirLight.shadow.camera.left = -se;
+    dirLight.shadow.camera.right = se;
+    dirLight.shadow.camera.top = se;
+    dirLight.shadow.camera.bottom = -se;
+    dirLight.shadow.bias = -0.0008;
+    dirLight.shadow.normalBias = 0.02;
+    dirLight.shadow.radius = 4;
     scene.add(dirLight);
 
-    const pointLight = new THREE.PointLight(0xffeedd, 0.3, 30);
-    pointLight.position.set(-5, 10, -5);
+    const pointLight = new THREE.PointLight(0xffeedd, 0.2, 40);
+    pointLight.position.set(-3, 12, -3);
     scene.add(pointLight);
 
     // Materials
-    const textureLoader = new THREE.TextureLoader();
-    const woodTexture = textureLoader.load('https://raw.githubusercontent.com/mooodev/tools/refs/heads/main/images/kayawood.webp');
-    woodTexture.wrapS = THREE.RepeatWrapping;
-    woodTexture.wrapT = THREE.RepeatWrapping;
-    boardMat = new THREE.MeshLambertMaterial({ map: woodTexture });
+    const tl = new THREE.TextureLoader();
+    const woodTex = tl.load('https://raw.githubusercontent.com/mooodev/tools/refs/heads/main/images/kayawood.webp');
+    woodTex.wrapS = THREE.RepeatWrapping;
+    woodTex.wrapT = THREE.RepeatWrapping;
+    boardMat = new THREE.MeshLambertMaterial({ map: woodTex });
     boardSideMat = new THREE.MeshLambertMaterial({ color: 0xa07030 });
+
+    // Black stones with dragon texture
+    const dragonTex = tl.load('https://raw.githubusercontent.com/mooodev/tools/refs/heads/main/images/dragonTexture.jpg');
+    dragonTex.wrapS = THREE.RepeatWrapping;
+    dragonTex.wrapT = THREE.RepeatWrapping;
     blackStoneMat = new THREE.MeshPhongMaterial({
-      color: 0x1a1a1a, specular: 0x444444, shininess: 60
+      map: dragonTex, color: 0x333333, specular: 0x555555, shininess: 70
     });
+
+    // White stones - glassy/transparent
     whiteStoneMat = new THREE.MeshPhongMaterial({
-      color: 0xf0ead6, specular: 0xffffff, shininess: 80
+      color: 0xf4f0e8, specular: 0xffffff, shininess: 140,
+      transparent: true, opacity: 0.82
     });
-    ghostBlackMat = new THREE.MeshPhongMaterial({
-      color: 0x1a1a1a, transparent: true, opacity: 0.35
-    });
-    ghostWhiteMat = new THREE.MeshPhongMaterial({
-      color: 0xf0ead6, transparent: true, opacity: 0.35
-    });
+
+    ghostBlackMat = new THREE.MeshPhongMaterial({ color: 0x1a1a1a, transparent: true, opacity: 0.3 });
+    ghostWhiteMat = new THREE.MeshPhongMaterial({ color: 0xf0ead6, transparent: true, opacity: 0.3 });
     gridMat = new THREE.LineBasicMaterial({ color: 0x3d2b1f });
     starMat = new THREE.MeshBasicMaterial({ color: 0x3d2b1f });
     lastMoveMat = new THREE.MeshBasicMaterial({ color: 0xffcc44, transparent: true, opacity: 0.8 });
@@ -97,7 +130,6 @@ const Board3D = (() => {
     territoryWhiteMat = new THREE.MeshBasicMaterial({ color: 0xf0ead6, transparent: true, opacity: 0.35 });
     deadMarkerMat = new THREE.MeshBasicMaterial({ color: 0xff3333, transparent: true, opacity: 0.7 });
 
-    // Groups
     boardGroup = new THREE.Group();
     stonesGroup = new THREE.Group();
     markersGroup = new THREE.Group();
@@ -119,8 +151,6 @@ const Board3D = (() => {
   function buildBoard() {
     boardGroup.clear();
     const half = (boardSize - 1) / 2;
-
-    // Board plane
     const bw = boardSize + 0.8;
     const boardGeo = new THREE.BoxGeometry(bw, 1.5, bw);
     const boardMesh = new THREE.Mesh(boardGeo, [
@@ -130,7 +160,6 @@ const Board3D = (() => {
     boardMesh.receiveShadow = true;
     boardGroup.add(boardMesh);
 
-    // Grid lines
     const lineGeo = new THREE.BufferGeometry();
     const verts = [];
     for (let i = 0; i < boardSize; i++) {
@@ -138,10 +167,8 @@ const Board3D = (() => {
       verts.push(0, 0.001, i, boardSize - 1, 0.001, i);
     }
     lineGeo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-    const lines = new THREE.LineSegments(lineGeo, gridMat);
-    boardGroup.add(lines);
+    boardGroup.add(new THREE.LineSegments(lineGeo, gridMat));
 
-    // Star points
     const stars = getStarPoints(boardSize);
     const starGeo = new THREE.CylinderGeometry(0.1, 0.1, 0.02, 12);
     for (const [sx, sy] of stars) {
@@ -163,7 +190,9 @@ const Board3D = (() => {
     const aspect = camera.aspect || 1;
     const dV = (boardExtent / 2) / Math.tan(halfFOV);
     const dH = (boardExtent / 2) / (Math.tan(halfFOV) * aspect);
-    dist2D = Math.max(dV, dH) * 1.05;
+    maxDist2D = Math.max(dV, dH) * 1.05;
+    minDist2D = maxDist2D * 0.3;
+    dist2D = maxDist2D;
   }
 
   function resetCamera2D() {
@@ -207,19 +236,34 @@ const Board3D = (() => {
   }
 
   function setupInput() {
-    let touchStartTime = 0;
+    if (inputAbort) inputAbort.abort();
+    inputAbort = new AbortController();
+    const sig = { signal: inputAbort.signal };
     let touchStartPos = null;
 
     canvas.addEventListener('pointerdown', (e) => {
       if (e.pointerType === 'touch') {
-        touchStartTime = Date.now();
         touchStartPos = { x: e.clientX, y: e.clientY };
       }
       if (is3D && activeTouchCount < 2) {
         isDragging = true;
         lastTouch = { x: e.clientX, y: e.clientY };
       }
-    });
+      // Hold-to-place: start tracking
+      if (activeTouchCount < 2 && !suppressInput) {
+        const pos = screenToBoard(e.clientX, e.clientY);
+        if (pos && boardData && boardData[pos.y][pos.x] === 0 && !scoringMode) {
+          pendingPlace = pos;
+          placeTimer = Date.now();
+          placeReady = false;
+          Haptics.gridSnap();
+          ghostStone = { x: pos.x, y: pos.y, color: myColor };
+        } else {
+          pendingPlace = null;
+          ghostStone = null;
+        }
+      }
+    }, sig);
 
     canvas.addEventListener('pointermove', (e) => {
       if (is3D && isDragging && lastTouch && activeTouchCount < 2) {
@@ -232,9 +276,23 @@ const Board3D = (() => {
         lastTouch = { x: e.clientX, y: e.clientY };
         return;
       }
-      // Hover ghost stone (non-3d)
-      updateGhostFromEvent(e);
-    });
+      // Update pending place position with grid haptics
+      if (activeTouchCount < 2 && !suppressInput) {
+        const pos = screenToBoard(e.clientX, e.clientY);
+        if (pos && boardData && boardData[pos.y][pos.x] === 0 && !scoringMode) {
+          if (!pendingPlace || pos.x !== pendingPlace.x || pos.y !== pendingPlace.y) {
+            pendingPlace = pos;
+            placeTimer = Date.now();
+            placeReady = false;
+            Haptics.gridSnap();
+          }
+          ghostStone = { x: pos.x, y: pos.y, color: myColor };
+        } else {
+          pendingPlace = null;
+          ghostStone = null;
+        }
+      }
+    }, sig);
 
     canvas.addEventListener('pointerup', (e) => {
       isDragging = false;
@@ -242,16 +300,26 @@ const Board3D = (() => {
       const moved = touchStartPos ?
         Math.hypot(e.clientX - touchStartPos.x, e.clientY - touchStartPos.y) : 0;
 
-      if (moved < 15) {
-        handleTap(e);
+      if (scoringMode && moved < 15) {
+        const pos = screenToBoard(e.clientX, e.clientY);
+        if (pos && onScoringTap) onScoringTap(pos.x, pos.y);
+      } else if (pendingPlace && placeReady && activeTouchCount < 2) {
+        if (onIntersect) onIntersect(pendingPlace.x, pendingPlace.y);
       }
-      touchStartPos = null;
-    });
 
-    // Pinch zoom for 3D
+      pendingPlace = null;
+      placeReady = false;
+      ghostStone = null;
+      touchStartPos = null;
+    }, sig);
+
+    // Pinch zoom - works in BOTH 2D and 3D
     canvas.addEventListener('touchstart', (e) => {
       activeTouchCount = e.touches.length;
-      if (activeTouchCount === 2) {
+      if (activeTouchCount >= 2) {
+        pendingPlace = null;
+        placeReady = false;
+        ghostStone = null;
         isDragging = false;
         pinchDist = Math.hypot(
           e.touches[0].clientX - e.touches[1].clientX,
@@ -259,38 +327,47 @@ const Board3D = (() => {
         );
         e.preventDefault();
       }
-    }, { passive: false });
+    }, { ...sig, passive: false });
 
     canvas.addEventListener('touchmove', (e) => {
       if (e.touches.length >= 2) e.preventDefault();
-      if (!is3D) return;
       if (e.touches.length === 2 && pinchDist > 0) {
-        const dist = Math.hypot(
+        const d = Math.hypot(
           e.touches[0].clientX - e.touches[1].clientX,
           e.touches[0].clientY - e.touches[1].clientY
         );
-        const scale = pinchDist / dist;
-        orbitRadius = Math.max(boardSize * 0.4, Math.min(boardSize * 1.5, orbitRadius * scale));
-        targetOrbitRadius = orbitRadius;
-        pinchDist = dist;
+        const scale = pinchDist / d;
+        if (is3D) {
+          orbitRadius = Math.max(boardSize * 0.4, Math.min(boardSize * 1.5, orbitRadius * scale));
+          targetOrbitRadius = orbitRadius;
+        } else {
+          dist2D = Math.max(minDist2D, Math.min(maxDist2D, dist2D * scale));
+        }
+        pinchDist = d;
       }
-    }, { passive: false });
+    }, { ...sig, passive: false });
 
     canvas.addEventListener('wheel', (e) => {
-      if (!is3D) return;
-      orbitRadius = Math.max(boardSize * 0.4, Math.min(boardSize * 1.5, orbitRadius + e.deltaY * 0.02));
-      targetOrbitRadius = orbitRadius;
-    }, { passive: true });
+      if (is3D) {
+        orbitRadius = Math.max(boardSize * 0.4, Math.min(boardSize * 1.5, orbitRadius + e.deltaY * 0.02));
+        targetOrbitRadius = orbitRadius;
+      } else {
+        dist2D = Math.max(minDist2D, Math.min(maxDist2D, dist2D + e.deltaY * 0.02));
+      }
+    }, { ...sig, passive: true });
 
     canvas.addEventListener('touchend', (e) => {
       activeTouchCount = e.touches.length;
       if (activeTouchCount < 2) pinchDist = 0;
-    });
+    }, sig);
 
     canvas.addEventListener('touchcancel', () => {
       activeTouchCount = 0;
       pinchDist = 0;
-    });
+      pendingPlace = null;
+      placeReady = false;
+      ghostStone = null;
+    }, sig);
   }
 
   function screenToBoard(clientX, clientY) {
@@ -298,46 +375,20 @@ const Board3D = (() => {
     mouse.x = ((clientX - rect.left) / rect.width) * 2 - 1;
     mouse.y = -((clientY - rect.top) / rect.height) * 2 + 1;
     raycaster.setFromCamera(mouse, camera);
-
-    // Intersect with y=0 plane
     const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
     const intersect = new THREE.Vector3();
     raycaster.ray.intersectPlane(plane, intersect);
     if (!intersect) return null;
-
     const bx = Math.round(intersect.x);
     const by = Math.round(intersect.z);
     if (bx < 0 || bx >= boardSize || by < 0 || by >= boardSize) return null;
     return { x: bx, y: by };
   }
 
-  function updateGhostFromEvent(e) {
-    const pos = screenToBoard(e.clientX, e.clientY);
-    if (pos && boardData && boardData[pos.y][pos.x] === 0) {
-      ghostStone = { x: pos.x, y: pos.y, color: myColor };
-    } else {
-      ghostStone = null;
-    }
-  }
-
-  function handleTap(e) {
-    const pos = screenToBoard(e.clientX, e.clientY);
-    if (!pos) return;
-    if (scoringMode && onScoringTap) {
-      onScoringTap(pos.x, pos.y);
-      return;
-    }
-    if (onIntersect) onIntersect(pos.x, pos.y);
-    ghostStone = null;
-  }
-
   // ─── STONE MANAGEMENT ───
-  const stoneMeshes = new Map(); // "x,y" -> mesh
-
   function addStone(x, y, color, animated = true) {
     const key = `${x},${y}`;
     if (stoneMeshes.has(key)) return;
-
     const geo = new THREE.SphereGeometry(STONE_RADIUS, 24, 16);
     geo.scale(1, 0.35, 1);
     const mat = color === 1 ? blackStoneMat : whiteStoneMat;
@@ -362,15 +413,13 @@ const Board3D = (() => {
     for (const [key, mesh] of stoneMeshes) {
       const [sx, sy] = key.split(',').map(Number);
       if (sx === px && sy === py) continue;
-      const dist = Math.hypot(sx - px, sy - py);
-      if (dist > 3.5) continue;
-      // Remove any existing rattle on this stone
+      const d = Math.hypot(sx - px, sy - py);
+      if (d > 3.5) continue;
       stoneAnimations = stoneAnimations.filter(a => !(a.type === 'rattle' && a.mesh === mesh));
-      const amplitude = Math.max(0, 1 - dist / 4);
+      const amplitude = Math.max(0, 1 - d / 4);
       stoneAnimations.push({
         mesh, startTime: now, duration: 300, type: 'rattle',
-        baseX: sx, baseZ: sy, amplitude,
-        phase: Math.random() * Math.PI * 2
+        baseX: sx, baseZ: sy, amplitude, phase: Math.random() * Math.PI * 2
       });
     }
   }
@@ -379,7 +428,6 @@ const Board3D = (() => {
     const key = `${x},${y}`;
     const mesh = stoneMeshes.get(key);
     if (!mesh) return;
-
     if (animated) {
       stoneAnimations.push({
         mesh, startTime: performance.now(), duration: 400, type: 'capture',
@@ -404,8 +452,6 @@ const Board3D = (() => {
   // ─── MARKERS ───
   function updateMarkers(lastMove, atariGroups) {
     markersGroup.clear();
-
-    // Last move marker
     if (lastMove && lastMove.x !== undefined) {
       const ringGeo = new THREE.RingGeometry(0.2, 0.28, 24);
       ringGeo.rotateX(-Math.PI / 2);
@@ -413,8 +459,6 @@ const Board3D = (() => {
       ring.position.set(lastMove.x, STONE_HEIGHT + 0.06, lastMove.y);
       markersGroup.add(ring);
     }
-
-    // Dead stone markers (scoring mode)
     if (scoringMode) {
       const crossGeo = new THREE.PlaneGeometry(0.4, 0.08);
       crossGeo.rotateX(-Math.PI / 2);
@@ -437,10 +481,8 @@ const Board3D = (() => {
     territoryData = terr;
     territoryGroup.clear();
     if (!terr) return;
-
     const geo = new THREE.PlaneGeometry(0.6, 0.6);
     geo.rotateX(-Math.PI / 2);
-
     for (let y = 0; y < boardSize; y++) {
       for (let x = 0; x < boardSize; x++) {
         if (boardData && boardData[y][x] !== 0) continue;
@@ -462,10 +504,8 @@ const Board3D = (() => {
   function updateInfluenceOverlay(infMap) {
     influenceGroup.clear();
     if (!infMap || !showInfluence) return;
-
     const geo = new THREE.PlaneGeometry(0.8, 0.8);
     geo.rotateX(-Math.PI / 2);
-
     for (let y = 0; y < boardSize; y++) {
       for (let x = 0; x < boardSize; x++) {
         if (boardData && boardData[y][x] !== 0) continue;
@@ -491,7 +531,6 @@ const Board3D = (() => {
       deadStones = new Set(opts.deadStones.map(([x, y]) => `${x},${y}`));
     }
 
-    // Diff stones
     const newKeys = new Set();
     for (let y = 0; y < boardSize; y++) {
       for (let x = 0; x < boardSize; x++) {
@@ -503,22 +542,49 @@ const Board3D = (() => {
         }
       }
     }
-    // Remove stones not in new board
     for (const [key] of stoneMeshes) {
       if (!newKeys.has(key)) {
         const [x, y] = key.split(',').map(Number);
         removeStone(x, y, false);
       }
     }
-
     updateMarkers(lastMovePos);
     if (opts.territory) updateTerritory(opts.territory);
   }
 
-  // ─── ENTRANCE ANIMATION (sin/cos/log) ───
+  // ─── ENTRANCE ANIMATION - Fast Rain Drop ───
   function playEntranceAnimation() {
     entranceAnimActive = true;
     entranceStartTime = performance.now();
+    suppressInput = true;
+
+    const now = performance.now();
+    const keys = Array.from(stoneMeshes.keys());
+    const spread = Math.min(500, keys.length * 8);
+
+    for (let i = 0; i < keys.length; i++) {
+      const mesh = stoneMeshes.get(keys[i]);
+      if (!mesh) continue;
+      const [sx, sy] = keys[i].split(',').map(Number);
+      const delay = Math.random() * spread;
+      const startY = STONE_HEIGHT + 2.5 + Math.random() * 1.5;
+      mesh.position.y = startY;
+
+      stoneAnimations.push({
+        mesh, startTime: now + delay, duration: 100, type: 'rainDrop',
+        targetY: STONE_HEIGHT, startY, baseX: sx, baseZ: sy
+      });
+    }
+
+    setTimeout(() => {
+      entranceAnimActive = false;
+      suppressInput = false;
+      for (const [key, mesh] of stoneMeshes) {
+        const [sx, sy] = key.split(',').map(Number);
+        mesh.position.set(sx, STONE_HEIGHT, sy);
+        mesh.scale.set(1, 1, 1);
+      }
+    }, spread + 200);
   }
 
   // ─── ANIMATION LOOP ───
@@ -526,7 +592,7 @@ const Board3D = (() => {
     animationId = requestAnimationFrame(animate);
     const now = performance.now();
 
-    // Camera smoothing
+    // Camera
     if (is3D) {
       const half = (boardSize - 1) / 2;
       const cx = half + Math.sin(orbitAngle) * orbitRadius;
@@ -540,27 +606,45 @@ const Board3D = (() => {
       camera.up.set(0, 0, -1);
     }
 
+    // Hold-to-place timer
+    if (pendingPlace && !placeReady && Date.now() - placeTimer >= 500) {
+      placeReady = true;
+      Haptics.confirmReady();
+    }
+
     // Stone animations
     for (let i = stoneAnimations.length - 1; i >= 0; i--) {
       const a = stoneAnimations[i];
+      if (now < a.startTime) continue;
       const t = Math.min(1, (now - a.startTime) / a.duration);
 
       if (a.type === 'slam') {
         if (t < 0.3) {
-          // Drop phase - cubic ease-in (accelerating fall)
-          const dropT = t / 0.3;
-          a.mesh.position.y = STONE_HEIGHT + 1.0 * (1 - dropT * dropT * dropT);
+          const dt = t / 0.3;
+          a.mesh.position.y = STONE_HEIGHT + 1.0 * (1 - dt * dt * dt);
         } else if (t < 0.55) {
-          // Impact squash - stone flattens on hit
-          const impactT = (t - 0.3) / 0.25;
-          const squash = Math.sin(impactT * Math.PI);
+          const it = (t - 0.3) / 0.25;
+          const sq = Math.sin(it * Math.PI);
           a.mesh.position.y = STONE_HEIGHT;
-          a.mesh.scale.set(1 + 0.2 * squash, 1 - 0.35 * squash, 1 + 0.2 * squash);
+          a.mesh.scale.set(1 + 0.2 * sq, 1 - 0.35 * sq, 1 + 0.2 * sq);
         } else {
-          // Settle with micro-bounce
-          const settleT = (t - 0.55) / 0.45;
-          const bounce = Math.sin(settleT * Math.PI) * 0.04 * (1 - settleT);
-          a.mesh.position.y = STONE_HEIGHT + bounce;
+          const st = (t - 0.55) / 0.45;
+          const b = Math.sin(st * Math.PI) * 0.04 * (1 - st);
+          a.mesh.position.y = STONE_HEIGHT + b;
+          a.mesh.scale.set(1, 1, 1);
+        }
+      }
+
+      if (a.type === 'rainDrop') {
+        const dt = t * t * t;
+        a.mesh.position.y = a.startY + (a.targetY - a.startY) * dt;
+        if (t >= 0.85) {
+          const it = (t - 0.85) / 0.15;
+          const sq = Math.sin(it * Math.PI);
+          a.mesh.scale.set(1 + 0.06 * sq, 1 - 0.12 * sq, 1 + 0.06 * sq);
+        }
+        if (t >= 1) {
+          a.mesh.position.set(a.baseX, STONE_HEIGHT, a.baseZ);
           a.mesh.scale.set(1, 1, 1);
         }
       }
@@ -571,13 +655,10 @@ const Board3D = (() => {
         a.mesh.position.y = STONE_HEIGHT + Math.sin(t * freq + a.phase) * a.amplitude * 0.06 * decay;
         a.mesh.position.x = a.baseX + Math.sin(t * freq * 1.3 + a.phase) * a.amplitude * 0.04 * decay;
         a.mesh.position.z = a.baseZ + Math.cos(t * freq * 0.9 + a.phase * 0.7) * a.amplitude * 0.04 * decay;
-        if (t >= 1) {
-          a.mesh.position.set(a.baseX, STONE_HEIGHT, a.baseZ);
-        }
+        if (t >= 1) a.mesh.position.set(a.baseX, STONE_HEIGHT, a.baseZ);
       }
 
       if (a.type === 'capture') {
-        // Shrink + rise + spin
         const s = a.fromScale * (1 - t);
         a.mesh.scale.set(s, s, s);
         a.mesh.position.y = STONE_HEIGHT + Math.sin(t * Math.PI) * 0.8;
@@ -591,52 +672,32 @@ const Board3D = (() => {
       if (t >= 1) stoneAnimations.splice(i, 1);
     }
 
-    // Entrance animation - board rises with log curve, stones ripple with sin/cos
-    if (entranceAnimActive) {
-      const elapsed = (now - entranceStartTime) / 1000;
-      if (elapsed < 2) {
-        // Board rises: logarithmic easing
-        const boardT = Math.min(1, Math.log(1 + elapsed * 3) / Math.log(7));
-        boardGroup.position.y = -3 * (1 - boardT);
-
-        // Stones wave: sin/cos ripple from center
-        const half = (boardSize - 1) / 2;
-        for (const [key, mesh] of stoneMeshes) {
-          const [sx, sy] = key.split(',').map(Number);
-          const dist = Math.hypot(sx - half, sy - half);
-          const wave = Math.sin(elapsed * 6 - dist * 0.5) * Math.cos(elapsed * 4) *
-                       Math.max(0, 0.3 * (1 - elapsed / 2));
-          mesh.position.y = STONE_HEIGHT + wave;
-        }
-      } else {
-        entranceAnimActive = false;
-        boardGroup.position.y = 0;
-        for (const [, mesh] of stoneMeshes) {
-          mesh.position.y = STONE_HEIGHT;
-        }
-      }
-    }
-
-    // Ghost stone
     renderGhostStone();
-
     renderer.render(scene, camera);
   }
 
-  let ghostMesh = null;
+  // Optimized ghost stone - reuse mesh
   function renderGhostStone() {
-    if (ghostMesh) {
-      stonesGroup.remove(ghostMesh);
-      ghostMesh.geometry.dispose();
-      ghostMesh = null;
+    if (suppressInput || !ghostStone || scoringMode || entranceAnimActive) {
+      if (_ghostMesh) _ghostMesh.visible = false;
+      return;
     }
-    if (!ghostStone || scoringMode) return;
-    const geo = new THREE.SphereGeometry(STONE_RADIUS, 24, 16);
-    geo.scale(1, 0.35, 1);
-    const mat = ghostStone.color === 1 ? ghostBlackMat : ghostWhiteMat;
-    ghostMesh = new THREE.Mesh(geo, mat);
-    ghostMesh.position.set(ghostStone.x, STONE_HEIGHT, ghostStone.y);
-    stonesGroup.add(ghostMesh);
+    if (!_ghostMesh) {
+      const geo = new THREE.SphereGeometry(STONE_RADIUS, 24, 16);
+      geo.scale(1, 0.35, 1);
+      _ghostMesh = new THREE.Mesh(geo, ghostBlackMat);
+      _ghostMesh.visible = false;
+      stonesGroup.add(_ghostMesh);
+    }
+    _ghostMesh.material = ghostStone.color === 1 ? ghostBlackMat : ghostWhiteMat;
+    _ghostMesh.position.set(ghostStone.x, STONE_HEIGHT, ghostStone.y);
+    _ghostMesh.visible = true;
+    if (placeReady) {
+      const pulse = 1 + Math.sin(performance.now() * 0.008) * 0.05;
+      _ghostMesh.scale.set(pulse, pulse, pulse);
+    } else {
+      _ghostMesh.scale.set(1, 1, 1);
+    }
   }
 
   function setSize(size) {
@@ -655,10 +716,7 @@ const Board3D = (() => {
     if (!val) influenceGroup.clear();
   }
 
-  function setScoringMode(val) {
-    scoringMode = val;
-  }
-
+  function setScoringMode(val) { scoringMode = val; }
   function setDeadStones(ds) {
     deadStones = new Set(ds.map(([x, y]) => `${x},${y}`));
     updateMarkers(lastMovePos);
@@ -666,7 +724,8 @@ const Board3D = (() => {
 
   function destroy() {
     if (animationId) cancelAnimationFrame(animationId);
-    renderer.dispose();
+    if (inputAbort) inputAbort.abort();
+    if (renderer) renderer.dispose();
   }
 
   return {

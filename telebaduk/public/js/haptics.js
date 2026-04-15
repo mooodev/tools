@@ -31,6 +31,8 @@ const Haptics = (() => {
       if (count > 3) setTimeout(() => impact('medium'), 100);
     },
     hover() { selection(); },
+    gridSnap() { selection(); },
+    confirmReady() { impact('medium'); },
     error() { notify('error'); },
     buttonTap() { impact('light'); },
     gameOver(won) {

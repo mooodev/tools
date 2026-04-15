@@ -11,35 +11,33 @@
   <!-- SCREEN: LOBBY -->
   <div id="screen-lobby" class="screen active">
     <div class="lobby-header">
-      <div class="lobby-title">Telebaduk</div>
-      <div class="lobby-subtitle">Play Go</div>
+      <div class="lobby-title" data-i18n="title">Телебадук</div>
+      <div class="lobby-subtitle" data-i18n="subtitle">Играть в Го</div>
+      <div class="lang-selector">
+        <button class="lang-btn" data-lang="en">EN</button>
+        <button class="lang-btn" data-lang="ru">RU</button>
+      </div>
     </div>
     <div class="tab-bar">
-      <button class="tab active" data-tab="my-games">My Games</button>
-      <button class="tab" data-tab="public-games">Watch</button>
+      <button class="tab active" data-tab="my-games" data-i18n="myGames">Мои игры</button>
+      <button class="tab" data-tab="public-games" data-i18n="watch">Смотреть</button>
     </div>
     <div id="tab-my-games" class="tab-content active">
       <div id="my-games-list" class="games-list">
-        <div class="empty-state">No games yet. Create one from the bot!</div>
+        <div class="empty-state" data-i18n="noGames">Пока нет игр. Создайте через бота!</div>
       </div>
     </div>
     <div id="tab-public-games" class="tab-content">
       <div id="public-games-list" class="games-list">
-        <div class="empty-state">No public games right now.</div>
+        <div class="empty-state" data-i18n="noPublicGames">Нет открытых игр.</div>
       </div>
     </div>
   </div>
 
   <!-- SCREEN: GAME -->
   <div id="screen-game" class="screen">
-    <!-- Top bar -->
+    <!-- Top bar - status only -->
     <div class="game-top">
-      <div class="player-bar opponent">
-        <div class="player-dot"></div>
-        <span class="player-name">Opponent</span>
-        <span class="player-captures">0</span>
-        <span class="player-territory" id="opp-territory"></span>
-      </div>
       <div class="game-status" id="game-status"></div>
     </div>
 
@@ -48,18 +46,26 @@
       <canvas id="board-canvas"></canvas>
     </div>
 
-    <!-- Bottom bar -->
+    <!-- Bottom bar - both players + controls -->
     <div class="game-bottom">
-      <div class="player-bar self">
-        <div class="player-dot"></div>
-        <span class="player-name">You</span>
-        <span class="player-captures">0</span>
-        <span class="player-territory" id="self-territory"></span>
+      <div class="players-row">
+        <div class="player-bar self-bar">
+          <div class="player-dot"></div>
+          <span class="player-name">You</span>
+          <span class="player-captures">0</span>
+          <span class="player-territory" id="self-territory"></span>
+        </div>
+        <div class="player-bar opp-bar">
+          <div class="player-dot"></div>
+          <span class="player-name">Opponent</span>
+          <span class="player-captures">0</span>
+          <span class="player-territory" id="opp-territory"></span>
+        </div>
       </div>
       <div class="controls">
-        <button class="ctrl-btn" id="btn-pass" title="Pass">Pass</button>
-        <button class="ctrl-btn" id="btn-redo" title="Request Redo">Redo</button>
-        <button class="ctrl-btn" id="btn-resign" title="Resign">Resign</button>
+        <button class="ctrl-btn" id="btn-pass" title="Pass" data-i18n="pass">Пас</button>
+        <button class="ctrl-btn" id="btn-redo" title="Request Redo" data-i18n="redo">Отмена</button>
+        <button class="ctrl-btn" id="btn-resign" title="Resign" data-i18n="resign">Сдаться</button>
         <button class="ctrl-btn icon-btn" id="btn-view" title="Toggle 3D/2D">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M12 3L2 8l10 5 10-5-10-5z"/><path d="M2 16l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
@@ -81,11 +87,11 @@
     <!-- Redo request overlay -->
     <div id="redo-overlay" class="overlay hidden">
       <div class="overlay-card">
-        <div class="overlay-title">Redo Request</div>
-        <div class="overlay-text">Opponent wants to undo their last move.</div>
+        <div class="overlay-title" data-i18n="redoRequest">Запрос отмены</div>
+        <div class="overlay-text" data-i18n="redoText">Соперник хочет отменить последний ход.</div>
         <div class="overlay-actions">
-          <button class="btn-primary" id="btn-accept-redo">Allow</button>
-          <button class="btn-secondary" id="btn-reject-redo">Deny</button>
+          <button class="btn-primary" id="btn-accept-redo" data-i18n="allow">Разрешить</button>
+          <button class="btn-secondary" id="btn-reject-redo" data-i18n="deny">Отклонить</button>
         </div>
       </div>
     </div>
@@ -93,30 +99,30 @@
     <!-- Scoring overlay -->
     <div id="scoring-overlay" class="overlay hidden">
       <div class="overlay-card">
-        <div class="overlay-title">Mark Dead Stones</div>
-        <div class="overlay-text">Tap groups to mark as dead. Both players confirm to finish.</div>
+        <div class="overlay-title" data-i18n="markDeadStonesTitle">Мёртвые камни</div>
+        <div class="overlay-text" data-i18n="markDeadStonesText">Нажмите на группы, чтобы отметить мёртвые. Оба игрока подтверждают.</div>
         <div class="score-display">
           <div class="score-side black">
-            <span class="score-label">Black</span>
+            <span class="score-label" data-i18n="black">Чёрные</span>
             <span class="score-value" id="score-black">0</span>
           </div>
-          <div class="score-vs">vs</div>
+          <div class="score-vs" data-i18n="vs">против</div>
           <div class="score-side white">
-            <span class="score-label">White</span>
+            <span class="score-label" data-i18n="white">Белые</span>
             <span class="score-value" id="score-white">0</span>
           </div>
         </div>
-        <button class="btn-primary" id="btn-confirm-score">Confirm Score</button>
+        <button class="btn-primary" id="btn-confirm-score" data-i18n="confirmScore">Подтвердить счёт</button>
       </div>
     </div>
 
     <!-- Game over overlay -->
     <div id="gameover-overlay" class="overlay hidden">
       <div class="overlay-card">
-        <div class="overlay-title" id="gameover-title">Game Over</div>
+        <div class="overlay-title" id="gameover-title" data-i18n="gameOver">Игра окончена</div>
         <div class="overlay-text" id="gameover-text"></div>
         <div class="score-display" id="gameover-scores"></div>
-        <button class="btn-primary" id="btn-back-lobby">Back to Games</button>
+        <button class="btn-primary" id="btn-back-lobby" data-i18n="backToGames">К списку игр</button>
       </div>
     </div>
 
@@ -124,14 +130,15 @@
     <div id="waiting-overlay" class="overlay hidden">
       <div class="overlay-card">
         <div class="waiting-spinner"></div>
-        <div class="overlay-title">Waiting for opponent</div>
-        <div class="overlay-text">Share the invite link from the bot.</div>
+        <div class="overlay-title" data-i18n="waitingForOpponentTitle">Ожидание соперника</div>
+        <div class="overlay-text" data-i18n="shareInvite">Отправьте ссылку-приглашение из бота.</div>
       </div>
     </div>
   </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+  <script src="js/i18n.js"></script>
   <script src="js/haptics.js"></script>
   <script src="js/sounds.js"></script>
   <script src="js/board3d.js"></script>

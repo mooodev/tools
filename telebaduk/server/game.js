@@ -199,7 +199,7 @@ class GoGame {
     this.gameOver = true;
     this.winner = this.opponent(color);
     this.result = {
-      winner: this.winner === BLACK ? 'Black' : 'White',
+      winner: this.winner,
       reason: 'resignation',
       display: `${this.winner === BLACK ? 'Black' : 'White'} wins by resignation`
     };
