@@ -45,8 +45,10 @@ const Sounds = (() => {
   }
 
   function stonePlace() {
-    noise(0.08, 0.2);
-    tone(220, 0.06, 'sine', 0.08);
+    // Sharp wood slam - baam!
+    noise(0.04, 0.4);
+    tone(150, 0.03, 'sine', 0.15);
+    tone(800, 0.02, 'sine', 0.05);
   }
 
   function capture(count) {
